@@ -1,0 +1,10 @@
+{
+  "id": "medical_conflict_01",
+  "description": "患者对推荐药物过敏。临床试验显示有效，但患者病史显示严重不良反应。",
+  "domain": "MedicalEthics",
+  "signals": [
+    { "frame": "Science", "value": 1, "phase": 0.8 },
+    { "frame": "Individual", "value": -1, "phase": 0.2 }
+  ],
+  "expected_behavior": "hold"
+}

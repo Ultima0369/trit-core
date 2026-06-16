@@ -1,0 +1,10 @@
+{
+  "id": "physical_crane_overload",
+  "description": "Crane operator's experience suggests load is safe, but wind-speed sensor data indicates marginal overload risk.",
+  "domain": "Physical",
+  "signals": [
+    { "frame": "Individual", "value": 1, "phase": 0.7 },
+    { "frame": "Science", "value": -1, "phase": 0.45 }
+  ],
+  "expected_behavior": "commit_false"
+}

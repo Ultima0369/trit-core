@@ -1,0 +1,11 @@
+{
+  "id": "general_negotiation_02",
+  "description": "Multi-domain budget allocation: finance, education, and health departments each propose different priorities with strong evidence.",
+  "domain": "General",
+  "signals": [
+    { "frame": "Science", "value": 1, "phase": 0.8 },
+    { "frame": "Consensus", "value": -1, "phase": 0.35 },
+    { "frame": "Individual", "value": 1, "phase": 0.9 }
+  ],
+  "expected_behavior": "negotiate"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "medical_conflict_03",
+  "description": "Vaccine mandate debate. Population-level data supports mandate, but a minority group has documented adverse reaction risk.",
+  "domain": "MedicalEthics",
+  "signals": [
+    { "frame": "Science", "value": 1, "phase": 0.75 },
+    { "frame": "Consensus", "value": 1, "phase": 0.7 },
+    { "frame": "Individual", "value": -1, "phase": 0.35 }
+  ],
+  "expected_behavior": "hold"
+}
