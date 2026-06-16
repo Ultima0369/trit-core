@@ -10,9 +10,32 @@ impl Phase {
     pub const FULL_TRUE: f64 = 1.0;
     pub const FULL_FALSE: f64 = 0.0;
 
+    /// Construct a Phase, clamping out-of-range values to [0.0, 1.0].
+    /// NaN and Infinity are clamped to NEUTRAL (0.5).
+    /// Logs a warning at the tracing layer when clamping occurs.
     pub fn new(v: f64) -> Self {
-        assert!((0.0..=1.0).contains(&v), "Phase must be in [0.0, 1.0]");
+        if v.is_nan() || v.is_infinite() {
+            tracing::warn!(value = %v, "Phase is NaN/Inf, clamping to NEUTRAL (0.5)");
+            return Phase(0.5);
+        }
+        if !(0.0..=1.0).contains(&v) {
+            let clamped = v.clamp(0.0, 1.0);
+            tracing::warn!(original = %v, clamped = %clamped, "Phase out of range, clamped");
+            return Phase(clamped);
+        }
         Phase(v)
+    }
+
+    /// Strict constructor: returns Err for invalid values.
+    /// Use this when the caller needs to reject bad input rather than clamp.
+    pub fn try_new(v: f64) -> Result<Self, String> {
+        if v.is_nan() || v.is_infinite() {
+            return Err(format!("Phase must be finite, got: {}", v));
+        }
+        if !(0.0..=1.0).contains(&v) {
+            return Err(format!("Phase must be in [0.0, 1.0], got: {}", v));
+        }
+        Ok(Phase(v))
     }
 
     pub fn inner(self) -> f64 {

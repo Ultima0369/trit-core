@@ -6,16 +6,22 @@ use crate::net::node::Node;
 use crate::net::pll::PllController;
 use crate::trit::{TritValue, TritWord};
 
+/// Maximum number of messages retained in the log (ring buffer).
+const MAX_MESSAGE_LOG: usize = 10_000;
+/// Maximum number of registered nodes.
+const MAX_NODES: usize = 256;
+
 /// In-memory message bus for local multi-node simulation.
 ///
 /// Routes messages between nodes, applies PLL corrections,
-/// and manages the coupling lifecycle.
+/// and manages the coupling lifecycle. Message log is a capped
+/// ring buffer to prevent unbounded memory growth (CWE-770).
 pub struct ResonanceBus {
     /// All registered nodes indexed by id.
     pub nodes: HashMap<String, Node>,
     /// PLL controllers per node id.
     pub plls: HashMap<String, PllController>,
-    /// Message log for audit trail.
+    /// Message log for audit trail (capped ring buffer).
     pub message_log: Vec<Message>,
 }
 
@@ -28,8 +34,17 @@ impl ResonanceBus {
         }
     }
 
-    /// Register a node on the bus.
+    /// Register a node on the bus. Rejects registration if the node limit
+    /// (MAX_NODES) has been reached (CWE-770).
     pub fn register(&mut self, node: Node) {
+        if self.nodes.len() >= MAX_NODES {
+            tracing::warn!(
+                node_id = %node.id,
+                "Max nodes ({}) reached, rejecting registration",
+                MAX_NODES
+            );
+            return;
+        }
         self.plls.insert(node.id.clone(), PllController::new());
         self.nodes.insert(node.id.clone(), node);
     }
@@ -79,8 +94,8 @@ impl ResonanceBus {
             conflict_detected,
             recommendation,
         );
-        self.message_log.push(msg.clone());
-        self.message_log.push(ack.clone());
+        self.push_log(msg.clone());
+        self.push_log(ack.clone());
 
         // Update sender state
         if let Some(from_node) = self.nodes.get_mut(from_id) {
@@ -174,7 +189,7 @@ impl ResonanceBus {
             phases,
             conflict_resolution,
         );
-        self.message_log.push(msg);
+        self.push_log(msg);
 
         let result = if has_cross_frame {
             TritWord::hold(Frame::Meta)
@@ -193,6 +208,14 @@ impl ResonanceBus {
     /// Get a node by id.
     pub fn get_node(&self, id: &str) -> Option<&Node> {
         self.nodes.get(id)
+    }
+
+    /// Push a message to the log, capping at MAX_MESSAGE_LOG (ring buffer).
+    fn push_log(&mut self, msg: Message) {
+        if self.message_log.len() >= MAX_MESSAGE_LOG {
+            self.message_log.remove(0);
+        }
+        self.message_log.push(msg);
     }
 }
 
