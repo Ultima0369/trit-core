@@ -1,36 +1,20 @@
-// Distributed node protocol (M2+ stage).
-// Placeholder for future T_RESONATE / T_DECOUPLE implementation.
+// Distributed node protocol (M4).
+//
+// Implements T_RESONATE / T_DECOUPLE operations for multi-node
+// harmonic coupling based on ADR-004.
+//
+// Architecture:
+//   node.rs     — Node struct, NodeState machine, sovereign identity
+//   message.rs  — Protocol message types (RESONATE_REQ/ACK, DECOUPLE_REQ/ACK, NEGOTIATE)
+//   pll.rs      — Software phase-locked loop controller
+//   bus.rs      — ResonanceBus: in-memory message bus for local multi-node simulation
 
-/// Sovereign node in a distributed Trit-Core network.
-#[derive(Debug, Clone)]
-pub struct Node {
-    pub id: String,
-    pub frame: crate::frame::Frame,
-    pub phase: f64,
-}
+pub mod bus;
+pub mod message;
+pub mod node;
+pub mod pll;
 
-impl Node {
-    pub fn new(id: String, frame: crate::frame::Frame, phase: f64) -> Self {
-        Self { id, frame, phase }
-    }
-}
-
-/// Resonate with peer nodes (constructive interference).
-/// Returns the combined phase and value after coupling.
-pub fn resonate(nodes: &[Node]) -> Option<crate::trit::TritWord> {
-    if nodes.is_empty() {
-        return None;
-    }
-    // M2+ implementation: compute phase-weighted average
-    let avg_phase = nodes.iter().map(|n| n.phase).sum::<f64>() / nodes.len() as f64;
-    Some(crate::trit::TritWord::new(
-        crate::trit::TritValue::Hold,
-        avg_phase,
-        crate::frame::Frame::Meta,
-    ))
-}
-
-/// Decouple from network, return to independent oscillation.
-pub fn decouple(node: &Node) -> Node {
-    Node::new(node.id.clone(), node.frame.clone(), node.phase)
-}
+pub use bus::ResonanceBus;
+pub use message::{Message, MessageHeader, NegotiatePayload, OpCode, ResonateAck, ResonateReq};
+pub use node::{Node, NodeState};
+pub use pll::PllController;

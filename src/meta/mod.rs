@@ -15,7 +15,7 @@ pub enum Domain {
 }
 
 /// Policy engine that decides how to resolve conflicts.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ResolutionPolicy {
     pub domain: Domain,
 }
@@ -94,6 +94,7 @@ pub enum ConflictType {
     PolicyViolation,
 }
 
+#[derive(Debug, Clone)]
 pub struct MetaMonitor {
     #[allow(dead_code)]
     policy: ResolutionPolicy,
