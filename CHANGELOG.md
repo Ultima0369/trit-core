@@ -22,9 +22,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Benchmark suite (`criterion`) for TAND, TOR, TNOT, cascade operations.
 - Preprint (`docs/preprint.md`): 10+ page research paper with abstract, architecture, validation, references.
 - M2 validation report (`docs/validation-report.md`): ternary vs binary comparison across 12 scenarios.
+- M4 distributed protocol (ADR-004): T_RESONATE/T_DECOUPLE with PLL, ResonanceBus, message types.
+- Distributed node implementation (`src/net/`): Node, PllController, ResonanceBus, protocol messages.
+- M4 protocol tests (11 tests): PLL correction, resonance coupling, negotiation, decoupling.
+- Chinese preprint (`docs/zh/preprint.zh.md`): full 10+ page Chinese translation of preprint.
 - Observability via `tracing` in core algebra and policy engine.
 - `#![deny(warnings)]` and `#![forbid(unsafe_code)]` enforced.
 - CLAUDE.md for Claude Code guidance; Serena project memories initialized.
+- Git repository initialized with initial commit (no remote push).
+- Total: 34 tests, 0 failures, 0 warnings, 0 clippy issues.
 
 ### Engineering
 - Modular monolith structure: `trit/`, `frame/`, `meta/`, `clock/`, `sandbox/`, `net/`.

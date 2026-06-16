@@ -89,8 +89,8 @@
 **Goal**: Multi-node harmonic coupling over localhost/network.
 
 **Deliverables**:
-- [ ] `src/net/` module (Node, Resonate, Decouple)
-- [ ] Phase-lock loop (PLL) simulation for node synchronization
+- [x] `src/net/` module (Node, Resonate, Decouple)
+- [x] Phase-lock loop (PLL) simulation for node synchronization
 - [ ] `trit-node` binary for running a sovereign node
 - [ ] Docker compose setup for 3-node local cluster
 
