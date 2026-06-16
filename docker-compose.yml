@@ -1,0 +1,46 @@
+# Trit-Core M4: 3-node distributed cluster demonstration.
+#
+# Nodes:
+#   node-science     — Frame: Science, phase: 0.75 (empirical data)
+#   node-individual  — Frame: Individual, phase: 0.35 (patient context)
+#   node-consensus   — Frame: Consensus, phase: 0.60 (group preference)
+#
+# Usage:
+#   docker compose up --build
+#   docker compose down
+#
+# Each node starts in SOVEREIGN state and listens on stdin for commands.
+# In production, nodes would bind TCP ports and exchange JSON messages.
+# For MVP demonstration, nodes start with pre-configured peers.
+
+services:
+  node-science:
+    build: .
+    container_name: trit-science
+    command: ["--frame", "Science", "--phase", "0.75", "--id", "science-node"]
+    stdin_open: true
+    tty: true
+    networks:
+      - trit-net
+
+  node-individual:
+    build: .
+    container_name: trit-individual
+    command: ["--frame", "Individual", "--phase", "0.35", "--id", "individual-node"]
+    stdin_open: true
+    tty: true
+    networks:
+      - trit-net
+
+  node-consensus:
+    build: .
+    container_name: trit-consensus
+    command: ["--frame", "Consensus", "--phase", "0.60", "--id", "consensus-node"]
+    stdin_open: true
+    tty: true
+    networks:
+      - trit-net
+
+networks:
+  trit-net:
+    driver: bridge

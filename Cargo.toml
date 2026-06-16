@@ -28,6 +28,10 @@ path = "src/lib.rs"
 name = "trit-sandbox"
 path = "src/bin/sandbox.rs"
 
+[[bin]]
+name = "trit-node"
+path = "src/bin/node.rs"
+
 [[bench]]
 name = "trit_bench"
 harness = false

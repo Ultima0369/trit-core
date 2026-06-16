@@ -91,8 +91,8 @@
 **Deliverables**:
 - [x] `src/net/` module (Node, Resonate, Decouple)
 - [x] Phase-lock loop (PLL) simulation for node synchronization
-- [ ] `trit-node` binary for running a sovereign node
-- [ ] Docker compose setup for 3-node local cluster
+- [x] `trit-node` binary for running a sovereign node
+- [x] Docker compose setup for 3-node local cluster
 
 **Acceptance Criteria**:
 - 3 nodes with different domains can couple and produce a negotiated Hold output.
