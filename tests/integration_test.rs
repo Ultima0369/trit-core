@@ -86,14 +86,7 @@ mod scenario_tests {
     ) -> (TritValue, Vec<String>, ArbitrationResult) {
         let trits: Vec<TritWord> = signals
             .iter()
-            .map(|(frame, val, phase)| {
-                let v = match val {
-                    1 => TritValue::True,
-                    -1 => TritValue::False,
-                    _ => TritValue::Hold,
-                };
-                TritWord::new(v, *phase, frame.clone())
-            })
+            .map(|(frame, val, phase)| TritWord::new(TritValue::from(*val), *phase, frame.clone()))
             .collect();
 
         let policy = ResolutionPolicy::new(domain);

@@ -159,18 +159,8 @@ fn main() {
         .signals
         .iter()
         .map(|s| {
-            let frame = match s.frame.as_str() {
-                "Science" => Frame::Science,
-                "Individual" => Frame::Individual,
-                "Consensus" => Frame::Consensus,
-                "Absolute" => Frame::Absolute,
-                _ => Frame::Meta,
-            };
-            let val = match s.value {
-                1 => TritValue::True,
-                -1 => TritValue::False,
-                _ => TritValue::Hold,
-            };
+            let frame: Frame = s.frame.parse().unwrap_or(Frame::Meta);
+            let val = TritValue::from(s.value);
             TritWord::new(val, s.phase, frame)
         })
         .collect();

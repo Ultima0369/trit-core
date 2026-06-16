@@ -26,3 +26,13 @@ impl TritValue {
         }
     }
 }
+
+impl From<i8> for TritValue {
+    fn from(v: i8) -> Self {
+        match v {
+            1 => TritValue::True,
+            -1 => TritValue::False,
+            _ => TritValue::Hold,
+        }
+    }
+}

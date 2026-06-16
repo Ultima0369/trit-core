@@ -22,6 +22,21 @@ impl std::fmt::Display for Frame {
     }
 }
 
+impl std::str::FromStr for Frame {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Science" => Ok(Frame::Science),
+            "Individual" => Ok(Frame::Individual),
+            "Consensus" => Ok(Frame::Consensus),
+            "Absolute" => Ok(Frame::Absolute),
+            "Meta" => Ok(Frame::Meta),
+            unknown => Err(format!("Unknown frame: '{}'", unknown)),
+        }
+    }
+}
+
 /// Registry of active frames in a computation session.
 pub struct FrameRegistry {
     frames: Vec<Frame>,

@@ -7,6 +7,21 @@ use tracing::{debug, trace, warn};
 pub struct TernaryAlgebra;
 
 impl TernaryAlgebra {
+    /// Shared cross-frame conflict handler — used by both TAND and TOR.
+    fn cross_frame_conflict(
+        op_name: &str,
+        a: &TritWord,
+        b: &TritWord,
+    ) -> (TritWord, Option<MetaInterrupt>) {
+        let hold = TritWord::new(TritValue::Hold, 0.5, Frame::Meta);
+        let interrupt = MetaInterrupt::new(
+            ConflictType::FrameMismatch,
+            format!("{} conflict: {} vs {}", op_name, a.frame, b.frame),
+        );
+        warn!(reason = %interrupt.reason, "cross-frame conflict detected");
+        (hold, Some(interrupt))
+    }
+
     /// TAND: harmonic conjunction.
     /// - Same frame: standard ternary logic with phase averaging.
     /// - Different frame: produces Hold + triggers MetaInterrupt.
@@ -17,13 +32,7 @@ impl TernaryAlgebra {
                "entering TAND");
 
         if a.frame != b.frame {
-            let hold = TritWord::new(TritValue::Hold, 0.5, Frame::Meta);
-            let interrupt = MetaInterrupt::new(
-                ConflictType::FrameMismatch,
-                format!("TAND conflict: {} vs {}", a.frame, b.frame),
-            );
-            warn!(reason = %interrupt.reason, "cross-frame conflict detected");
-            return (hold, Some(interrupt));
+            return Self::cross_frame_conflict("TAND", a, b);
         }
 
         let val = match (a.value, b.value) {
@@ -43,13 +52,7 @@ impl TernaryAlgebra {
         trace!(a_frame = %a.frame, b_frame = %b.frame, "entering TOR");
 
         if a.frame != b.frame {
-            let hold = TritWord::new(TritValue::Hold, 0.5, Frame::Meta);
-            let interrupt = MetaInterrupt::new(
-                ConflictType::FrameMismatch,
-                format!("TOR conflict: {} vs {}", a.frame, b.frame),
-            );
-            warn!(reason = %interrupt.reason, "cross-frame conflict detected");
-            return (hold, Some(interrupt));
+            return Self::cross_frame_conflict("TOR", a, b);
         }
 
         let val = match (a.value, b.value) {
