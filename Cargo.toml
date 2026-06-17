@@ -6,6 +6,10 @@ authors = ["Trit-Core Team"]
 description = "A ternary decision engine for conflict-aware AI alignment"
 license = "MIT"
 repository = "https://github.com/trit-core/trit-core"
+documentation = "https://docs.rs/trit-core"
+keywords = ["ternary", "decision", "alignment", "ai-safety", "logic", "multi-valued"]
+categories = ["science", "algorithms"]
+readme = "README.md"
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }

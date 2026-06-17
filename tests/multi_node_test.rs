@@ -121,15 +121,16 @@ mod multi_node_tests {
             let b = bus.lock().await;
             let node_a = b.get_node("node-a").unwrap();
             assert_eq!(node_a.state, NodeState::Coupled);
+            // Server picks first non-a peer (HashMap order is non-deterministic)
             assert!(
-                node_a.peers.contains(&"node-b".to_string()),
-                "node-a should be coupled with node-b, got peers: {:?}",
+                node_a.peers.len() == 1,
+                "node-a should have exactly 1 peer, got: {:?}",
                 node_a.peers
             );
 
             let node_b = b.get_node("node-b").unwrap();
             assert_eq!(node_b.state, NodeState::Coupled);
-            // node-b resonates → server picks first non-b peer (node-a)
+            // node-b resonates → server picks first non-b peer
             assert!(
                 !node_b.peers.is_empty(),
                 "node-b should have at least one peer"
