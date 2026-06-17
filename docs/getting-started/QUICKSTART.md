@@ -67,13 +67,24 @@ cargo run --release --bin trit-sandbox -- --scenario scenarios/crane_overload.js
 cargo test --all-features
 ```
 
-预期：170 个测试全部通过。
+预期：227 个测试全部通过。
 
-### 7. 运行分布式节点（可选）
+### 7. 运行基准测试（可选）
 
 ```bash
-# 启动一个 Science 帧节点
+cargo bench
+```
+
+29 个 Criterion 基准测试，分为 9 个组（微基准 5 组 + 端到端 4 组）。端到端性能远超 10,000 TPS 目标。
+
+### 8. 运行分布式节点（可选）
+
+```bash
+# 启动一个 Science 帧节点（独立模式）
 cargo run --release --bin trit-node -- --frame Science --phase 0.75 --id my-node
+
+# 带种子发现的 3 节点网格
+cargo run --release --bin trit-node -- --frame Science --phase 0.75 --id node-a --port 9000 --peers "127.0.0.1:9001,127.0.0.1:9002"
 ```
 
 ---

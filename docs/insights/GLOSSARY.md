@@ -128,7 +128,7 @@ Trit-Core 的核心计算模型：TAND、TOR、TNOT 加 Phase 算术。
 
 ### Hot Path (热路径)
 同 Frame 的操作路径。使用标准三值真值表 + Phase 均值，不产生 MetaInterrupt。约占操作总量的 80%。
-**延迟**: ~3ns
+**延迟**: ~1.5ns
 **参见**: Cold Path
 
 ---

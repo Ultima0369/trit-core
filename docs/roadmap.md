@@ -73,7 +73,7 @@
 - [x] GitHub repository initialized with `main` branch
 - [x] MIT LICENSE
 - [x] README.md with build instructions and architecture diagram
-- [x] `docs/whitepaper.md` finalized
+- [x] `docs/technical-whitepaper.md` finalized
 - [x] `docs/adr/` complete with 3 ADRs
 - [x] Preprint markdown (10–15 pages) in `docs/preprint.md`
 - [ ] crates.io publication (optional, if stable)

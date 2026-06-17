@@ -69,13 +69,14 @@ cargo clippy --all-targets --all-features -- -D warnings
 |---|---|---|
 | 单元测试 | `src/**/*.rs`（`#[cfg(test)]` 模块） | 每个模块的内部测试 |
 | 集成测试 | `tests/integration_test.rs` | 跨模块场景测试 |
+| 多节点测试 | `tests/multi_node_test.rs` | TCP 网格集成测试（9 个） |
 | 属性测试 | `tests/proptest.rs` | 随机化不变性验证 |
-| 基准测试 | `benches/trit_bench.rs` | Criterion 性能基准 |
+| 基准测试 | `benches/trit_bench.rs` | Criterion 性能基准（29 个，9 组） |
 
 ### 4.2 运行测试
 
 ```bash
-cargo test --all-features          # 全部测试（170 个）
+cargo test --all-features          # 全部测试（227 个）
 cargo test -- trit_tests           # 特定模块
 cargo test -- proptest             # 仅属性测试
 cargo bench                        # 基准测试

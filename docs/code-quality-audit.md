@@ -15,7 +15,7 @@
 | **命名规范** | 4/5 | 大部分良好。"代数"模块名 `TernaryAlgebra` 准确。`run_pipeline` 略宽泛。 |
 | **重复代码 (DRY)** | 3/5 | `sandbox.rs` 与 `integration_test.rs` 中 frame/value 映射逻辑完全重复。`TAND`/`TOR` 跨帧检测块重复。 |
 | **错误处理** | 3/5 | 核心库使用 `MetaInterrupt` 模式良好。`bus.rs` 中有 4 处 `unwrap()` 用于测试假设。 |
-| **测试覆盖** | 4/5 | 34 测试覆盖核心路径，但 `HarmonicClock`、`FrameRegistry`、`Node.to_trit()`、`Node.enter_hold()` 无直接测试。 |
+| **测试覆盖** | 4/5 | 227 测试覆盖核心路径，但 `HarmonicClock`、`FrameRegistry`、`Node.to_trit()`、`Node.enter_hold()` 无直接测试。 |
 
 **综合得分**: **3.5 / 5** — MVP 阶段可接受，M3 前需修复 P2 问题。
 

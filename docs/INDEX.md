@@ -11,6 +11,7 @@
 | 想理解架构和数学 | [CONCEPTS](concepts/CONCEPTS.md) → [ARCHITECTURE](concepts/ARCHITECTURE.md) → [ADR 系列](adr/) |
 | 想集成到自己的项目 | [API 参考](api.md) → [MODULES](development/MODULES.md) → [CUSTOM_RULE](usage/CUSTOM_RULE.md) |
 | 想贡献代码 | [CONTRIBUTING](development/CONTRIBUTING.md) → [MODULES](development/MODULES.md) → [BENCHMARK](development/BENCHMARK.md) |
+| 想评审或审计项目 | [REVIEWER_GUIDE](REVIEWER_GUIDE.md) → [performance-validation](performance-validation.md) → [security-audit](security-audit.md) |
 | 想理解深层动机和未来 | [PHILOSOPHY](concepts/PHILOSOPHY.md) → [FUTURE](insights/FUTURE.md) → [CONFLICT_CATALOG](insights/CONFLICT_CATALOG.md) |
 
 ---
@@ -59,21 +60,29 @@
 
 ---
 
+### 📊 第六层：报告与审计
+
+| 文档 | 内容 |
+|---|---|
+| [validation-report](validation-report.md) | M2 三元 vs 二元对比验证（12 个场景） |
+| [performance-validation](performance-validation.md) | 端到端性能验证（TPS 对比、瓶颈分析） |
+| [security-audit](security-audit.md) | 应用安全审计（P1/P2 已修复） |
+| [code-quality-audit](code-quality-audit.md) | 代码质量审计（SOLID/DRY/复杂度） |
+| [REVIEWER_GUIDE](REVIEWER_GUIDE.md) | 评审者指引（核心声明验证步骤） |
+
+---
+
 ## 历史文档（保留）
 
 以下文档在开发过程中产生，保持原位以供追溯：
 
 | 文档 | 内容 |
 |---|---|
-| [whitepaper.md](whitepaper.md) | 技术规格书（v0.1.0-alpha） |
-| [technical-whitepaper.md](technical-whitepaper.md) | 扩展技术白皮书 |
+| [technical-whitepaper.md](technical-whitepaper.md) | 技术白皮书（中文，v0.1.0-alpha） |
 | [preprint.md](preprint.md) | 预印本（英文，10+ 页） |
 | [api.md](api.md) | 公共 API 合约 |
 | [roadmap.md](roadmap.md) | 里程碑计划 |
-| [validation-report.md](validation-report.md) | M2 三元 vs 二元对比验证 |
-| [security-audit.md](security-audit.md) | 应用安全审计 |
-| [code-quality-audit.md](code-quality-audit.md) | 代码质量审计 |
-| [performance-audit.md](performance-audit.md) | 性能审计 |
+| [CHANGELOG.md](../CHANGELOG.md) | 变更日志 |
 | [adr/](adr/) | 架构决策记录（4 篇） |
 | [zh/](zh/) | 中文翻译（预印本、白皮书、ADR、路线图、API） |
 

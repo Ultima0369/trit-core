@@ -73,7 +73,7 @@
 - [x] GitHub 仓库公开（`main` 分支）
 - [x] MIT LICENSE
 - [x] README.md（含架构图与构建说明）
-- [x] `docs/whitepaper.md` 定稿
+- [x] `docs/technical-whitepaper.md` 定稿
 - [x] `docs/adr/` 3 篇 ADR 完成
 - [x] 预印本 Markdown（10–15 页）
 - [x] （可选）crates.io 发布

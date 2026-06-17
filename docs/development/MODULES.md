@@ -98,7 +98,7 @@
 
 ---
 
-## `net/` — 分布式协议（M4，存根）
+## `net/` — 分布式协议（M4–M6）
 
 ### 文件
 
@@ -107,6 +107,7 @@
 | `mod.rs` | 27 | 模块声明 + 重导出 |
 | `bus.rs` | 91 | ResonanceBus 消息总线 |
 | `coupling.rs` | 209 | 耦合生命周期（RESONATE/DECOUPLE） |
+| `discovery.rs` | NEW | 种子节点发现（M6） |
 | `frame_codec.rs` | NEW | TCP 长度前缀帧协议（M5） |
 | `message.rs` | 192 | 协议消息类型与构造器 |
 | `negotiate.rs` | 109 | 多节点协商（单次遍历） |
@@ -136,6 +137,8 @@
 | `TcpClient::decouple` | `async fn decouple(&mut self, ...) -> io::Result<Message>` | 发送 DECOUPLE_REQ（M5） |
 | `read_frame` | `async fn read_frame<R>(reader: &mut R) -> io::Result<Vec<u8>>` | 从流中读取一帧（M5） |
 | `write_frame` | `async fn write_frame<W>(writer: &mut W, payload: &[u8]) -> io::Result<()>` | 向流中写入一帧（M5） |
+| `parse_seeds` | `fn parse_seeds(seeds: &str) -> Vec<String>` | 解析逗号分隔的 `host:port` 种子列表（M6） |
+| `bootstrap` | `async fn bootstrap(bus, local_id, seeds) -> usize` | 连接种子节点并交换 HEARTBEAT（M6） |
 
 ### 设计约束
 

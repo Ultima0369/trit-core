@@ -49,4 +49,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `phase: f64` may introduce precision drift over long cascades (ADR-002).
 - TCP transport requires tokio runtime; not suitable for embedded/no_std contexts.
 - No formal verification (Coq/Lean) attached.
-- Performance target (10,000 TPS) validated at micro-benchmark level; end-to-end benchmarks pending.
+- Performance target (10,000 TPS) validated at both micro-benchmark and end-to-end level; 29 criterion benchmarks across 9 groups; 10,000 TPS target exceeded by 65-101x (see docs/performance-validation.md).

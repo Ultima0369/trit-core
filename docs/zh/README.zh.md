@@ -51,12 +51,15 @@ Trit-Core 是一个**三值决策引擎**，用于处理人类中心场景中的
 | `src/trit/` | 三值代数核心：TritValue、Phase、TAND/TOR/TNOT |
 | `src/frame/` | 参考系注册：科学、个体、共识、绝对、元 |
 | `src/meta/` | 元监控与策略引擎：域规则、仲裁、冲突日志 |
-| `src/clock/` | 谐波时钟（MVP 占位） |
+| `src/clock/` | 谐波时钟 |
 | `src/sandbox/` | 沙盒数据结构 |
+| `src/net/` | 分布式协议（M4–M6）：TCP 传输、PLL 锁相环、种子发现 |
+| `src/baseline/` | 二元基线对比（验证用） |
 | `src/bin/sandbox.rs` | 命令行工具（CLI） |
+| `src/bin/node.rs` | 分布式节点入口 |
 | `docs/zh/` | **中文技术文档**（ADR、白皮书、路线图、API） |
 | `scenarios/` | 测试场景（JSON） |
-| `tests/` | 单元测试与集成测试 |
+| `tests/` | 单元测试与集成测试（227 个） |
 
 ---
 
@@ -84,10 +87,16 @@ cargo run --bin trit-sandbox -- --scenario scenarios/medical_conflict_01.json
 | 文档 | 英文版 | 中文版 |
 |------|--------|--------|
 | 项目说明 | `README.md` | `docs/zh/README.zh.md`（本文） |
+| 文档导航 | `docs/INDEX.md` | — |
 | 架构决策记录 | `docs/adr/` | `docs/zh/adr/` |
-| 技术白皮书 | `docs/whitepaper.md` | `docs/zh/whitepaper.zh.md` |
+| 技术白皮书 | `docs/technical-whitepaper.md` | `docs/zh/whitepaper.zh.md` |
 | 路线图与验收 | `docs/roadmap.md` | `docs/zh/roadmap.zh.md` |
 | API 契约 | `docs/api.md` | `docs/zh/api.zh.md` |
+| 学术预印本 | `docs/preprint.md` | `docs/zh/preprint.zh.md` |
+| 架构审计 | `docs/zh/architecture-audit.zh.md` | `docs/zh/architecture-audit.zh.md` |
+| 性能验证 | `docs/performance-validation.md` | — |
+| 安全审计 | `docs/security-audit.md` | — |
+| 评审者指引 | `docs/REVIEWER_GUIDE.md` | — |
 
 ---
 

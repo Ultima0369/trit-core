@@ -51,7 +51,7 @@ Input Layer (multi-source signals)
 | `src/clock/` | Phase oscillator and time-scale management |
 | `src/sandbox/` | CLI simulation environment |
 | `src/baseline/` | Binary baseline comparator for validation |
-| `src/net/` | Distributed node protocol (M4: T_RESONATE / T_DECOUPLE) |
+| `src/net/` | Distributed node protocol (M4-M6: TCP, PLL, seed discovery) |
 | `docs/` | Architecture Decision Records (ADRs), whitepaper, preprint |
 | `tests/` | Unit tests and scenario integration tests |
 | `scenarios/` | Human-centric advisory cases (JSON, 17 files) |
@@ -70,7 +70,7 @@ Input Layer (multi-source signals)
 # Build
 cargo build --release
 
-# Run all tests (34 tests)
+# Run all tests
 cargo test --all-features
 
 # Run a single test
@@ -125,16 +125,20 @@ Across 12 human-centric advisory scenarios:
 - [Future](docs/insights/FUTURE.md) — known limitations and possible resolution paths
 - [Glossary](docs/insights/GLOSSARY.md) — all terms defined, with cross-disciplinary mappings
 
+### Reports & Audits
+- [Validation Report](docs/validation-report.md) — M2 ternary vs binary comparison
+- [Performance Validation](docs/performance-validation.md) — end-to-end TPS benchmarks and bottleneck analysis
+- [Security Audit](docs/security-audit.md) — AppSec audit (P1/P2 fixes applied)
+- [Code Quality Audit](docs/code-quality-audit.md) — SOLID/DRY/complexity audit
+- [Reviewer Guide](docs/REVIEWER_GUIDE.md) — how to verify core claims
+
 ### Historical Documents
 | Document | Description |
 |----------|-------------|
-| `docs/whitepaper.md` | Technical specification (v0.1.0-alpha) |
+| `docs/technical-whitepaper.md` | Technical whitepaper (Chinese) |
 | `docs/preprint.md` | Research paper (10+ pages, English) |
 | `docs/zh/preprint.zh.md` | Research paper (Chinese) |
 | `docs/roadmap.md` | Milestone plan and acceptance criteria |
-| `docs/validation-report.md` | M2 ternary vs binary comparison |
-| `docs/security-audit.md` | AppSec audit (P1/P2 fixes applied) |
-| `docs/code-quality-audit.md` | SOLID/DRY/complexity audit |
 | `docs/adr/` | Architecture Decision Records (4 ADRs) |
 | `docs/zh/` | Chinese translations (whitepaper, ADRs, roadmap, API) |
 

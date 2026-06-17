@@ -109,4 +109,4 @@ JSON scenario → ScenarioInput → TritWord[] → TAND cascade → MetaInterrup
 - `phase: f64` may drift over long cascades (see ADR-002).
 - TCP transport requires tokio runtime; not suitable for embedded/no_std contexts.
 - No formal verification (Coq/Lean).
-- Performance target (10,000 TPS) validated at micro-benchmark level (~3ns/op hot path, ~333M ops/s theoretical); end-to-end benchmarks (JSON I/O, TCP roundtrip, concurrent bus) are planned.
+- Performance target (10,000 TPS) validated at micro-benchmark and end-to-end level (~3ns/op hot path, ~333M ops/s theoretical, 658K-1.02M end-to-end TPS); see `docs/performance-validation.md`.
