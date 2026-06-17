@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc bb4c448bdfee38ea5e1fa7c39daad573d88965b8e78ffa10f9c9f192cc63a29c # shrinks to (a, b) = (TritWord { value: Unknown, phase: Phase(0.0), frame: Science }, TritWord { value: True, phase: Phase(0.0), frame: Science })
+cc 5c18de05668405223b88de2f1024dc26d1b5ed2cb9920ab2d585f36fb34bf8ad # shrinks to (a, b) = (TritWord { value: Unknown, phase: Phase(0.0), frame: Science }, TritWord { value: True, phase: Phase(0.0), frame: Science })
