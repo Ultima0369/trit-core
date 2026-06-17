@@ -12,22 +12,27 @@ cargo bench
 
 ## 基准测试内容
 
-基准测试文件：`benches/trit_bench.rs`
+基准测试文件：`benches/trit_bench.rs`，包含 5 个 criterion 组。
 
 | 基准 | 测量内容 |
 |---|---|
-| `tand_hot` | 热路径 TAND（同帧，无 MetaInterrupt 分配） |
-| `tand_cold` | 冷路径 TAND（跨帧，含 MetaInterrupt 分配） |
-| `tor_hot` | 热路径 TOR |
-| `tor_cold` | 冷路径 TOR |
+| `tand_same_frame` | 同帧 TAND（热路径，无 MetaInterrupt） |
+| `tand_cross_frame` | 跨帧 TAND（冷路径，含 MetaInterrupt 分配） |
+| `tor_same_frame` | 同帧 TOR |
+| `tor_cross_frame` | 跨帧 TOR |
 | `tnot` | TNOT 操作 |
-| `phase_mean` | Phase 均值计算 |
-| `phase_complement` | Phase 互补计算 |
-| `arbitrate_physical` | Physical 域仲裁 |
-| `arbitrate_medical` | MedicalEthics 域仲裁 |
-| `safe_fallback_guard` | SafeFallback 守卫检查 |
-| `cascade_10` | 10 个 TritWord 的 TAND 级联 |
-| `cascade_100` | 100 个 TritWord 的 TAND 级联 |
+| `tand_hot_path` | `t_and_hot` 热路径（跳过帧检查） |
+| `tor_hot_path` | `t_or_hot` 热路径 |
+| `precheck_same_frame` | 帧一致性预检查 |
+| `tand_cascade_10` | 10 个 TritWord 的 TAND 级联（跨帧混合） |
+| `tand_cascade_10_hot` | 10 个同帧 TritWord 热路径级联 |
+| `tand_cascade_100_hot` | 100 个同帧 TritWord 热路径级联 |
+| `cross_domain_tand_100pairs` | 100 对跨域 TAND（Science↔Individual↔Consensus 轮转） |
+| `hot_path_same_frame_pair` | 热路径 vs 冷路径对比：同帧对 |
+| `cold_path_cross_frame_pair` | 热路径 vs 冷路径对比：跨帧对 |
+| `phase_quantize_near_*` | Phase 量化精度（近中性/近零/近一/无需量化） |
+
+Criterion 基准组：`core_ops`, `hot_path`, `cascades`, `cross_domain`, `phase_precision`。
 
 ## 当前性能数据
 
@@ -40,12 +45,10 @@ cargo bench
 | TOR 热路径 | ~3 ns | 同帧 |
 | TOR 冷路径 | ~95 ns | 跨帧 |
 | TNOT | ~2 ns | 单次 LUT 查找 + 浮点减法 |
-| Phase::mean | ~2 ns | 一次加法 + 一次除法 + 量化 |
-| Phase::complement | ~2 ns | 一次减法 + 量化 |
-| arbitrate (Physical) | ~15 ns | FrameMask O(1) 查找 |
-| SafeFallback::guard | ~10 ns | 域检查 + 值检查（无分配时） |
-| 10 元素级联 | ~30 ns | 全部热路径 |
-| 100 元素级联 | ~300 ns | 全部热路径 |
+| Phase 量化 | ~2 ns | 吸附到锚点（0.0、0.5、1.0） |
+| 10 元素级联（热路径） | ~30 ns | 全部同帧 |
+| 100 元素级联（热路径） | ~300 ns | 全部同帧 |
+| 100 对跨域级联 | ~9.5 μs | 每对触发冷路径 |
 
 ## 性能目标
 

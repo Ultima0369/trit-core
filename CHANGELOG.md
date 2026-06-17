@@ -13,10 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Meta-monitor with conflict detection and domain-based arbitration.
 - Sandbox CLI (`trit-sandbox`) for JSON scenario input/output.
 - trit-node CLI (`trit-node`) for sovereign node REPL (M4).
-- Docker Compose 3-node cluster (Science/Individual/Consensus).
+- Docker Compose 3-node cluster (Science/Individual/Consensus) with TCP mesh (M6).
+- M5 TCP transport layer: length-prefix framing (frame_codec), TcpNodeServer, TcpClient.
+- M6 seed node discovery: parse_seeds, bootstrap, --peers/TRIT_PEERS.
 - 12 scenario JSON files covering 5 domains (plus 5 zh variants, total 17).
 - Binary baseline comparator (`src/baseline/`) for M2 ternary vs binary validation.
 - Integration test suite (18 tests) covering all scenarios end-to-end.
+- 9 multi-node integration tests (M6): full mesh lifecycle, cross-frame conflict, seed bootstrap.
 - Architecture Decision Records (ADRs): 001-ternary-logic, 002-phase-arithmetic, 003-domain-conflict, 004-distributed-protocol.
 - Full Chinese documentation system (`docs/zh/`).
 - Architecture audit report (`docs/zh/architecture-audit.zh.md`).
@@ -27,12 +30,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preprint (`docs/preprint.md`): 10+ page research paper with abstract, architecture, validation, references.
 - Chinese preprint (`docs/zh/preprint.zh.md`): 10+ page Chinese translation.
 - M2 validation report (`docs/validation-report.md`): ternary vs binary comparison across 12 scenarios.
-- M4 distributed protocol: T_RESONATE/T_DECOUPLE with PLL, ResonanceBus, message types.
+- M4-M6 distributed protocol: T_RESONATE/T_DECOUPLE with PLL, ResonanceBus, message types, TCP transport, seed discovery.
+- 88 property-based tests (proptest) for formal invariant verification.
+- 5-layer documentation system: getting-started, concepts, usage, development, insights (14 new docs).
 - Observability via `tracing` in core algebra and policy engine.
 - `#![deny(warnings)]` and `#![forbid(unsafe_code)]` enforced.
 - CLAUDE.md for Claude Code guidance; Serena project memories initialized.
 - Git repository initialized with 6 commits (no remote push).
-- Total: 34 tests, 0 failures, 0 warnings, 0 clippy issues.
+- Total: 227 tests, 0 failures, 0 warnings, 0 clippy issues.
 
 ### Engineering
 - Modular monolith structure: `trit/`, `frame/`, `meta/`, `clock/`, `sandbox/`, `net/`.
@@ -42,6 +47,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Known Limitations
 - `phase: f64` may introduce precision drift over long cascades (ADR-002).
-- `net/` module is a stub; distributed protocol not yet implemented.
+- TCP transport requires tokio runtime; not suitable for embedded/no_std contexts.
 - No formal verification (Coq/Lean) attached.
-- Performance target (10,000 TPS) not yet validated by CI benchmark.
+- Performance target (10,000 TPS) validated at micro-benchmark level; end-to-end benchmarks pending.

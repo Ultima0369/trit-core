@@ -64,8 +64,17 @@ The codebase is a **modular monolith** with these layers (bottom-up):
 - `ScenarioInput` / `SandboxOutput`: Serde structs for JSON scenario I/O.
 - `src/bin/sandbox.rs`: CLI that reads a JSON scenario, runs TAND cascade across signals, applies policy arbitration, and prints JSON output.
 
-### 6. `src/net/` — Distributed Protocol (stub, M2+)
-- `Node` struct and `resonate()`/`decouple()` functions. Placeholder for future `T_RESONATE` / `T_DECOUPLE` distributed operations.
+### 6. `src/net/` — Distributed Protocol (M4-M6)
+- **`bus/`** — `ResonanceBus`: in-memory message routing with VecDeque ring buffer (MAX_MESSAGE_LOG=10,000, MAX_NODES=256)
+- **`coupling/`** — RESONATE_REQ/ACK and DECOUPLE_REQ handling
+- **`discovery/`** — Seed-based peer bootstrapping via `--peers` / `TRIT_PEERS` (M6)
+- **`frame_codec/`** — TCP length-prefix framing: 4-byte BE length + JSON payload (max 1 MiB) (M5)
+- **`message/`** — Protocol message types: ResonateReq/Ack, DecoupleReq/Ack, NegotiatePayload, HeartbeatPayload
+- **`negotiate/`** — Multi-node negotiation (single-pass)
+- **`node/`** — `Node` state machine: Sovereign → Coupling → Coupled → Hold
+- **`pll/`** — Software phase-locked loop controller (kp=0.3, deadband=0.05)
+- **`tcp_client/`** — TCP client connector with resonate/decouple/heartbeat/negotiate methods (M5)
+- **`tcp_server/`** — TCP node server dispatching messages to ResonanceBus (M5)
 
 ### Data Flow
 ```
@@ -98,6 +107,6 @@ JSON scenario → ScenarioInput → TritWord[] → TAND cascade → MetaInterrup
 ## Known Limitations
 
 - `phase: f64` may drift over long cascades (see ADR-002).
-- `net/` module is a stub; no distributed protocol yet.
+- TCP transport requires tokio runtime; not suitable for embedded/no_std contexts.
 - No formal verification (Coq/Lean).
-- Performance target (10,000 TPS) not yet validated.
+- Performance target (10,000 TPS) validated at micro-benchmark level (~3ns/op hot path, ~333M ops/s theoretical); end-to-end benchmarks (JSON I/O, TCP roundtrip, concurrent bus) are planned.

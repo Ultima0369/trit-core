@@ -10,14 +10,16 @@
 ### `TritValue` (enum)
 ```rust
 pub enum TritValue {
-    True,   // +1
-    Hold,   // 0
-    False,  // -1
+    True,    // +1
+    Hold,    // 0
+    False,   // -1
+    Unknown, // ― (non-computable, represents missing/undefined signal)
 }
 ```
 Methods:
 - `fn negate(self) -> TritValue`
 - `fn to_i8(self) -> i8`
+- `fn is_computable(self) -> bool` — returns false for Unknown
 - `Default` → `Hold`
 
 ### `Phase` (struct)
@@ -98,6 +100,7 @@ pub enum Domain {
     MedicalEthics,
     ValueJudgment,
     General,
+    Custom(String),
 }
 ```
 
@@ -152,9 +155,46 @@ Methods:
 - `fn log(&self) -> &[MetaInterrupt]`
 - `fn inspect(&self, word: &TritWord) -> Option<MetaInterrupt>`
 
+### `SafeFallback` (struct)
+IEC 61508 fail-safe semantics. Forces False on dangerous-domain operations that produce Hold with active interrupts.
+```rust
+pub struct SafeFallback;
+```
+Methods:
+- `fn new() -> SafeFallback`
+- `fn register_dangerous(&mut self, domain: &str)` — register a domain as dangerous
+- `fn is_dangerous(&self, domain: &str) -> bool`
+- `fn is_enabled(&self) -> bool`
+- `fn set_enabled(&mut self, enabled: bool)`
+- `fn guard(&self, result: &TritWord, interrupts: &[MetaInterrupt], domain: &Domain) -> TritWord`
+
+### `CustomRule` (struct)
+User-defined arbitration rule for custom domains.
+```rust
+pub struct CustomRule {
+    pub name: String,
+    pub domain: String,
+    pub priority_frame: String,
+    pub fallback_policy: String, // "hold" | "safe_fallback" | "negotiate"
+}
+```
+
+### `RuleLoader` (trait)
+```rust
+pub trait RuleLoader {
+    fn load(&self, source: &str) -> Result<Vec<CustomRule>, String>;
+}
+```
+
+### `JsonRuleLoader` (struct)
+Implements `RuleLoader` for JSON-format custom rules.
+
+### `FrameMask` (struct, pub(crate))
+Internal O(1) bitmask for frame presence checks. Uses u8, supports up to 8 frame types.
+
 ---
 
-## 4. `trit_core::clock` (MVP stub)
+## 4. `trit_core::clock`
 
 ### `HarmonicClock` (struct)
 ```rust
@@ -164,12 +204,153 @@ Methods:
 - `fn new(omega: f64, phi0: f64) -> HarmonicClock`
 - `fn tick(&mut self, dt: f64) -> bool`
 - `fn phase_now(&self) -> f64`
-- `fn physical() -> HarmonicClock` (fast)
-- `fn deliberative() -> HarmonicClock` (slow)
+- `fn physical() -> HarmonicClock` (fast, ω=10.0)
+- `fn deliberative() -> HarmonicClock` (slow, ω=0.5)
 
 ---
 
-## 5. `trit_core::sandbox` (MVP stub)
+## 5. `trit_core::net` — Distributed Protocol (M4-M6)
+
+### `ResonanceBus` (struct)
+In-memory message bus for multi-node simulation. Max 256 nodes, 10,000 message log (ring buffer).
+```rust
+pub struct ResonanceBus;
+```
+Methods:
+- `fn new() -> ResonanceBus`
+- `fn register(&mut self, node: Node)`
+- `fn get_node(&self, id: &str) -> Option<&Node>`
+- `fn log(&self) -> Iter<Message>`
+- `fn handle_resonate_req(&mut self, from: &str, to: &str, msg: &Message) -> Option<Message>`
+- `fn handle_resonate_ack(&mut self, node_id: &str, ack: &Message)`
+- `fn handle_decouple_req(&mut self, node_id: &str, msg: &Message, cycles: u64) -> Message`
+- `fn negotiate(&mut self, participants: &[String]) -> (NegotiatePayload, bool)`
+
+### `Message` (struct)
+Protocol message with header + typed payload.
+```rust
+pub struct Message {
+    pub header: MessageHeader,
+    pub payload: MessagePayload,
+}
+```
+Constructors:
+- `fn resonate_req(sender, frame, phase, history) -> Message`
+- `fn resonate_ack(sender, coupled_phase, interference, conflict, recommendation) -> Message`
+- `fn decouple_req(sender, reason) -> Message`
+- `fn decouple_ack(sender, restored_phase, cycles) -> Message`
+- `fn negotiate(sender, participants, frames, phases, result) -> Message`
+- `fn heartbeat(sender, state, phase) -> Message`
+
+### `MessageHeader` (struct)
+```rust
+pub struct MessageHeader {
+    pub proto: String,      // "TRIT/0.1"
+    pub msg_id: String,     // UUID v4
+    pub timestamp: String,  // ISO 8601
+    pub sender: String,
+}
+```
+
+### `OpCode` (enum)
+```rust
+pub enum OpCode {
+    ResonateReq, ResonateAck, DecoupleReq, DecoupleAck, Negotiate, Heartbeat,
+}
+```
+
+### `MessagePayload` (enum)
+```rust
+pub enum MessagePayload {
+    ResonateReq(ResonateReq),
+    ResonateAck(ResonateAck),
+    DecoupleReq(DecoupleReq),
+    DecoupleAck(DecoupleAck),
+    Negotiate(NegotiatePayload),
+    Heartbeat(HeartbeatPayload),
+}
+```
+
+### Payload types
+- **`ResonateReq`**: `{ frame: String, phase: f64, history: Vec<f64> }`
+- **`ResonateAck`**: `{ coupled_phase: f64, interference: String, conflict_detected: bool, recommendation: String }`
+- **`DecoupleReq`**: `{ reason: String }`
+- **`DecoupleAck`**: `{ restored_phase: f64, cycles_coupled: u64 }`
+- **`NegotiatePayload`**: `{ participants, frames, phases, consensus_phase, conflict_resolution }`
+- **`HeartbeatPayload`**: `{ node_state: String, current_phase: f64 }`
+
+### `Node` (struct)
+```rust
+pub struct Node {
+    pub id: String,
+    pub frame: Frame,
+    pub current_phase: f64,
+    pub sovereign_phase: f64,
+    pub state: NodeState,
+    pub peers: Vec<String>,
+    pub cycles_coupled: u64,
+    pub interrupts: Vec<String>,
+}
+```
+Methods:
+- `fn new(id, frame, phase) -> Node`
+- `fn initiate_coupling(&mut self, peer: &str)`
+- `fn confirm_coupling(&mut self)`
+- `fn decouple(&mut self)`
+- `fn adjust_phase(&mut self, delta: f64)`
+- `fn tick(&mut self)`
+- `fn to_trit(&self) -> TritWord`
+
+### `NodeState` (enum)
+```rust
+pub enum NodeState { Sovereign, Coupling, Coupled, Hold }
+```
+
+### `Interference` (enum)
+```rust
+pub enum Interference { Constructive, Neutral, Destructive }
+```
+
+### `PllController` (struct)
+Software phase-locked loop. kp=0.3, deadband=0.05, max_correction=0.1.
+Methods:
+- `fn new() -> PllController`
+- `fn compute_correction(&mut self, local: f64, peer: f64) -> f64`
+- `fn reset(&mut self)`
+- `fn is_conflict_phase_gap(a: f64, b: f64) -> bool` — gap > 0.3
+- `fn is_phase_jump_anomaly(old: f64, new: f64) -> bool` — delta > 0.5
+
+### `TcpNodeServer` (struct)
+TCP transport server accepting connections and dispatching messages to ResonanceBus.
+Methods:
+- `fn new(bind_addr) -> TcpNodeServer`
+- `fn with_bus(bind_addr, bus) -> TcpNodeServer`
+- `fn bus_handle(&self) -> Arc<Mutex<ResonanceBus>>`
+- `async fn serve(&self) -> io::Result<()>`
+
+### `TcpClient` (struct)
+TCP client connector for remote node communication.
+Methods:
+- `async fn connect(addr) -> io::Result<TcpClient>`
+- `async fn resonate(&mut self, node_id, frame, phase, history) -> io::Result<Message>`
+- `async fn decouple(&mut self, node_id, reason, cycles) -> io::Result<Message>`
+- `async fn heartbeat(&mut self, node_id, state, phase) -> io::Result<Message>`
+- `async fn negotiate(&mut self, node_id, participants, frames, phases) -> io::Result<Message>`
+
+### `discovery` module
+Seed-based peer discovery functions:
+- `fn parse_seeds(seeds: &str) -> Vec<String>` — parse comma-separated `host:port` list
+- `async fn bootstrap(bus, local_node_id, seeds) -> usize` — connect to seeds, exchange heartbeats
+
+### `frame_codec` module
+TCP length-prefix framing protocol (4-byte BE length + JSON payload, max 1 MiB):
+- `const MAX_FRAME_SIZE: usize = 1_048_576`
+- `async fn read_frame<R: AsyncRead + Unpin>(reader: &mut R) -> io::Result<Vec<u8>>`
+- `async fn write_frame<W: AsyncWrite + Unpin>(writer: &mut W, payload: &[u8]) -> io::Result<()>`
+
+---
+
+## 6. `trit_core::sandbox`
 
 ### `ScenarioInput` (struct)
 Serde-deserializable from JSON.

@@ -100,6 +100,38 @@
 
 ---
 
+### M5: TCP Transport Layer (Week 4–5)
+**Goal**: Real network transport for distributed nodes via TCP.
+
+**Deliverables**:
+- [x] `src/net/frame_codec.rs` — Length-prefix framing protocol (4-byte BE length + JSON, max 1 MiB)
+- [x] `src/net/tcp_server.rs` — `TcpNodeServer` with tokio async accept/dispatch
+- [x] `src/net/tcp_client.rs` — `TcpClient` with resonate/decouple/heartbeat/negotiate methods
+- [x] Tests: frame roundtrip (small/empty/large/oversized/multi-frame), server bind/accept/heartbeat/resonate/decouple, client connect/heartbeat/resonate/decouple
+
+**Acceptance Criteria**:
+- Full duplex TCP communication between nodes.
+- Length-prefix framing handles binary-safe JSON payloads up to 1 MiB.
+- Rejects oversized frames to prevent CWE-770 memory exhaustion.
+
+---
+
+### M6: Seed Node Discovery (Week 5)
+**Goal**: Automatic peer discovery at startup via seed nodes.
+
+**Deliverables**:
+- [x] `src/net/discovery.rs` — `parse_seeds()` and `bootstrap()` functions
+- [x] `trit-node` CLI upgraded with `--port` and `--peers` flags + `TRIT_PEERS` env var
+- [x] `docker-compose.yml` full TCP mesh: 3 nodes (Science:9000, Individual:9001, Consensus:9002)
+- [x] Discovery unit tests + 9 multi-node integration tests
+
+**Acceptance Criteria**:
+- Nodes discover each other via HEARTBEAT exchange at startup.
+- Docker Compose cluster forms full mesh automatically.
+- All seeds unreachable = graceful standalone mode.
+
+---
+
 ## Risk Register
 
 | Risk | Likelihood | Impact | Mitigation |
