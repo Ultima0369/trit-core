@@ -103,26 +103,21 @@ async fn handle_connection(
             Err(e) => return Err(e),
         };
 
-        let msg: Message = serde_json::from_slice(&payload).map_err(|e| {
-            std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())
-        })?;
+        let msg: Message = serde_json::from_slice(&payload)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
 
         let response = dispatch_message(&bus, &msg).await;
 
         if let Some(resp) = response {
-            let resp_json = serde_json::to_vec(&resp).map_err(|e| {
-                std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())
-            })?;
+            let resp_json = serde_json::to_vec(&resp)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
             frame_codec::write_frame(&mut writer, &resp_json).await?;
         }
     }
 }
 
 /// Dispatch an incoming message to the bus and produce a response if needed.
-async fn dispatch_message(
-    bus: &Arc<Mutex<ResonanceBus>>,
-    msg: &Message,
-) -> Option<Message> {
+async fn dispatch_message(bus: &Arc<Mutex<ResonanceBus>>, msg: &Message) -> Option<Message> {
     let sender = &msg.header.sender;
     let mut bus = bus.lock().await;
 
@@ -131,11 +126,7 @@ async fn dispatch_message(
             // The request specifies a target via the sender field convention:
             // sender is the requesting node, and we need to find a peer.
             // For now, we use the first other registered node as the target.
-            let target_id = bus
-                .nodes
-                .keys()
-                .find(|id| *id != sender)
-                .cloned();
+            let target_id = bus.nodes.keys().find(|id| *id != sender).cloned();
 
             if let Some(target) = target_id {
                 debug!(from = %sender, to = %target, "dispatching RESONATE_REQ");
@@ -151,12 +142,7 @@ async fn dispatch_message(
             None // ACKs don't generate responses
         }
         MessagePayload::DecoupleReq(_req) => {
-            let cycles = {
-                bus.nodes
-                    .get(sender)
-                    .map(|n| n.cycles_coupled)
-                    .unwrap_or(0)
-            };
+            let cycles = { bus.nodes.get(sender).map(|n| n.cycles_coupled).unwrap_or(0) };
             debug!(node = %sender, cycles = cycles, "dispatching DECOUPLE_REQ");
             Some(bus.handle_decouple_req(sender, msg, cycles))
         }

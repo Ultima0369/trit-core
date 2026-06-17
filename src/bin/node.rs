@@ -3,8 +3,10 @@ use std::str::FromStr;
 
 use trit_core::frame::Frame;
 use trit_core::net::bus::ResonanceBus;
+use trit_core::net::discovery;
 use trit_core::net::message::Message;
 use trit_core::net::node::Node;
+use trit_core::net::tcp_server::TcpNodeServer;
 
 /// Display available commands.
 fn help() {
@@ -33,56 +35,90 @@ fn print_status(node: &Node) {
     );
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     trit_core::tracing_init::init();
 
     let args: Vec<String> = std::env::args().collect();
-    if args.len() < 4 || args[1] != "--frame" || args[3] != "--phase" {
-        eprintln!("Usage: trit-node --frame <Science|Individual|Consensus|Absolute> --phase <0.0-1.0> [--id <name>]");
+
+    // Parse --frame and --phase (required)
+    let frame = parse_flag(&args, "--frame", "Science");
+    let phase = parse_flag_f64(&args, "--phase", 0.5);
+    let node_id = parse_flag(&args, "--id", &uuid::Uuid::new_v4().to_string());
+    let bind_port = parse_flag_u16(&args, "--port", 9000);
+    let peers_str = parse_flag(&args, "--peers", "");
+
+    // Also check TRIT_PEERS env var
+    let peers_env = std::env::var("TRIT_PEERS").unwrap_or_default();
+    let all_peers = if peers_str.is_empty() {
+        peers_env
+    } else {
+        peers_str
+    };
+
+    let frame: Frame = match Frame::from_str(&frame) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("Invalid frame: {} — {}", frame, e);
+            std::process::exit(1);
+        }
+    };
+
+    if !(0.0..=1.0).contains(&phase) {
+        eprintln!("Phase must be in [0.0, 1.0], got: {}", phase);
         std::process::exit(1);
     }
 
-    let frame: Frame = match Frame::from_str(&args[2]) {
-        Ok(f) => f,
-        Err(e) => {
-            eprintln!("Invalid frame: {} — {}", args[2], e);
-            std::process::exit(1);
-        }
-    };
+    let bind_addr = format!("0.0.0.0:{}", bind_port);
 
-    let phase: f64 = match args[4].parse() {
-        Ok(p) if (0.0..=1.0).contains(&p) => p,
-        Ok(p) => {
-            eprintln!("Phase must be in [0.0, 1.0], got: {}", p);
-            std::process::exit(1);
-        }
-        Err(e) => {
-            eprintln!("Invalid phase: {} — {}", args[4], e);
-            std::process::exit(1);
-        }
-    };
-
-    // Optional --id flag
-    let node_id = args
-        .iter()
-        .position(|a| a == "--id")
-        .map(|i| args[i + 1].clone())
-        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-
-    let node = Node::new(node_id.clone(), frame, phase);
-    println!("Trit-Core Node v0.1.0");
+    println!("Trit-Core Node v0.1.0 (M5 TCP)");
     println!("Node ID: {}", node_id);
-    println!("Frame:   {}", node.frame);
-    println!("Phase:   {:.4}", node.sovereign_phase);
+    println!("Frame:   {}", frame);
+    println!("Phase:   {:.4}", phase);
+    println!("Bind:    {}", bind_addr);
+
+    // Parse seed peers
+    let seeds = discovery::parse_seeds(&all_peers);
+    if !seeds.is_empty() {
+        println!("Seeds:   {}", seeds.join(", "));
+    } else {
+        println!("Seeds:   (none — standalone mode)");
+    }
+    println!();
+
+    // Create bus and register local node
+    let mut bus = ResonanceBus::new();
+    bus.register(Node::new(node_id.clone(), frame, phase));
+
+    // Start TCP server
+    let server = TcpNodeServer::with_bus(&bind_addr, bus);
+    let bus_handle = server.bus_handle();
+
+    // Spawn the server in background
+    let server_handle = tokio::spawn(async move {
+        if let Err(e) = server.serve().await {
+            eprintln!("[Server] Fatal error: {}", e);
+        }
+    });
+
+    // Give the server a moment to bind
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+    // Bootstrap: connect to seed peers
+    let contacted = discovery::bootstrap(&bus_handle, &node_id, &seeds).await;
+    if contacted > 0 {
+        println!(
+            "[Discovery] Connected to {}/{} seed peers.\n",
+            contacted,
+            seeds.len()
+        );
+    } else if !seeds.is_empty() {
+        println!("[Discovery] Warning: Could not connect to any seed peers. Running standalone.\n");
+    }
+
     println!("Type 'help' for commands.\n");
 
-    let mut bus = ResonanceBus::new();
-    bus.register(node);
-
-    // Register preset peers for simulation (all same-bus local)
-    // In real deployment these would be discovered via network
-    println!("[Bus] Node registered. ResonanceBus ready.\n");
-
+    // Interactive REPL
     let stdin = io::stdin();
     let reader = stdin.lock();
     print!("trit> ");
@@ -110,12 +146,14 @@ fn main() {
             "help" => help(),
 
             "status" => {
+                let bus = bus_handle.lock().await;
                 if let Some(node) = bus.get_node(&node_id) {
                     print_status(node);
                 }
             }
 
             "peers" => {
+                let bus = bus_handle.lock().await;
                 if let Some(node) = bus.get_node(&node_id) {
                     if node.peers.is_empty() {
                         println!("No coupled peers.");
@@ -136,6 +174,7 @@ fn main() {
             }
 
             "log" => {
+                let bus = bus_handle.lock().await;
                 let log = bus.log();
                 let log_len = log.len();
                 let start = log_len.saturating_sub(10);
@@ -155,13 +194,14 @@ fn main() {
                     eprintln!("Usage: resonate <peer_id>");
                 } else {
                     let peer_id = parts[1];
+                    let mut bus = bus_handle.lock().await;
                     let req = {
                         let node = bus.get_node(&node_id).unwrap();
                         Message::resonate_req(
                             &node.id,
                             &format!("{}", node.frame),
                             node.current_phase,
-                            vec![], // no history in MVP
+                            vec![],
                         )
                     };
                     match bus.handle_resonate_req(&node_id, peer_id, &req) {
@@ -186,6 +226,7 @@ fn main() {
             }
 
             "decouple" => {
+                let mut bus = bus_handle.lock().await;
                 let cycles = {
                     let node = bus.get_node(&node_id).unwrap();
                     node.cycles_coupled
@@ -208,6 +249,7 @@ fn main() {
                 if parts.len() < 2 {
                     eprintln!("Usage: negotiate <id1> <id2> ...");
                 } else {
+                    let mut bus = bus_handle.lock().await;
                     let participant_ids: Vec<String> =
                         parts[1..].iter().map(|s| s.to_string()).collect();
                     let (result, has_conflict) = bus.negotiate(&participant_ids);
@@ -229,5 +271,32 @@ fn main() {
         io::stdout().flush().unwrap();
     }
 
+    // Shutdown
+    server_handle.abort();
     println!("Node shut down cleanly.");
+}
+
+// -- CLI helpers --
+
+fn parse_flag(args: &[String], flag: &str, default: &str) -> String {
+    args.iter()
+        .position(|a| a == flag)
+        .map(|i| args[i + 1].clone())
+        .unwrap_or_else(|| default.to_string())
+}
+
+fn parse_flag_f64(args: &[String], flag: &str, default: f64) -> f64 {
+    args.iter()
+        .position(|a| a == flag)
+        .and_then(|i| args.get(i + 1))
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default)
+}
+
+fn parse_flag_u16(args: &[String], flag: &str, default: u16) -> u16 {
+    args.iter()
+        .position(|a| a == flag)
+        .and_then(|i| args.get(i + 1))
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default)
 }

@@ -29,12 +29,12 @@ use trit_core::frame::Frame;
 use trit_core::meta::{
     ArbitrationResult, ConflictType, Domain, MetaMonitor, ResolutionPolicy, SafeFallback,
 };
-use trit_core::trit::algebra::TernaryAlgebra;
-use trit_core::trit::{Phase, TritValue, TritWord};
 use trit_core::net::bus::ResonanceBus;
 use trit_core::net::message::Message;
 use trit_core::net::node::{Node, NodeState};
 use trit_core::net::pll::PllController;
+use trit_core::trit::algebra::TernaryAlgebra;
+use trit_core::trit::{Phase, TritValue, TritWord};
 
 // ============================================================================
 // Custom strategies for generating Trit-Core values

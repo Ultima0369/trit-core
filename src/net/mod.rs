@@ -6,6 +6,7 @@
 // Sub-modules:
 // - bus: ResonanceBus struct + node registration + message log
 // - coupling: RESONATE_REQ/ACK + DECOUPLE_REQ handling
+// - discovery: seed-based peer bootstrapping (M6)
 // - frame_codec: TCP length-prefix framing protocol (M5)
 // - message: protocol message types and constructors
 // - negotiate: multi-node negotiation (single-pass)
@@ -16,6 +17,7 @@
 
 pub mod bus;
 pub mod coupling;
+pub mod discovery;
 pub mod frame_codec;
 pub mod message;
 pub mod negotiate;

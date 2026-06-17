@@ -33,9 +33,8 @@ impl TcpClient {
 
     /// Send a message and wait for the response.
     pub async fn send(&mut self, msg: &Message) -> std::io::Result<Message> {
-        let json = serde_json::to_vec(msg).map_err(|e| {
-            std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())
-        })?;
+        let json = serde_json::to_vec(msg)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
         frame_codec::write_frame(&mut self.stream, &json).await?;
 
         let (reader, _writer) = self.stream.split();
@@ -47,9 +46,8 @@ impl TcpClient {
         // the stream after each send/recv cycle.
         // Actually, we can use a buffered approach instead.
 
-        let response: Message = serde_json::from_slice(&payload).map_err(|e| {
-            std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())
-        })?;
+        let response: Message = serde_json::from_slice(&payload)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
         Ok(response)
     }
 
@@ -159,9 +157,7 @@ mod tests {
     #[tokio::test]
     async fn client_resonate_gets_constructive_ack() {
         let (_addr, mut client) = setup_server_with_client().await;
-        let resp = client
-            .resonate("test-client", "Science", 0.7, vec![])
-            .await;
+        let resp = client.resonate("test-client", "Science", 0.7, vec![]).await;
         assert!(resp.is_ok());
         match &resp.unwrap().payload {
             crate::net::message::MessagePayload::ResonateAck(data) => {
@@ -175,9 +171,7 @@ mod tests {
     #[tokio::test]
     async fn client_decouple_gets_ack() {
         let (_addr, mut client) = setup_server_with_client().await;
-        let resp = client
-            .decouple("test-client", "user_disconnect", 0)
-            .await;
+        let resp = client.decouple("test-client", "user_disconnect", 0).await;
         assert!(resp.is_ok());
         match &resp.unwrap().payload {
             crate::net::message::MessagePayload::DecoupleAck(data) => {

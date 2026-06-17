@@ -1,23 +1,38 @@
-# Trit-Core M4: 3-node distributed cluster demonstration.
+# Trit-Core M5/M6: 3-node TCP cluster with seed-based discovery.
 #
 # Nodes:
-#   node-science     — Frame: Science, phase: 0.75 (empirical data)
-#   node-individual  — Frame: Individual, phase: 0.35 (patient context)
-#   node-consensus   — Frame: Consensus, phase: 0.60 (group preference)
+#   node-science     — Frame: Science, phase: 0.75, port: 9000
+#   node-individual  — Frame: Individual, phase: 0.35, port: 9001
+#   node-consensus   — Frame: Consensus, phase: 0.60, port: 9002
+#
+# Each node starts a TcpNodeServer on its port and connects to
+# the other two nodes as seeds. The full mesh is established
+# automatically via HEARTBEAT exchange.
 #
 # Usage:
 #   docker compose up --build
 #   docker compose down
 #
-# Each node starts in SOVEREIGN state and listens on stdin for commands.
-# In production, nodes would bind TCP ports and exchange JSON messages.
-# For MVP demonstration, nodes start with pre-configured peers.
+# Interactive mode:
+#   docker compose run --rm node-science
 
 services:
   node-science:
     build: .
     container_name: trit-science
-    command: ["--frame", "Science", "--phase", "0.75", "--id", "science-node"]
+    command:
+      - "--frame"
+      - "Science"
+      - "--phase"
+      - "0.75"
+      - "--id"
+      - "science-node"
+      - "--port"
+      - "9000"
+      - "--peers"
+      - "node-individual:9001,node-consensus:9002"
+    ports:
+      - "9000:9000"
     stdin_open: true
     tty: true
     networks:
@@ -26,7 +41,19 @@ services:
   node-individual:
     build: .
     container_name: trit-individual
-    command: ["--frame", "Individual", "--phase", "0.35", "--id", "individual-node"]
+    command:
+      - "--frame"
+      - "Individual"
+      - "--phase"
+      - "0.35"
+      - "--id"
+      - "individual-node"
+      - "--port"
+      - "9001"
+      - "--peers"
+      - "node-science:9000,node-consensus:9002"
+    ports:
+      - "9001:9001"
     stdin_open: true
     tty: true
     networks:
@@ -35,7 +62,19 @@ services:
   node-consensus:
     build: .
     container_name: trit-consensus
-    command: ["--frame", "Consensus", "--phase", "0.60", "--id", "consensus-node"]
+    command:
+      - "--frame"
+      - "Consensus"
+      - "--phase"
+      - "0.60"
+      - "--id"
+      - "consensus-node"
+      - "--port"
+      - "9002"
+      - "--peers"
+      - "node-science:9000,node-individual:9001"
+    ports:
+      - "9002:9002"
     stdin_open: true
     tty: true
     networks:
