@@ -1,8 +1,9 @@
 // TCP client connector for Trit-Core distributed nodes.
 //
 // TcpClient connects to a remote TcpNodeServer, sends protocol messages,
-// and reads responses. It is the client-side counterpart to the server
-// in tcp_server.rs.
+// and reads responses. It supports multi-message sessions with buffered
+// I/O — unlike the earlier MVP version that could only handle one request
+// per connection.
 //
 // ## Usage
 //
@@ -11,40 +12,95 @@
 // let ack = client.resonate("my-node", "Science", 0.7, vec![]).await?;
 // client.decouple("my-node", "user_disconnect", 0).await?;
 // ```
+//
+// ## Timeouts
+//
+// - Connect timeout: 5 seconds (M7)
+// - Read timeout: 30 seconds (M7)
 
 use crate::net::frame_codec;
 use crate::net::message::Message;
+use std::time::Duration;
+use tokio::io::{BufReader, BufWriter};
 use tokio::net::TcpStream;
 use tracing::{debug, info};
 
+/// Connect timeout in seconds.
+pub const CONNECT_TIMEOUT_SECS: u64 = 5;
+/// Read timeout for individual frame reads.
+pub const READ_TIMEOUT_SECS: u64 = 30;
+/// Write timeout for frame writes.
+pub const WRITE_TIMEOUT_SECS: u64 = 10;
+
 /// A TCP client that connects to a remote Trit-Core node server.
+///
+/// Uses buffered I/O (BufReader / BufWriter over a split TcpStream)
+/// to support multi-message sessions without consuming the underlying
+/// stream.
 pub struct TcpClient {
-    stream: TcpStream,
+    reader: BufReader<tokio::net::tcp::OwnedReadHalf>,
+    writer: BufWriter<tokio::net::tcp::OwnedWriteHalf>,
 }
 
 impl TcpClient {
-    /// Connect to a remote node server.
+    /// Connect to a remote node server with a 5-second timeout.
     pub async fn connect(addr: &str) -> std::io::Result<Self> {
         info!(addr = %addr, "connecting to Trit-Core node");
-        let stream = TcpStream::connect(addr).await?;
+        let stream = tokio::time::timeout(
+            Duration::from_secs(CONNECT_TIMEOUT_SECS),
+            TcpStream::connect(addr),
+        )
+        .await
+        .map_err(|_| {
+            std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                format!(
+                    "Connect to {} timed out after {}s",
+                    addr, CONNECT_TIMEOUT_SECS
+                ),
+            )
+        })??;
+
+        let (read_half, write_half) = stream.into_split();
+        let reader = BufReader::new(read_half);
+        let writer = BufWriter::new(write_half);
         debug!(addr = %addr, "connected");
-        Ok(Self { stream })
+        Ok(Self { reader, writer })
     }
 
     /// Send a message and wait for the response.
+    ///
+    /// Uses buffered I/O — the underlying stream is NOT consumed, so this
+    /// method can be called multiple times on the same client.
     pub async fn send(&mut self, msg: &Message) -> std::io::Result<Message> {
         let json = serde_json::to_vec(msg)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
-        frame_codec::write_frame(&mut self.stream, &json).await?;
 
-        let (reader, _writer) = self.stream.split();
-        let mut reader = reader;
-        let payload = frame_codec::read_frame(&mut reader).await?;
+        // Write with timeout
+        tokio::time::timeout(
+            Duration::from_secs(WRITE_TIMEOUT_SECS),
+            frame_codec::write_frame(&mut self.writer, &json),
+        )
+        .await
+        .map_err(|_| {
+            std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                format!("Write timed out after {}s", WRITE_TIMEOUT_SECS),
+            )
+        })??;
 
-        // Reassemble the stream — tokio split consumes the stream.
-        // We need to reconnect the halves. For simplicity, we reconnect
-        // the stream after each send/recv cycle.
-        // Actually, we can use a buffered approach instead.
+        // Read response with timeout
+        let payload = tokio::time::timeout(
+            Duration::from_secs(READ_TIMEOUT_SECS),
+            frame_codec::read_frame(&mut self.reader),
+        )
+        .await
+        .map_err(|_| {
+            std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                format!("Read timed out after {}s", READ_TIMEOUT_SECS),
+            )
+        })??;
 
         let response: Message = serde_json::from_slice(&payload)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
@@ -73,7 +129,7 @@ impl TcpClient {
     ) -> std::io::Result<Message> {
         let req = Message::decouple_req(node_id, reason);
         debug!(node = %node_id, reason = %reason, "sending DECOUPLE_REQ");
-        let _ = cycles_coupled; // Included in the ACK from the server
+        let _ = cycles_coupled;
         self.send(&req).await
     }
 
@@ -103,15 +159,6 @@ impl TcpClient {
     }
 }
 
-// Note: The `send` method above has a known issue with tokio::split —
-// after splitting, the original stream is consumed. For a production
-// implementation, we would use a BufReader/BufWriter pair or implement
-// a proper framed connection using tokio_util::codec.
-//
-// For the current MVP, the TcpClient is designed for single-request
-// patterns (connect → send → recv → drop). Multi-message sessions
-// should use the raw frame_codec directly.
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -121,7 +168,6 @@ mod tests {
     use crate::net::tcp_server::TcpNodeServer;
 
     async fn setup_server_with_client() -> (String, TcpClient) {
-        // Bind to port 0 for an OS-assigned free port
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = format!("127.0.0.1:{}", listener.local_addr().unwrap().port());
         drop(listener);
@@ -179,5 +225,23 @@ mod tests {
             }
             _ => panic!("Expected DecoupleAck"),
         }
+    }
+
+    #[tokio::test]
+    async fn multi_message_session() {
+        // Verify TcpClient supports multiple send/recv cycles on one connection.
+        let (_addr, mut client) = setup_server_with_client().await;
+
+        // First message: heartbeat
+        let resp = client.heartbeat("test-client", "Sovereign", 0.7).await;
+        assert!(resp.is_ok());
+
+        // Second message: resonate
+        let resp = client.resonate("test-client", "Science", 0.7, vec![]).await;
+        assert!(resp.is_ok());
+
+        // Third message: decouple
+        let resp = client.decouple("test-client", "test_done", 0).await;
+        assert!(resp.is_ok());
     }
 }

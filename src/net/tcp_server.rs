@@ -20,14 +20,22 @@ use crate::net::bus::ResonanceBus;
 use crate::net::frame_codec;
 use crate::net::message::{Message, MessagePayload};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Mutex;
 use tracing::{debug, error, info, warn};
+
+/// Maximum idle time for a connection read (M7).
+pub(crate) const READ_IDLE_TIMEOUT_SECS: u64 = 30;
 
 /// A TCP-transport node server.
 ///
 /// Wraps a ResonanceBus behind a TCP listener. Peers connect and send
 /// protocol messages; the server processes them and sends responses.
+///
+/// ## Timeouts (M7)
+///
+/// - Read timeout: 30 seconds of idle time before connection is dropped.
 pub struct TcpNodeServer {
     /// Shared bus for all connected peers.
     bus: Arc<Mutex<ResonanceBus>>,
@@ -94,13 +102,23 @@ async fn handle_connection(
     let (mut reader, mut writer) = stream.split();
 
     loop {
-        let payload = match frame_codec::read_frame(&mut reader).await {
-            Ok(p) => p,
-            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
-                // Peer closed connection cleanly
+        // Read a frame with idle timeout (M7)
+        let payload = match tokio::time::timeout(
+            Duration::from_secs(READ_IDLE_TIMEOUT_SECS),
+            frame_codec::read_frame(&mut reader),
+        )
+        .await
+        {
+            Ok(Ok(p)) => p,
+            Ok(Err(e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
                 return Ok(());
             }
-            Err(e) => return Err(e),
+            Ok(Err(e)) => return Err(e),
+            Err(_elapsed) => {
+                // Idle timeout — peer is likely disconnected or partitioned
+                debug!("Connection idle timeout after {}s", READ_IDLE_TIMEOUT_SECS);
+                return Ok(());
+            }
         };
 
         let msg: Message = serde_json::from_slice(&payload)
@@ -175,6 +193,7 @@ async fn dispatch_message(bus: &Arc<Mutex<ResonanceBus>>, msg: &Message) -> Opti
                 phase = hb.current_phase,
                 "received HEARTBEAT"
             );
+            bus.record_heartbeat(sender);
             bus.message_log.push_back(msg.clone());
             // Echo heartbeat back
             let node = bus.nodes.get(sender);

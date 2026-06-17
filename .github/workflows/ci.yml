@@ -12,8 +12,11 @@ env:
 
 jobs:
   check:
-    name: Check & Lint
-    runs-on: ubuntu-latest
+    name: Check & Lint (${{ matrix.os }})
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -23,6 +26,7 @@ jobs:
       - name: Run clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
       - name: Check for unsafe code
+        shell: bash
         run: |
           if grep -r "unsafe" src/; then
             echo "ERROR: unsafe code found in src/"
@@ -30,22 +34,29 @@ jobs:
           fi
 
   test:
-    name: Test
-    runs-on: ubuntu-latest
+    name: Test (${{ matrix.os }})
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Run tests
-        run: cargo test --all-features
-      - name: Generate test coverage
-        run: |
-          cargo install cargo-tarpaulin
-          cargo tarpaulin --out Xml --all-features
-      - name: Upload coverage
-        uses: codecov/codecov-action@v3
-        with:
-          files: ./cobertura.xml
+        run: cargo test --all-features -- --test-threads=1
+
+  multi-node-test:
+    name: Multi-Node Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run multi-node tests
+        run: cargo test --test multi_node_test -- --test-threads=1
+      - name: Run partition tests
+        run: cargo test --test partition_test -- --test-threads=1
 
   bench:
     name: Benchmark
@@ -56,21 +67,20 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Run benchmarks
         run: cargo bench
-      - name: Upload benchmark results
-        uses: actions/upload-artifact@v4
-        with:
-          name: benchmark-results
-          path: target/criterion/
 
   build:
-    name: Build Release
-    runs-on: ubuntu-latest
+    name: Build Release (${{ matrix.os }})
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Build release
         run: cargo build --release
+      - name: Build dhat profile binary
+        run: cargo build --release --bin dhat-profile
       - name: Run CLI smoke test
-        run: |
-          cargo run --release --bin trit-sandbox -- --scenario scenarios/medical_conflict_01.json
+        run: cargo run --release --bin trit-sandbox -- --scenario scenarios/medical_conflict_01.json

@@ -122,6 +122,24 @@ impl Node {
     pub fn to_trit(&self) -> TritWord {
         TritWord::new(TritValue::Hold, self.current_phase, self.frame.clone())
     }
+
+    /// Check whether a node's heartbeat is stale (M7).
+    ///
+    /// `last_heartbeat_secs` is the number of seconds since the last
+    /// heartbeat was received. If `None`, the peer has never sent a
+    /// heartbeat and is considered stale.
+    pub fn is_heartbeat_stale(last_heartbeat_secs: Option<u64>, timeout_secs: u64) -> bool {
+        match last_heartbeat_secs {
+            Some(secs) => secs > timeout_secs,
+            None => true, // never seen → stale
+        }
+    }
+
+    /// Check whether the phase jump between two observations is anomalous (>0.5).
+    /// Wraps the PLL static method for convenience (M7).
+    pub fn is_phase_anomaly(old_phase: f64, new_phase: f64) -> bool {
+        crate::net::pll::PllController::is_phase_jump_anomaly(old_phase, new_phase)
+    }
 }
 
 /// Result of coupling two nodes.

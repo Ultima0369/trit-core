@@ -26,7 +26,7 @@ pub mod pll;
 pub mod tcp_client;
 pub mod tcp_server;
 
-pub use bus::ResonanceBus;
+pub use bus::{ResonanceBus, HEARTBEAT_TIMEOUT_SECS, SPLIT_BRAIN_TIMEOUT_SECS};
 pub use frame_codec::{read_frame, write_frame, MAX_FRAME_SIZE};
 pub use message::{
     Message, MessageHeader, MessagePayload, NegotiatePayload, OpCode, ResonateAck, ResonateReq,

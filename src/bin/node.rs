@@ -71,7 +71,7 @@ async fn main() {
 
     let bind_addr = format!("0.0.0.0:{}", bind_port);
 
-    println!("Trit-Core Node v0.1.0 (M5 TCP)");
+    println!("Trit-Core Node v0.1.0 (M7 — TCP + Partition Tolerance)");
     println!("Node ID: {}", node_id);
     println!("Frame:   {}", frame);
     println!("Phase:   {:.4}", phase);

@@ -132,6 +132,25 @@
 
 ---
 
+### M7: Network Partition Tolerance (Week 5–6)
+**Goal**: Fault-tolerant distributed protocol with heartbeat monitoring, dead peer detection, and split-brain detection.
+
+**Deliverables**:
+- [x] `TcpClient` multi-message session support (BufReader/BufWriter rewrite)
+- [x] Connection timeout (5s), read timeout (30s), write timeout (10s)
+- [x] Heartbeat monitoring in `ResonanceBus` with per-node timestamps
+- [x] Stale peer detection (`stale_peers()`, `purge_stale_peers()`) with 30s timeout
+- [x] Split-brain detection (`detect_split_brain()`) with 60s timeout
+- [x] 6 partition fault-tolerance tests (connection loss, reconnect, partial partition, standalone, split-brain, heartbeat keepalive)
+
+**Acceptance Criteria**:
+- Nodes detect dead peers within 30s of last heartbeat.
+- Split-brain pairs are identified within 60s.
+- Nodes gracefully return to Sovereign when all peers are lost.
+- All 6 partition tests pass.
+
+---
+
 ## Risk Register
 
 | Risk | Likelihood | Impact | Mitigation |

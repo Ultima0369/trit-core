@@ -3,3 +3,14 @@ target/
 .env
 *.rs.bk
 audit_log/
+# dhat profiling output
+dhat-heap.json
+# IDE
+.vscode/
+.idea/
+# OS
+Thumbs.db
+.DS_Store
+# coverage
+*.profraw
+cobertura.xml

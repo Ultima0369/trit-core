@@ -2,7 +2,7 @@
 name = "trit-core"
 version = "0.1.0"
 edition = "2021"
-authors = ["Trit-Core Team"]
+authors = ["Ultima0369"]
 description = "A ternary decision engine for conflict-aware AI alignment"
 license = "MIT"
 repository = "https://github.com/trit-core/trit-core"
@@ -20,6 +20,7 @@ uuid = { version = "1.0", features = ["v4", "serde"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
 tokio = { version = "1", features = ["full"] }
+dhat = "0.3"
 
 [dev-dependencies]
 assert_fs = "1.0"
@@ -42,6 +43,10 @@ path = "src/bin/node.rs"
 [[bench]]
 name = "trit_bench"
 harness = false
+
+[[bin]]
+name = "dhat-profile"
+path = "src/bin/dhat_profile.rs"
 
 [profile.release]
 opt-level = 3

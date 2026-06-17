@@ -1,5 +1,9 @@
 # Trit-Core MVP
 
+[![CI](https://github.com/trit-core/trit-core/actions/workflows/ci.yml/badge.svg)](https://github.com/trit-core/trit-core/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Rust](https://img.shields.io/badge/rust-1.70%2B-blue.svg)](https://www.rust-lang.org)
+
 A ternary decision engine for conflict-aware AI alignment.
 
 **Status**: v0.1.0-alpha — M0/M1/M2/M3/M4 core deliverables complete

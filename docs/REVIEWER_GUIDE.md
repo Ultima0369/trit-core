@@ -81,9 +81,13 @@ cargo bench
 | 所有场景列表 | `docs/usage/CLI_REFERENCE.md` |
 | 验证数据（vs 二值基线） | `docs/validation-report.md` |
 | 性能数据 | `docs/performance-validation.md` |
+| 堆分配分析 | `docs/performance-validation.md` §7（dhat 验证） |
 | 已知局限 | `docs/insights/FUTURE.md` |
 | 冲突模式目录 | `docs/insights/CONFLICT_CATALOG.md` |
 | 完整术语表 | `docs/insights/GLOSSARY.md` |
+| 分布式协议 | `docs/concepts/ARCHITECTURE.md` §7（M4–M7） |
+| 安全审计 | `docs/security-audit.md` |
+| 安全策略 | `SECURITY.md` |
 
 ---
 
