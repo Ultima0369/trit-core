@@ -21,7 +21,11 @@ pub struct SignalInput {
 #[derive(Debug, Clone, Serialize)]
 pub struct SandboxOutput {
     pub scenario_id: String,
-    pub final_value: i8,
+    /// The final decision state as a human-readable string.
+    /// One of: "True", "Hold", "False", "Unknown".
+    pub final_value: String,
+    /// Numeric representation of the final value (1=True, 0=Hold/Unknown, -1=False).
+    pub final_value_code: i8,
     pub final_frame: String,
     pub final_phase: f64,
     pub interrupts: Vec<String>,

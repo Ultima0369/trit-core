@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use trit_core::frame::Frame;
-use trit_core::meta::{Domain, MetaInterrupt, MetaMonitor, ResolutionPolicy};
+use trit_core::meta::{Domain, MetaInterrupt, MetaMonitor, ResolutionPolicy, SafeFallback};
 use trit_core::sandbox::{SandboxOutput, ScenarioInput};
 use trit_core::trit::algebra::TernaryAlgebra;
 use trit_core::trit::{TritValue, TritWord};
@@ -77,6 +77,7 @@ fn validate_scenario(scenario: &ScenarioInput) -> Result<(), String> {
 
     match scenario.domain.as_str() {
         "Physical" | "Engineering" | "MedicalEthics" | "ValueJudgment" | "General" => {}
+        d if d.starts_with("Custom(") => {} // Custom domain, e.g. "Custom(chemistry)"
         d => return Err(format!("Unknown domain: '{}'", d)),
     }
 
@@ -106,6 +107,8 @@ fn validate_scenario(scenario: &ScenarioInput) -> Result<(), String> {
 }
 
 fn main() {
+    trit_core::tracing_init::init();
+
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 3 || args[1] != "--scenario" {
         eprintln!("Usage: trit-sandbox --scenario <path.json>");
@@ -150,6 +153,14 @@ fn main() {
         "Engineering" => ResolutionPolicy::new(Domain::Engineering),
         "MedicalEthics" => ResolutionPolicy::new(Domain::MedicalEthics),
         "ValueJudgment" => ResolutionPolicy::new(Domain::ValueJudgment),
+        d if d.starts_with("Custom(") => {
+            let name = d
+                .strip_prefix("Custom(")
+                .and_then(|s| s.strip_suffix(")"))
+                .unwrap_or("unknown")
+                .to_string();
+            ResolutionPolicy::new(Domain::Custom(name))
+        }
         _ => ResolutionPolicy::new(Domain::General),
     };
 
@@ -180,15 +191,26 @@ fn main() {
 
     // Policy arbitration if still in conflict
     let policy_result = policy.arbitrate(&trits);
-    let final_word = match &policy_result {
+    let arbitrated_word = match &policy_result {
         trit_core::meta::ArbitrationResult::Commit(w) => w.clone(),
         trit_core::meta::ArbitrationResult::Preserve(w) => w.clone(),
         _ => current.clone(),
     };
 
+    // SafeFallback: in dangerous domains (Physical, Engineering, registered
+    // custom domains), Hold + interrupts forces False per IEC 61508 principles.
+    let safe_fallback = SafeFallback::new();
+    let (final_word, fb_interrupt) =
+        safe_fallback.guard(&policy.domain, &arbitrated_word, interrupts.len());
+    if let Some(int) = fb_interrupt {
+        monitor.record(int.clone());
+        interrupts.push(int);
+    }
+
     let output = SandboxOutput {
         scenario_id: sanitize_log_field(&scenario.id),
-        final_value: final_word.value.to_i8(),
+        final_value: format!("{:?}", final_word.value),
+        final_value_code: final_word.value.to_i8(),
         final_frame: format!("{}", final_word.frame),
         final_phase: final_word.phase.inner(),
         interrupts: interrupts

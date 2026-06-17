@@ -34,6 +34,8 @@ fn print_status(node: &Node) {
 }
 
 fn main() {
+    trit_core::tracing_init::init();
+
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 4 || args[1] != "--frame" || args[3] != "--phase" {
         eprintln!("Usage: trit-node --frame <Science|Individual|Consensus|Absolute> --phase <0.0-1.0> [--id <name>]");
@@ -135,16 +137,17 @@ fn main() {
 
             "log" => {
                 let log = bus.log();
-                let start = if log.len() > 10 { log.len() - 10 } else { 0 };
-                if log.is_empty() {
+                let log_len = log.len();
+                let start = log_len.saturating_sub(10);
+                if log_len == 0 {
                     println!("(empty log)");
                 } else {
-                    for (i, msg) in log[start..].iter().enumerate() {
+                    for (i, msg) in log.skip(start).enumerate() {
                         println!("  [{}] {:?}", start + i + 1, msg.header.msg_id);
                         println!("    sender={}", msg.header.sender);
                     }
                 }
-                println!("Total messages: {}", log.len());
+                println!("Total messages: {}", log_len);
             }
 
             "resonate" => {

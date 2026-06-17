@@ -42,14 +42,32 @@ impl Phase {
         self.0
     }
 
-    /// Arithmetic mean of two phases.
+    /// Arithmetic mean of two phases, auto-quantized to prevent drift.
     pub fn mean(a: Phase, b: Phase) -> Phase {
-        Phase::new((a.0 + b.0) / 2.0)
+        Phase::new((a.0 + b.0) / 2.0).quantize(1e-6)
     }
 
-    /// Complement: 1.0 - phase.
+    /// Complement: 1.0 - phase, auto-quantized.
     pub fn complement(self) -> Phase {
-        Phase::new(1.0 - self.0)
+        Phase::new(1.0 - self.0).quantize(1e-6)
+    }
+
+    /// Quantize to standard values (0.0, 0.5, 1.0) when within epsilon distance.
+    /// This prevents phase drift over long cascades where 0.50000001 and
+    /// 0.49999999 would be semantically different despite both meaning "neutral".
+    ///
+    /// Anchors are checked in order: 0.5 first (most common), then 0.0, then 1.0.
+    pub fn quantize(self, epsilon: f64) -> Phase {
+        let v = self.0;
+        if (v - 0.5).abs() < epsilon {
+            Phase(0.5)
+        } else if v < epsilon {
+            Phase(0.0)
+        } else if (v - 1.0).abs() < epsilon {
+            Phase(1.0)
+        } else {
+            self
+        }
     }
 
     /// Determine commitment direction.
@@ -69,4 +87,62 @@ pub enum Commitment {
     TowardTrue,
     TowardFalse,
     Neutral,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn quantize_snaps_near_neutral() {
+        let p = Phase(0.5000000001);
+        let q = p.quantize(1e-6);
+        assert!((q.inner() - 0.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn quantize_snaps_near_zero() {
+        let p = Phase(0.0000000001);
+        let q = p.quantize(1e-6);
+        assert!((q.inner() - 0.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn quantize_snaps_near_one() {
+        let p = Phase(0.9999999999);
+        let q = p.quantize(1e-6);
+        assert!((q.inner() - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn quantize_preserves_normal_value() {
+        let p = Phase(0.73);
+        let q = p.quantize(1e-6);
+        assert!((q.inner() - 0.73).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn quantize_neutral_priority_over_extremes() {
+        // 0.50000001 is closer to 0.5 than 1.0 but we anchor 0.5 first
+        let p = Phase(0.50000001);
+        let q = p.quantize(1e-3);
+        assert!((q.inner() - 0.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn mean_auto_quantizes() {
+        let a = Phase(0.3);
+        let b = Phase(0.7);
+        let m = Phase::mean(a, b);
+        // 0.3 + 0.7 = 1.0 / 2 = 0.5 exactly → should be 0.5
+        assert!((m.inner() - 0.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn complement_auto_quantizes() {
+        let p = Phase(0.5);
+        let c = p.complement();
+        // 1.0 - 0.5 = 0.5 → should be 0.5
+        assert!((c.inner() - 0.5).abs() < f64::EPSILON);
+    }
 }

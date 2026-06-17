@@ -10,9 +10,13 @@ use crate::frame::Frame;
 /// A ternary word: the fundamental unit of computation in Trit-Core.
 ///
 /// Unlike a binary bit (0/1), a trit carries:
-/// - `value`: ternary state {True, Hold, False}
+/// - `value`: ternary state {True, Hold, False} + out-of-distribution {Unknown}
 /// - `phase`: continuous tendency 0.0..1.0 (0.5 = neutral)
 /// - `frame`: the decision domain / context this trit belongs to
+///
+/// The core ternary logic (MVL-3) operates on True/Hold/False.
+/// `Unknown` (⊥) is a meta-state for inputs the system cannot compute on —
+/// it propagates through TAND/TOR and triggers SafeFallback in dangerous domains.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TritWord {
     pub value: TritValue,
@@ -42,6 +46,11 @@ impl TritWord {
     /// Create a fully committed false trit
     pub fn fals(frame: Frame) -> Self {
         Self::new(TritValue::False, 0.0, frame)
+    }
+
+    /// Create an out-of-distribution trit (unknowable input).
+    pub fn unknown(frame: Frame) -> Self {
+        Self::new(TritValue::Unknown, 0.5, frame)
     }
 }
 

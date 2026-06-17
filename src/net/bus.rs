@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use crate::frame::Frame;
 use crate::net::message::{Message, MessagePayload};
@@ -15,14 +15,14 @@ const MAX_NODES: usize = 256;
 ///
 /// Routes messages between nodes, applies PLL corrections,
 /// and manages the coupling lifecycle. Message log is a capped
-/// ring buffer to prevent unbounded memory growth (CWE-770).
+/// VecDeque ring buffer for O(1) push/pop at both ends.
 pub struct ResonanceBus {
     /// All registered nodes indexed by id.
     pub nodes: HashMap<String, Node>,
     /// PLL controllers per node id.
     pub plls: HashMap<String, PllController>,
-    /// Message log for audit trail (capped ring buffer).
-    pub message_log: Vec<Message>,
+    /// Message log for audit trail (capped ring buffer, O(1) push/pop).
+    pub message_log: VecDeque<Message>,
 }
 
 impl ResonanceBus {
@@ -30,7 +30,7 @@ impl ResonanceBus {
         Self {
             nodes: HashMap::new(),
             plls: HashMap::new(),
-            message_log: vec![],
+            message_log: VecDeque::new(),
         }
     }
 
@@ -124,7 +124,7 @@ impl ResonanceBus {
                 }
             }
         }
-        self.message_log.push(ack.clone());
+        self.message_log.push_back(ack.clone());
     }
 
     /// Process a DECOUPLE_REQ: break coupling for the sender.
@@ -145,43 +145,55 @@ impl ResonanceBus {
             0.5
         };
 
-        self.message_log.push(msg.clone());
+        self.message_log.push_back(msg.clone());
         let ack = Message::decouple_ack(node_id, restored_phase, cycles_coupled);
-        self.message_log.push(ack.clone());
+        self.message_log.push_back(ack.clone());
         ack
     }
 
     /// Run a negotiation among a set of participant nodes.
     ///
+    /// Single-pass: collects phases, detects cross-frame, and computes consensus
+    /// in one traversal instead of three.
+    ///
     /// Returns the consensus TritWord and whether a conflict was detected.
     pub fn negotiate(&mut self, participant_ids: &[String]) -> (TritWord, bool) {
-        let participants: Vec<&Node> = participant_ids
-            .iter()
-            .filter_map(|id| self.nodes.get(id))
-            .collect();
+        let mut participants: Vec<&Node> = Vec::with_capacity(participant_ids.len());
+        let mut phase_sum = 0.0;
+        let mut first_frame: Option<&Frame> = None;
+        let mut has_cross_frame = false;
+
+        for id in participant_ids {
+            if let Some(node) = self.nodes.get(id) {
+                phase_sum += node.current_phase;
+                if let Some(ff) = first_frame {
+                    if &node.frame != ff {
+                        has_cross_frame = true;
+                    }
+                } else {
+                    first_frame = Some(&node.frame);
+                }
+                participants.push(node);
+            }
+        }
 
         if participants.is_empty() {
             return (TritWord::hold(Frame::Meta), false);
         }
 
-        let frames: Vec<String> = participants
-            .iter()
-            .map(|n| format!("{}", n.frame))
-            .collect();
-        let phases: Vec<f64> = participants.iter().map(|n| n.current_phase).collect();
-        let consensus_phase = phases.iter().sum::<f64>() / phases.len() as f64;
-
-        // Check for cross-frame conflict
-        let first_frame = &participants[0].frame;
-        let has_cross_frame = participants.iter().any(|n| &n.frame != first_frame);
-
+        let consensus_phase = phase_sum / participants.len() as f64;
         let conflict_resolution = if has_cross_frame {
             "hold"
         } else {
             "commit_true"
         };
 
-        // Record negotiation message
+        // Build message
+        let frames: Vec<String> = participants
+            .iter()
+            .map(|n| format!("{}", n.frame))
+            .collect();
+        let phases: Vec<f64> = participants.iter().map(|n| n.current_phase).collect();
         let msg = Message::negotiate(
             "resonance-bus",
             participant_ids.to_vec(),
@@ -200,9 +212,9 @@ impl ResonanceBus {
         (result, has_cross_frame)
     }
 
-    /// Get the message log as a reference.
-    pub fn log(&self) -> &[Message] {
-        &self.message_log
+    /// Get the message log as an iterator.
+    pub fn log(&self) -> std::collections::vec_deque::Iter<'_, Message> {
+        self.message_log.iter()
     }
 
     /// Get a node by id.
@@ -210,12 +222,13 @@ impl ResonanceBus {
         self.nodes.get(id)
     }
 
-    /// Push a message to the log, capping at MAX_MESSAGE_LOG (ring buffer).
+    /// Push a message to the log, capping at MAX_MESSAGE_LOG.
+    /// Uses VecDeque for O(1) amortized push/pop at both ends.
     fn push_log(&mut self, msg: Message) {
         if self.message_log.len() >= MAX_MESSAGE_LOG {
-            self.message_log.remove(0);
+            self.message_log.pop_front(); // O(1)
         }
-        self.message_log.push(msg);
+        self.message_log.push_back(msg); // O(1) amortized
     }
 }
 
