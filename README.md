@@ -3,7 +3,7 @@
 A ternary decision engine for conflict-aware AI alignment.
 
 **Status**: v0.1.0-alpha — M0/M1/M2/M3/M4 core deliverables complete
-**Tests**: 34 passing, 0 failures
+**Tests**: 170 passing, 0 failures
 **License**: MIT
 
 ## Overview
@@ -102,18 +102,41 @@ Across 12 human-centric advisory scenarios:
 
 ## Documentation
 
+→ **Start here**: [docs/INDEX.md](docs/INDEX.md) — full navigation map.
+
+### New to Trit-Core?
+1. [What is Trit?](docs/getting-started/WHAT_IS_TRIT.md) — three stories that explain why ternary decisions matter
+2. [Quickstart](docs/getting-started/QUICKSTART.md) — 3 minutes from clone to first scenario
+3. [Concepts](docs/concepts/CONCEPTS.md) — core types and their mathematical foundations
+4. [Philosophy](docs/concepts/PHILOSOPHY.md) — thermodynamics, cognitive myelination, and AI alignment ecology
+
+### Integrating Trit-Core?
+- [API Reference](docs/api.md) — public API contract
+- [Module Reference](docs/development/MODULES.md) — per-module responsibilities and key functions
+- [Custom Rules](docs/usage/CUSTOM_RULE.md) — defining external arbitration rules via JSON
+
+### Contributing?
+- [Contributing Guide](docs/development/CONTRIBUTING.md) — code style, CI gates, test strategy
+- [Benchmarks](docs/development/BENCHMARK.md) — performance data and how to run benchmarks
+
+### Deep Dives
+- [Architecture](docs/concepts/ARCHITECTURE.md) — layer stack, hot/cold paths, SafeFallback design
+- [Conflict Catalog](docs/insights/CONFLICT_CATALOG.md) — systematic classification of cross-frame conflict patterns
+- [Future](docs/insights/FUTURE.md) — known limitations and possible resolution paths
+- [Glossary](docs/insights/GLOSSARY.md) — all terms defined, with cross-disciplinary mappings
+
+### Historical Documents
 | Document | Description |
 |----------|-------------|
-| `docs/whitepaper.md` | Technical specification |
+| `docs/whitepaper.md` | Technical specification (v0.1.0-alpha) |
 | `docs/preprint.md` | Research paper (10+ pages, English) |
 | `docs/zh/preprint.zh.md` | Research paper (Chinese) |
 | `docs/roadmap.md` | Milestone plan and acceptance criteria |
-| `docs/api.md` | Public API contract |
 | `docs/validation-report.md` | M2 ternary vs binary comparison |
 | `docs/security-audit.md` | AppSec audit (P1/P2 fixes applied) |
 | `docs/code-quality-audit.md` | SOLID/DRY/complexity audit |
 | `docs/adr/` | Architecture Decision Records (4 ADRs) |
-| `CLAUDE.md` | Claude Code guidance |
+| `docs/zh/` | Chinese translations (whitepaper, ADRs, roadmap, API) |
 
 ## Milestones
 
