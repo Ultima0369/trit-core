@@ -37,7 +37,13 @@ impl ResolutionPolicy {
         let result = match self.domain {
             Domain::Physical | Domain::Engineering => {
                 if mask.has(&Frame::Science) {
-                    let t = inputs.iter().find(|t| t.frame == Frame::Science).unwrap();
+                    // SAFETY: FrameMask::has() is an O(1) bitmask check that
+                    // guarantees at least one Science-frame input exists in the
+                    // slice, so find() cannot return None.
+                    let t = inputs
+                        .iter()
+                        .find(|t| t.frame == Frame::Science)
+                        .expect("invariant: FrameMask guarantees Science presence");
                     ArbitrationResult::Commit(t.clone())
                 } else {
                     ArbitrationResult::ForceCollapse
@@ -48,7 +54,7 @@ impl ResolutionPolicy {
                     let t = inputs
                         .iter()
                         .find(|t| t.frame == Frame::Individual)
-                        .unwrap();
+                        .expect("invariant: FrameMask guarantees Individual presence");
                     ArbitrationResult::Preserve(t.clone())
                 } else {
                     ArbitrationResult::Negotiate
@@ -75,9 +81,18 @@ impl ResolutionPolicy {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ArbitrationResult {
+    /// Commit to a specific TritWord as the final decision.
     Commit(TritWord),
+    /// Preserve a TritWord (MedicalEthics: Individual frame).
     Preserve(TritWord),
+    /// Force a safe collapse. When this is returned from arbitrate(),
+    /// the caller should invoke SafeFallback::guard() to determine the
+    /// final value — in dangerous domains (Physical, Engineering,
+    /// chemistry, genetics, etc.) this will force False when interrupts
+    /// are present, implementing IEC 61508 fail-safe semantics.
     ForceCollapse,
+    /// Deliberately hold — incommensurable values, cannot decide.
     Hold,
+    /// Attempt multi-round negotiation (General domain with mixed frames).
     Negotiate,
 }

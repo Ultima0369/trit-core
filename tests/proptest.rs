@@ -117,7 +117,6 @@ fn arb_trit_word_vec(max_size: usize) -> impl Strategy<Value = Vec<TritWord>> {
 
 proptest! {
     #[test]
-    #[test]
     fn involution_negate_twice_is_identity(v in arb_trit_value()) {
         assert_eq!(v.negate().negate(), v);
     }
