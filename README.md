@@ -3,7 +3,7 @@
 A ternary decision engine for conflict-aware AI alignment.
 
 **Status**: v0.1.0-alpha — M0/M1/M2/M3/M4 core deliverables complete
-**Tests**: 218 passing, 0 failures
+**Tests**: 227 passing, 0 failures
 **License**: MIT
 
 ## Overview
