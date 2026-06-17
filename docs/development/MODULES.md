@@ -107,10 +107,13 @@
 | `mod.rs` | 27 | 模块声明 + 重导出 |
 | `bus.rs` | 91 | ResonanceBus 消息总线 |
 | `coupling.rs` | 209 | 耦合生命周期（RESONATE/DECOUPLE） |
+| `frame_codec.rs` | NEW | TCP 长度前缀帧协议（M5） |
 | `message.rs` | 192 | 协议消息类型与构造器 |
 | `negotiate.rs` | 109 | 多节点协商（单次遍历） |
 | `node.rs` | 255 | Node 状态机 |
 | `pll.rs` | 121 | 软件锁相环 |
+| `tcp_client.rs` | NEW | TCP 客户端连接器（M5） |
+| `tcp_server.rs` | NEW | TCP 节点服务器（M5） |
 
 ### 关键函数
 
@@ -127,11 +130,19 @@
 | `ResonanceBus::handle_resonate_ack` | `fn handle_resonate_ack(&mut self, node_id, ack)` | 处理 RESONATE_ACK |
 | `ResonanceBus::handle_decouple_req` | `fn handle_decouple_req(&mut self, node_id, msg, cycles) -> Message` | 处理 DECOUPLE_REQ |
 | `ResonanceBus::negotiate` | `fn negotiate(&mut self, participant_ids) -> (TritWord, bool)` | 单次遍历协商 |
+| `TcpNodeServer::serve` | `async fn serve(&self) -> io::Result<()>` | 启动 TCP 监听循环（M5） |
+| `TcpClient::connect` | `async fn connect(addr: &str) -> io::Result<TcpClient>` | 连接远程节点（M5） |
+| `TcpClient::resonate` | `async fn resonate(&mut self, ...) -> io::Result<Message>` | 发送 RESONATE_REQ（M5） |
+| `TcpClient::decouple` | `async fn decouple(&mut self, ...) -> io::Result<Message>` | 发送 DECOUPLE_REQ（M5） |
+| `read_frame` | `async fn read_frame<R>(reader: &mut R) -> io::Result<Vec<u8>>` | 从流中读取一帧（M5） |
+| `write_frame` | `async fn write_frame<W>(writer: &mut W, payload: &[u8]) -> io::Result<()>` | 向流中写入一帧（M5） |
 
 ### 设计约束
 
 - 消息日志是有上限的（`MAX_MESSAGE_LOG = 10_000`），实现为 VecDeque 环形缓冲区
 - PLL 参数（kp=0.3、deadband=0.05、max_correction=0.1）使用 ADR-004 中的值
+- TCP 帧协议使用 4 字节大端长度前缀 + JSON 负载，最大帧 1 MiB
+- `TcpNodeServer` 使用 `Arc<Mutex<ResonanceBus>>` 实现并发访问
 - `net/` 模块是显式不稳定的——可能在 0.2.0 中进行重构
 
 ---

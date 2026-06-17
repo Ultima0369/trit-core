@@ -191,7 +191,7 @@ Custom(name):
 
 ---
 
-## 7. 分布式协议（M4，存根）
+## 7. 分布式协议（M4 + M5）
 
 ### 7.1 Node 状态机
 
@@ -220,6 +220,49 @@ Sovereign → Coupling → Coupled → Hold
 - 死区 `deadband = 0.05`（忽略微小相位差，防止振荡）
 - 最大单步校正 `max_correction = 0.1`
 - 冲突相位差阈值：`|phase_a - phase_b| > 0.3`
+
+### 7.4 TCP 传输层（M5）
+
+Trit-Core 支持通过 TCP 进行真实网络通信，替代内存中的 ResonanceBus。
+
+**帧协议**：
+```
+| 0..4         | 4..(4+len)   |
+|--------------|--------------|
+| len (u32 BE) | JSON 负载    |
+```
+- 最大帧大小：1 MiB（CWE-770 防护）
+- 4 字节大端长度前缀 + JSON 负载
+- 设计理由：二进制安全（JSON 可能包含换行符），允许零拷贝预分配
+
+**组件**：
+- `TcpNodeServer`：监听 TCP 端口，接受连接，分发消息到本地 ResonanceBus
+- `TcpClient`：连接远程节点，发送 REQ 并接收 ACK
+- `frame_codec`：`read_frame()` / `write_frame()` 底层帧编解码
+
+**架构**：
+```
+Node A (TcpNodeServer)          Node B (TcpClient)
+  ├── ResonanceBus                 │
+  ├── TcpListener                  │
+  │    ├── conn 1 ←──────────── TcpStream ──→ connect()
+  │    │    ├── read_frame()                   ├── write_frame(REQ)
+  │    │    ├── dispatch_message()             ├── read_frame(ACK)
+  │    │    └── write_frame(ACK)               └── ...
+  │    └── conn 2 ← ...
+  └── ...
+```
+节点可以同时作为服务端（接受其他节点的连接）和客户端（主动连接其他节点）。
+
+### 7.5 从 M4 到 M5 的演进
+
+| 维度 | M4（内存总线） | M5（TCP 传输层） |
+|---|---|---|
+| 通信方式 | ResonanceBus（内存） | TCP（网络） |
+| 节点发现 | 手动注册 | TCP 连接 |
+| 并发模型 | 单线程 | tokio 多线程 |
+| 适用范围 | 本地模拟、测试 | 真实分布式部署 |
+| 内存上限 | 256 节点、10K 消息 | 无硬性上限 |
 
 ---
 

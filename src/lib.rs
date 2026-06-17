@@ -20,6 +20,8 @@ pub use net::{
     message::{Message, MessageHeader, MessagePayload, OpCode},
     node::{Interference, Node, NodeState},
     pll::PllController,
+    tcp_client::TcpClient,
+    tcp_server::TcpNodeServer,
 };
 pub use sandbox::{SandboxOutput, ScenarioInput};
 pub use trit::algebra::TernaryAlgebra;
