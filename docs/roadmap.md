@@ -113,8 +113,8 @@
 
 ## Definition of Done (MVP)
 
-- [ ] Code compiles, tests pass, no unsafe blocks.
-- [ ] 10–20 scenarios with binary comparison.
-- [ ] Whitepaper + ADRs + preprint complete.
+- [x] Code compiles, tests pass, no unsafe blocks.
+- [x] 10–20 scenarios with binary comparison.
+- [x] Whitepaper + ADRs + preprint complete.
 - [ ] GitHub public repository live.
 - [ ] At least one human reviewer has validated the claim: "Trit-Core preserves conflict better than binary RLHF proxies."

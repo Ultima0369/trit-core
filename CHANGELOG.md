@@ -12,24 +12,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Five decision domains: Physical, Engineering, MedicalEthics, ValueJudgment, General.
 - Meta-monitor with conflict detection and domain-based arbitration.
 - Sandbox CLI (`trit-sandbox`) for JSON scenario input/output.
+- trit-node CLI (`trit-node`) for sovereign node REPL (M4).
+- Docker Compose 3-node cluster (Science/Individual/Consensus).
 - 12 scenario JSON files covering 5 domains (plus 5 zh variants, total 17).
 - Binary baseline comparator (`src/baseline/`) for M2 ternary vs binary validation.
 - Integration test suite (18 tests) covering all scenarios end-to-end.
-- Architecture Decision Records (ADRs): 001-ternary-logic, 002-phase-arithmetic, 003-domain-conflict.
+- Architecture Decision Records (ADRs): 001-ternary-logic, 002-phase-arithmetic, 003-domain-conflict, 004-distributed-protocol.
 - Full Chinese documentation system (`docs/zh/`).
 - Architecture audit report (`docs/zh/architecture-audit.zh.md`).
+- Security audit report (`docs/security-audit.md`): all P1/P2 fixes applied.
+- Code quality audit report (`docs/code-quality-audit.md`).
 - GitHub Actions CI/CD pipeline: check, lint, test, benchmark, build.
 - Benchmark suite (`criterion`) for TAND, TOR, TNOT, cascade operations.
 - Preprint (`docs/preprint.md`): 10+ page research paper with abstract, architecture, validation, references.
+- Chinese preprint (`docs/zh/preprint.zh.md`): 10+ page Chinese translation.
 - M2 validation report (`docs/validation-report.md`): ternary vs binary comparison across 12 scenarios.
-- M4 distributed protocol (ADR-004): T_RESONATE/T_DECOUPLE with PLL, ResonanceBus, message types.
-- Distributed node implementation (`src/net/`): Node, PllController, ResonanceBus, protocol messages.
-- M4 protocol tests (11 tests): PLL correction, resonance coupling, negotiation, decoupling.
-- Chinese preprint (`docs/zh/preprint.zh.md`): full 10+ page Chinese translation of preprint.
+- M4 distributed protocol: T_RESONATE/T_DECOUPLE with PLL, ResonanceBus, message types.
 - Observability via `tracing` in core algebra and policy engine.
 - `#![deny(warnings)]` and `#![forbid(unsafe_code)]` enforced.
 - CLAUDE.md for Claude Code guidance; Serena project memories initialized.
-- Git repository initialized with initial commit (no remote push).
+- Git repository initialized with 6 commits (no remote push).
 - Total: 34 tests, 0 failures, 0 warnings, 0 clippy issues.
 
 ### Engineering

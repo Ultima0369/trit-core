@@ -37,3 +37,51 @@ impl HarmonicClock {
         Self::new(0.5, 0.0)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_detect_rising_zero_crossing_on_tick() {
+        let mut clock = HarmonicClock::new(1.0, 0.0);
+        // At t=0: sin(0)=0, after dt=0.1: sin(0.1)≈0.0998 > 0
+        assert!(clock.tick(0.1));
+    }
+
+    #[test]
+    fn should_not_detect_crossing_when_descending() {
+        let mut clock = HarmonicClock::new(1.0, std::f64::consts::PI);
+        // At t=0: sin(π)=0, after dt=0.1: sin(π+0.1)≈-0.0998 < 0
+        assert!(!clock.tick(0.1));
+    }
+
+    #[test]
+    fn phase_now_should_return_sine_of_current_angle() {
+        let clock = HarmonicClock::new(1.0, std::f64::consts::FRAC_PI_2);
+        // sin(π/2) = 1.0
+        assert!((clock.phase_now() - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn physical_clock_should_have_high_frequency() {
+        let clock = HarmonicClock::physical();
+        assert!(clock.omega > 5.0);
+    }
+
+    #[test]
+    fn deliberative_clock_should_have_low_frequency() {
+        let clock = HarmonicClock::deliberative();
+        assert!(clock.omega < 5.0);
+    }
+
+    #[test]
+    fn multiple_ticks_should_accumulate_time() {
+        let mut clock = HarmonicClock::new(1.0, 0.0);
+        clock.tick(0.1);
+        clock.tick(0.1);
+        clock.tick(0.1);
+        // t should be 0.3, sin(0.3) ≈ 0.2955
+        assert!((clock.phase_now() - 0.3_f64.sin()).abs() < 0.01);
+    }
+}

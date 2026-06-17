@@ -63,3 +63,56 @@ impl Default for FrameRegistry {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    #[test]
+    fn should_parse_science_from_str() {
+        assert_eq!(Frame::from_str("Science").unwrap(), Frame::Science);
+    }
+
+    #[test]
+    fn should_parse_all_known_frames() {
+        for (input, expected) in [
+            ("Science", Frame::Science),
+            ("Individual", Frame::Individual),
+            ("Consensus", Frame::Consensus),
+            ("Absolute", Frame::Absolute),
+            ("Meta", Frame::Meta),
+        ] {
+            assert_eq!(Frame::from_str(input).unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn should_reject_unknown_frame() {
+        assert!(Frame::from_str("Unknown").is_err());
+        assert!(Frame::from_str("").is_err());
+    }
+
+    #[test]
+    fn should_display_frame_as_string() {
+        assert_eq!(format!("{}", Frame::Science), "Science");
+        assert_eq!(format!("{}", Frame::Individual), "Individual");
+    }
+
+    #[test]
+    fn registry_should_track_unique_frames() {
+        let mut reg = FrameRegistry::new();
+        reg.register(Frame::Science);
+        reg.register(Frame::Science); // duplicate
+        reg.register(Frame::Individual);
+        assert!(reg.is_registered(&Frame::Science));
+        assert!(reg.is_registered(&Frame::Individual));
+        assert!(!reg.is_registered(&Frame::Consensus));
+    }
+
+    #[test]
+    fn registry_should_start_empty() {
+        let reg = FrameRegistry::new();
+        assert!(!reg.is_registered(&Frame::Science));
+    }
+}

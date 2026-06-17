@@ -36,3 +36,60 @@ impl From<i8> for TritValue {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_convert_true_to_i8_positive_one() {
+        assert_eq!(TritValue::True.to_i8(), 1);
+    }
+
+    #[test]
+    fn should_convert_hold_to_i8_zero() {
+        assert_eq!(TritValue::Hold.to_i8(), 0);
+    }
+
+    #[test]
+    fn should_convert_false_to_i8_negative_one() {
+        assert_eq!(TritValue::False.to_i8(), -1);
+    }
+
+    #[test]
+    fn should_create_from_i8_positive_one() {
+        assert_eq!(TritValue::from(1), TritValue::True);
+    }
+
+    #[test]
+    fn should_create_from_i8_negative_one() {
+        assert_eq!(TritValue::from(-1), TritValue::False);
+    }
+
+    #[test]
+    fn should_create_hold_from_any_other_i8() {
+        assert_eq!(TritValue::from(0), TritValue::Hold);
+        assert_eq!(TritValue::from(2), TritValue::Hold);
+        assert_eq!(TritValue::from(-2), TritValue::Hold);
+    }
+
+    #[test]
+    fn negate_should_flip_true_to_false() {
+        assert_eq!(TritValue::True.negate(), TritValue::False);
+    }
+
+    #[test]
+    fn negate_should_flip_false_to_true() {
+        assert_eq!(TritValue::False.negate(), TritValue::True);
+    }
+
+    #[test]
+    fn negate_should_keep_hold() {
+        assert_eq!(TritValue::Hold.negate(), TritValue::Hold);
+    }
+
+    #[test]
+    fn default_should_be_hold() {
+        assert_eq!(TritValue::default(), TritValue::Hold);
+    }
+}
