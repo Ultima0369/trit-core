@@ -6,3 +6,4 @@
 # everyone who runs the test benefits from these saved cases.
 cc bb4c448bdfee38ea5e1fa7c39daad573d88965b8e78ffa10f9c9f192cc63a29c # shrinks to (a, b) = (TritWord { value: Unknown, phase: Phase(0.0), frame: Science }, TritWord { value: True, phase: Phase(0.0), frame: Science })
 cc 5c18de05668405223b88de2f1024dc26d1b5ed2cb9920ab2d585f36fb34bf8ad # shrinks to (a, b) = (TritWord { value: Unknown, phase: Phase(0.0), frame: Science }, TritWord { value: True, phase: Phase(0.0), frame: Science })
+cc b9a365c321ee83e95ada8f1a03beeb5f1f4e2ac903c1a83bf0e42caa4afedf50 # shrinks to sender = "a", num_participants = 4, phases = [0.889, 0.031, 0.31, 0.551]

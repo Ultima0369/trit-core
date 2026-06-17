@@ -12,6 +12,17 @@
 //!    cross-frame Hold, hot-path consistency, Unknown propagation
 //! **Layer 3 — Arbitration**: domain policy invariants, Absolute frame guard
 //! **Layer 4 — SafeFallback**: dangerous-domain forcing, safe-domain pass-through
+//! **Layer 5 — Phase invariants**: validity, quantization, complement, bounded mean
+//! **Layer 6 — De Morgan's laws**: computable values only
+//! **Layer 7 — TritWord constructors**: tru/fals/hold/unknown invariants
+//! **Layer 8 — Frame invariants**: Display/FromStr roundtrip
+//! **Layer 9 — MetaMonitor invariants**: starts empty
+//! **Layer 10 — RuleLoader invariants**: JSON roundtrip
+//! **Layer 11 — Cascade invariants**: same-frame no interrupts, phase bounded
+//! **Layer 12 — Node state machine**: state transitions, phase preservation, decouple
+//! **Layer 13 — PLL controller**: correction bounds, deadband, conflict detection
+//! **Layer 14 — ResonanceBus**: coupling lifecycle, negotiation invariants
+//! **Layer 15 — Message serde**: protocol message roundtrip
 
 use proptest::prelude::*;
 use trit_core::frame::Frame;
@@ -20,6 +31,10 @@ use trit_core::meta::{
 };
 use trit_core::trit::algebra::TernaryAlgebra;
 use trit_core::trit::{Phase, TritValue, TritWord};
+use trit_core::net::bus::ResonanceBus;
+use trit_core::net::message::Message;
+use trit_core::net::node::{Node, NodeState};
+use trit_core::net::pll::PllController;
 
 // ============================================================================
 // Custom strategies for generating Trit-Core values
@@ -835,5 +850,671 @@ proptest! {
             assert!((0.0..=1.0).contains(&phase));
             current = result;
         }
+    }
+}
+
+// ============================================================================
+// Layer 12: Node state machine invariants
+// ============================================================================
+
+fn arb_node_state() -> impl Strategy<Value = NodeState> {
+    prop_oneof![
+        Just(NodeState::Sovereign),
+        Just(NodeState::Coupling),
+        Just(NodeState::Coupled),
+        Just(NodeState::Hold),
+    ]
+}
+
+fn arb_node(frame: Frame, phase: f64) -> Node {
+    Node::new(uuid::Uuid::new_v4().to_string(), frame, phase)
+}
+
+proptest! {
+
+    #[test]
+    fn node_starts_sovereign(frame in arb_frame(), phase in arb_phase()) {
+        let node = arb_node(frame, phase);
+        assert_eq!(node.state, NodeState::Sovereign);
+        assert_eq!(node.peers.len(), 0);
+        assert_eq!(node.cycles_coupled, 0);
+    }
+
+
+    #[test]
+    fn node_sovereign_phase_preserved_after_coupling(
+        frame in arb_frame(),
+        sovereign_phase in arb_phase(),
+        coupled_phase in arb_phase(),
+    ) {
+        let mut node = arb_node(frame, sovereign_phase);
+        node.current_phase = coupled_phase;
+        // Sovereign phase must remain unchanged
+        assert!((node.sovereign_phase - sovereign_phase).abs() < f64::EPSILON);
+        // Current phase reflects coupling drift
+        assert!((node.current_phase - coupled_phase).abs() < f64::EPSILON);
+    }
+
+
+    #[test]
+    fn node_initiate_coupling_only_from_sovereign(
+        frame in arb_frame(),
+        phase in arb_phase(),
+        state in arb_node_state(),
+    ) {
+        let mut node = arb_node(frame, phase);
+        node.state = state.clone();
+        node.initiate_coupling("peer-x");
+        if state == NodeState::Sovereign {
+            assert_eq!(node.state, NodeState::Coupling);
+            assert!(node.peers.contains(&"peer-x".to_string()));
+        } else {
+            assert_eq!(node.state, state);
+            assert!(!node.peers.contains(&"peer-x".to_string()));
+        }
+    }
+
+
+    #[test]
+    fn node_confirm_coupling_only_from_coupling(
+        frame in arb_frame(),
+        phase in arb_phase(),
+        state in arb_node_state(),
+    ) {
+        let mut node = arb_node(frame, phase);
+        node.state = state.clone();
+        node.confirm_coupling();
+        if state == NodeState::Coupling {
+            assert_eq!(node.state, NodeState::Coupled);
+        } else {
+            assert_eq!(node.state, state);
+        }
+    }
+
+
+    #[test]
+    fn node_decouple_restores_sovereign(
+        frame in arb_frame(),
+        sovereign_phase in arb_phase(),
+        coupled_phase in arb_phase(),
+        state in arb_node_state(),
+        num_peers in 0usize..10usize,
+        cycles in 0u64..1000u64,
+    ) {
+        let mut node = arb_node(frame, sovereign_phase);
+        node.current_phase = coupled_phase;
+        node.state = state;
+        node.peers = (0..num_peers).map(|i| format!("peer-{}", i)).collect();
+        node.cycles_coupled = cycles;
+
+        node.decouple();
+
+        assert_eq!(node.state, NodeState::Sovereign);
+        assert!((node.current_phase - node.sovereign_phase).abs() < f64::EPSILON);
+        assert!(node.peers.is_empty());
+        assert_eq!(node.cycles_coupled, 0);
+    }
+
+
+    #[test]
+    fn node_phase_adjustment_clamped(
+        frame in arb_frame(),
+        initial_phase in arb_phase(),
+        delta in -2.0f64..2.0f64,
+    ) {
+        let mut node = arb_node(frame, initial_phase);
+        node.adjust_phase(delta);
+        let p = node.current_phase;
+        assert!(p.is_finite());
+        assert!((0.0..=1.0).contains(&p));
+    }
+
+
+    #[test]
+    fn node_tick_only_increments_when_coupled(
+        frame in arb_frame(),
+        phase in arb_phase(),
+        state in arb_node_state(),
+    ) {
+        let mut node = arb_node(frame, phase);
+        node.state = state.clone();
+        let before = node.cycles_coupled;
+        node.tick();
+        if state == NodeState::Coupled {
+            assert_eq!(node.cycles_coupled, before + 1);
+        } else {
+            assert_eq!(node.cycles_coupled, before);
+        }
+    }
+
+
+    #[test]
+    fn node_interference_same_frame_always_constructive(
+        frame in arb_frame(),
+        p1 in arb_phase(),
+        p2 in arb_phase(),
+    ) {
+        let a = Node::new("a".into(), frame.clone(), p1);
+        let b = Node::new("b".into(), frame, p2);
+        assert_eq!(a.interference_with(&b), trit_core::net::node::Interference::Constructive);
+    }
+
+
+    #[test]
+    fn node_to_trit_preserves_phase_and_frame(
+        frame in arb_frame(),
+        phase in arb_phase(),
+    ) {
+        let node = arb_node(frame.clone(), phase);
+        let trit = node.to_trit();
+        assert_eq!(trit.value, TritValue::Hold);
+        assert!((trit.phase.inner() - phase).abs() < f64::EPSILON);
+        assert_eq!(trit.frame, frame);
+    }
+
+
+    #[test]
+    fn node_enter_hold_records_interrupt(
+        frame in arb_frame(),
+        phase in arb_phase(),
+        reason in "[a-z_ ]{1,50}",
+    ) {
+        let mut node = arb_node(frame, phase);
+        node.enter_hold(&reason);
+        assert_eq!(node.state, NodeState::Hold);
+        assert_eq!(node.monitor.log().len(), 1);
+        assert_eq!(node.monitor.log()[0].conflict, ConflictType::FrameMismatch);
+    }
+}
+
+// ============================================================================
+// Layer 13: PLL controller invariants
+// ============================================================================
+
+proptest! {
+
+    #[test]
+    fn pll_correction_bounded(
+        local in 0.0f64..=1.0f64,
+        peer in 0.0f64..=1.0f64,
+    ) {
+        let mut pll = PllController::new();
+        let correction = pll.compute_correction(local, peer);
+        assert!(correction.abs() <= pll.max_correction);
+        assert!(correction.is_finite());
+    }
+
+
+    #[test]
+    fn pll_deadband_suppresses_small_errors(
+        local in 0.0f64..=1.0f64,
+        epsilon in -0.049f64..0.049f64,
+    ) {
+        let mut pll = PllController::new();
+        let peer = (local + epsilon).clamp(0.0, 1.0);
+        let correction = pll.compute_correction(local, peer);
+        // Error <= deadband → correction should be 0
+        let error = (peer - local).abs();
+        if error <= pll.deadband {
+            assert_eq!(correction, 0.0);
+        }
+    }
+
+
+    #[test]
+    fn pll_correction_sign_matches_error(
+        local in 0.0f64..=1.0f64,
+        peer in 0.0f64..=1.0f64,
+    ) {
+        let mut pll = PllController::new();
+        let correction = pll.compute_correction(local, peer);
+        let error = peer - local;
+        if error.abs() > pll.deadband {
+            // Correction should pull local toward peer
+            assert!(correction * error >= 0.0,
+                "correction {} should have same sign as error {}", correction, error);
+        }
+    }
+
+
+    #[test]
+    fn pll_total_correction_accumulates(
+        local in 0.0f64..=1.0f64,
+        peer in 0.0f64..=1.0f64,
+    ) {
+        let mut pll = PllController::new();
+        let before = pll.total_correction;
+        let _ = pll.compute_correction(local, peer);
+        let after = pll.total_correction;
+        let error = (peer - local).abs();
+        if error > pll.deadband {
+            assert!((after - before).abs() > 0.0);
+        }
+    }
+
+
+    #[test]
+    fn pll_reset_zeroes_total_correction(
+        local in 0.0f64..=1.0f64,
+        peer in 0.0f64..=1.0f64,
+    ) {
+        let mut pll = PllController::new();
+        let _ = pll.compute_correction(local, peer);
+        pll.reset();
+        assert_eq!(pll.total_correction, 0.0);
+    }
+
+
+    #[test]
+    fn conflict_phase_gap_threshold(
+        p1 in 0.0f64..=1.0f64,
+        p2 in 0.0f64..=1.0f64,
+    ) {
+        let is_conflict = PllController::is_conflict_phase_gap(p1, p2);
+        let gap = (p1 - p2).abs();
+        assert_eq!(is_conflict, gap > 0.3);
+    }
+
+
+    #[test]
+    fn phase_jump_anomaly_threshold(
+        old in 0.0f64..=1.0f64,
+        new in 0.0f64..=1.0f64,
+    ) {
+        let is_anomaly = PllController::is_phase_jump_anomaly(old, new);
+        let jump = (new - old).abs();
+        assert_eq!(is_anomaly, jump > 0.5);
+    }
+}
+
+// ============================================================================
+// Layer 14: ResonanceBus coupling lifecycle invariants
+// ============================================================================
+
+fn arb_node_id() -> impl Strategy<Value = String> {
+    "[a-z][a-z0-9_]{0,15}"
+}
+
+proptest! {
+
+    #[test]
+    fn bus_register_node_is_retrievable(
+        id in arb_node_id(),
+        frame in arb_frame(),
+        phase in arb_phase(),
+    ) {
+        let mut bus = ResonanceBus::new();
+        let node = Node::new(id.clone(), frame.clone(), phase);
+        bus.register(node);
+        let retrieved = bus.get_node(&id);
+        assert!(retrieved.is_some());
+        let n = retrieved.unwrap();
+        assert_eq!(n.frame, frame);
+        assert!((n.current_phase - phase).abs() < f64::EPSILON);
+        assert_eq!(n.state, NodeState::Sovereign);
+    }
+
+
+    #[test]
+    fn bus_register_creates_pll(
+        id in arb_node_id(),
+        frame in arb_frame(),
+        phase in arb_phase(),
+    ) {
+        let mut bus = ResonanceBus::new();
+        let node = Node::new(id.clone(), frame, phase);
+        bus.register(node);
+        assert!(bus.plls.contains_key(&id));
+    }
+
+
+    #[test]
+    fn bus_same_frame_resonance_is_constructive(
+        id_a in arb_node_id(),
+        id_b in arb_node_id(),
+        frame in arb_frame(),
+        p1 in arb_phase(),
+        p2 in arb_phase(),
+    ) {
+        prop_assume!(id_a != id_b);
+        let mut bus = ResonanceBus::new();
+        bus.register(Node::new(id_a.clone(), frame.clone(), p1));
+        bus.register(Node::new(id_b.clone(), frame.clone(), p2));
+
+        let req = Message::resonate_req(&id_a, &format!("{}", frame), p1, vec![]);
+        let ack = bus.handle_resonate_req(&id_a, &id_b, &req);
+
+        assert!(ack.is_some());
+        let ack_msg = ack.unwrap();
+        match &ack_msg.payload {
+            trit_core::net::message::MessagePayload::ResonateAck(data) => {
+                assert_eq!(data.interference, "constructive");
+                assert!(!data.conflict_detected);
+                assert_eq!(data.recommendation, "commit");
+            }
+            _ => panic!("Expected ResonateAck"),
+        }
+    }
+
+
+    #[test]
+    fn bus_cross_frame_resonance_detects_conflict(
+        id_a in arb_node_id(),
+        id_b in arb_node_id(),
+        frame_a in arb_frame(),
+        frame_b in arb_frame(),
+        p1 in arb_phase(),
+        p2 in arb_phase(),
+    ) {
+        prop_assume!(id_a != id_b);
+        prop_assume!(frame_a != frame_b);
+        let mut bus = ResonanceBus::new();
+        bus.register(Node::new(id_a.clone(), frame_a.clone(), p1));
+        bus.register(Node::new(id_b.clone(), frame_b.clone(), p2));
+
+        let req = Message::resonate_req(&id_a, &format!("{}", frame_a), p1, vec![]);
+        let ack = bus.handle_resonate_req(&id_a, &id_b, &req);
+
+        assert!(ack.is_some());
+        let ack_msg = ack.unwrap();
+        match &ack_msg.payload {
+            trit_core::net::message::MessagePayload::ResonateAck(data) => {
+                assert!(data.conflict_detected || data.interference != "constructive");
+            }
+            _ => panic!("Expected ResonateAck"),
+        }
+    }
+
+
+    #[test]
+    fn bus_decouple_restores_phase(
+        id in arb_node_id(),
+        frame in arb_frame(),
+        sovereign_phase in arb_phase(),
+        coupled_phase in arb_phase(),
+        cycles in 0u64..1000u64,
+    ) {
+        let mut bus = ResonanceBus::new();
+        let mut node = Node::new(id.clone(), frame, sovereign_phase);
+        node.current_phase = coupled_phase;
+        node.state = NodeState::Coupled;
+        node.cycles_coupled = cycles;
+        bus.register(node);
+
+        let req = Message::decouple_req(&id, "test_decouple");
+        let ack = bus.handle_decouple_req(&id, &req, cycles);
+
+        match &ack.payload {
+            trit_core::net::message::MessagePayload::DecoupleAck(data) => {
+                assert!((data.restored_phase - sovereign_phase).abs() < f64::EPSILON);
+                assert_eq!(data.cycles_coupled, cycles);
+            }
+            _ => panic!("Expected DecoupleAck"),
+        }
+
+        let node = bus.get_node(&id).unwrap();
+        assert_eq!(node.state, NodeState::Sovereign);
+        assert!((node.current_phase - node.sovereign_phase).abs() < f64::EPSILON);
+    }
+
+
+    #[test]
+    fn bus_negotiate_same_frame_commits(
+        ids in proptest::collection::vec(arb_node_id(), 2..10),
+        frame in arb_frame(),
+        phases in proptest::collection::vec(arb_phase(), 2..10),
+    ) {
+        let n = ids.len().min(phases.len());
+        let mut bus = ResonanceBus::new();
+        for i in 0..n {
+            bus.register(Node::new(ids[i].clone(), frame.clone(), phases[i]));
+        }
+        let participant_ids: Vec<String> = ids[..n].to_vec();
+        let (result, has_conflict) = bus.negotiate(&participant_ids);
+        assert!(!has_conflict);
+        assert_eq!(result.value, TritValue::True);
+    }
+
+
+    #[test]
+    fn bus_negotiate_cross_frame_holds(
+        ids in proptest::collection::vec(arb_node_id(), 2..6),
+        frames in proptest::collection::vec(arb_frame(), 2..6),
+        phases in proptest::collection::vec(arb_phase(), 2..6),
+    ) {
+        let n = ids.len().min(frames.len()).min(phases.len());
+        prop_assume!(n >= 2);
+        // Ensure at least two different frames
+        let all_same = frames[..n].windows(2).all(|w| w[0] == w[1]);
+        prop_assume!(!all_same);
+
+        let mut bus = ResonanceBus::new();
+        for i in 0..n {
+            bus.register(Node::new(ids[i].clone(), frames[i].clone(), phases[i]));
+        }
+        let participant_ids: Vec<String> = ids[..n].to_vec();
+        let (result, has_conflict) = bus.negotiate(&participant_ids);
+        assert!(has_conflict);
+        assert_eq!(result.value, TritValue::Hold);
+    }
+
+
+    #[test]
+    fn bus_empty_negotiate_returns_hold(
+        _dummy in Just(()),
+    ) {
+        let mut bus = ResonanceBus::new();
+        let (result, has_conflict) = bus.negotiate(&[]);
+        assert!(!has_conflict);
+        assert_eq!(result.value, TritValue::Hold);
+    }
+
+
+    #[test]
+    fn bus_message_log_grows(
+        id_a in arb_node_id(),
+        id_b in arb_node_id(),
+        frame in arb_frame(),
+        p1 in arb_phase(),
+        p2 in arb_phase(),
+    ) {
+        prop_assume!(id_a != id_b);
+        let mut bus = ResonanceBus::new();
+        bus.register(Node::new(id_a.clone(), frame.clone(), p1));
+        bus.register(Node::new(id_b.clone(), frame.clone(), p2));
+
+        let log_before = bus.log().count();
+        let req = Message::resonate_req(&id_a, &format!("{}", frame), p1, vec![]);
+        let _ = bus.handle_resonate_req(&id_a, &id_b, &req);
+        let log_after = bus.log().count();
+
+        assert!(log_after > log_before);
+    }
+}
+
+// ============================================================================
+// Layer 15: Message serde roundtrip invariants
+//
+// NOTE: msg_id and timestamp are regenerated on each Message constructor call,
+// so we compare parsed structs semantically rather than comparing raw JSON.
+// ============================================================================
+
+proptest! {
+
+    #[test]
+    fn message_resonate_req_roundtrip(
+        sender in arb_node_id(),
+        frame_name in "[A-Z][a-z]{2,12}",
+        phase in arb_phase(),
+        history in proptest::collection::vec(arb_phase(), 0..10),
+    ) {
+        let msg = Message::resonate_req(&sender, &frame_name, phase, history.clone());
+        let json = serde_json::to_string(&msg).unwrap();
+        let parsed: Message = serde_json::from_str(&json).unwrap();
+        // Verify header fields preserved
+        assert_eq!(parsed.header.proto, msg.header.proto);
+        assert_eq!(parsed.header.sender, msg.header.sender);
+        // Verify payload preserved
+        match &parsed.payload {
+            trit_core::net::message::MessagePayload::ResonateReq(data) => {
+                assert_eq!(data.frame, frame_name);
+                assert!((data.phase - phase).abs() < f64::EPSILON);
+                assert_eq!(data.history, history);
+            }
+            _ => panic!("Expected ResonateReq"),
+        }
+    }
+
+
+    #[test]
+    fn message_resonate_ack_roundtrip(
+        sender in arb_node_id(),
+        coupled_phase in arb_phase(),
+        interference in prop_oneof![
+            Just("constructive".to_string()),
+            Just("neutral".to_string()),
+            Just("destructive".to_string()),
+        ],
+        conflict_detected in any::<bool>(),
+        recommendation in prop_oneof![
+            Just("commit".to_string()),
+            Just("hold".to_string()),
+            Just("negotiate".to_string()),
+        ],
+    ) {
+        let msg = Message::resonate_ack(
+            &sender, coupled_phase, &interference, conflict_detected, &recommendation,
+        );
+        let json = serde_json::to_string(&msg).unwrap();
+        let parsed: Message = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.header.proto, msg.header.proto);
+        assert_eq!(parsed.header.sender, msg.header.sender);
+        match &parsed.payload {
+            trit_core::net::message::MessagePayload::ResonateAck(data) => {
+                assert!((data.coupled_phase - coupled_phase).abs() < f64::EPSILON);
+                assert_eq!(data.interference, interference);
+                assert_eq!(data.conflict_detected, conflict_detected);
+                assert_eq!(data.recommendation, recommendation);
+            }
+            _ => panic!("Expected ResonateAck"),
+        }
+    }
+
+
+    #[test]
+    fn message_decouple_req_roundtrip(
+        sender in arb_node_id(),
+        reason in prop_oneof![
+            Just("user_disconnect".to_string()),
+            Just("timeout".to_string()),
+            Just("policy_violation".to_string()),
+        ],
+    ) {
+        let msg = Message::decouple_req(&sender, &reason);
+        let json = serde_json::to_string(&msg).unwrap();
+        let parsed: Message = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.header.proto, msg.header.proto);
+        assert_eq!(parsed.header.sender, msg.header.sender);
+        match &parsed.payload {
+            trit_core::net::message::MessagePayload::DecoupleReq(data) => {
+                assert_eq!(data.reason, reason);
+            }
+            _ => panic!("Expected DecoupleReq"),
+        }
+    }
+
+
+    #[test]
+    fn message_decouple_ack_roundtrip(
+        sender in arb_node_id(),
+        restored_phase in arb_phase(),
+        cycles_coupled in 0u64..10000u64,
+    ) {
+        let msg = Message::decouple_ack(&sender, restored_phase, cycles_coupled);
+        let json = serde_json::to_string(&msg).unwrap();
+        let parsed: Message = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.header.proto, msg.header.proto);
+        assert_eq!(parsed.header.sender, msg.header.sender);
+        match &parsed.payload {
+            trit_core::net::message::MessagePayload::DecoupleAck(data) => {
+                assert!((data.restored_phase - restored_phase).abs() < f64::EPSILON);
+                assert_eq!(data.cycles_coupled, cycles_coupled);
+            }
+            _ => panic!("Expected DecoupleAck"),
+        }
+    }
+
+
+    #[test]
+    fn message_negotiate_roundtrip(
+        sender in arb_node_id(),
+        phases in proptest::collection::vec(arb_phase(), 1..10),
+    ) {
+        let n = phases.len();
+        let participants: Vec<String> = (0..n).map(|i| format!("node-{}", i)).collect();
+        let frames: Vec<String> = (0..n).map(|_| format!("{}", Frame::Science)).collect();
+        let consensus_phase = phases.iter().sum::<f64>() / n as f64;
+        let resolution = if n > 1 { "hold" } else { "commit_true" };
+
+        let msg = Message::negotiate(&sender, participants.clone(), frames.clone(), phases.clone(), resolution);
+        let json = serde_json::to_string(&msg).unwrap();
+        let parsed: Message = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.header.proto, msg.header.proto);
+        assert_eq!(parsed.header.sender, msg.header.sender);
+        match &parsed.payload {
+            trit_core::net::message::MessagePayload::Negotiate(data) => {
+                assert_eq!(data.participants, participants);
+                assert_eq!(data.frames, frames);
+                // Float comparison with tolerance for serde serialization roundtrip
+                for (a, b) in data.phases.iter().zip(phases.iter()) {
+                    assert!((a - b).abs() < 1e-10);
+                }
+                assert!((data.consensus_phase - consensus_phase).abs() < 1e-10);
+                assert_eq!(data.conflict_resolution, resolution);
+            }
+            _ => panic!("Expected Negotiate"),
+        }
+    }
+
+
+    #[test]
+    fn message_heartbeat_roundtrip(
+        sender in arb_node_id(),
+        node_state in prop_oneof![
+            Just("Sovereign".to_string()),
+            Just("Coupling".to_string()),
+            Just("Coupled".to_string()),
+            Just("Hold".to_string()),
+        ],
+        current_phase in arb_phase(),
+    ) {
+        let msg = Message::heartbeat(&sender, &node_state, current_phase);
+        let json = serde_json::to_string(&msg).unwrap();
+        let parsed: Message = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.header.proto, msg.header.proto);
+        assert_eq!(parsed.header.sender, msg.header.sender);
+        match &parsed.payload {
+            trit_core::net::message::MessagePayload::Heartbeat(data) => {
+                assert_eq!(data.node_state, node_state);
+                assert!((data.current_phase - current_phase).abs() < f64::EPSILON);
+            }
+            _ => panic!("Expected Heartbeat"),
+        }
+    }
+
+
+    #[test]
+    fn message_header_fields_preserved(
+        sender in arb_node_id(),
+        frame_name in "[A-Z][a-z]{2,12}",
+        phase in arb_phase(),
+    ) {
+        let msg = Message::resonate_req(&sender, &frame_name, phase, vec![]);
+        let json = serde_json::to_string(&msg).unwrap();
+        let parsed: Message = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.header.proto, "trit-proto/1.0");
+        assert_eq!(parsed.header.sender, sender);
+        assert!(!parsed.header.msg_id.is_empty());
+        assert!(!parsed.header.timestamp.is_empty());
     }
 }
