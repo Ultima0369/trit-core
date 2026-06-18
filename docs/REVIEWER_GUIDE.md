@@ -26,8 +26,8 @@ cd trit-core
 # 构建（release 模式含 LTO）
 cargo build --release
 
-# 运行所有测试（227 个）
-cargo test --all-features -- --test-threads=1
+# 运行所有测试（305 个）
+cargo test --all-features
 
 # 运行一个示例场景
 cargo run --release --bin trit-sandbox -- --scenario scenarios/medical_conflict_01.json
@@ -85,7 +85,7 @@ cargo bench
 | 已知局限 | `docs/insights/FUTURE.md` |
 | 冲突模式目录 | `docs/insights/CONFLICT_CATALOG.md` |
 | 完整术语表 | `docs/insights/GLOSSARY.md` |
-| 分布式协议 | `docs/concepts/ARCHITECTURE.md` §7（M4–M7） |
+| 分布式协议 | `docs/concepts/ARCHITECTURE.md` §7（M4–M8） |
 | 安全审计 | `docs/security-audit.md` |
 | 安全策略 | `SECURITY.md` |
 

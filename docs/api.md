@@ -32,11 +32,21 @@ Constants:
 - `Phase::FULL_FALSE` = 0.0
 
 Methods:
-- `fn new(v: f64) -> Phase` (panics if out of [0.0, 1.0])
+- `fn new(v: f64) -> Phase` — clamps out-of-range values with tracing warning; NaN/Inf → NEUTRAL (0.5)
+- `fn try_new(v: f64) -> Result<Phase, String>` — strict constructor, returns Err for invalid values
 - `fn inner(self) -> f64`
 - `fn mean(a: Phase, b: Phase) -> Phase`
 - `fn complement(self) -> Phase`
 - `fn commitment(self) -> Commitment` (TowardTrue / TowardFalse / Neutral)
+
+### `Commitment` (enum)
+```rust
+pub enum Commitment {
+    TowardTrue,
+    TowardFalse,
+    Neutral,
+}
+```
 
 ### `TritWord` (struct)
 ```rust
@@ -51,6 +61,7 @@ Constructors:
 - `fn hold(frame: Frame) -> TritWord`
 - `fn tru(frame: Frame) -> TritWord`
 - `fn fals(frame: Frame) -> TritWord`
+- `fn unknown(frame: Frame) -> TritWord` — out-of-distribution trit (⊥ state)
 
 ### `TernaryAlgebra` (struct)
 ```rust
@@ -62,6 +73,9 @@ Static methods:
 - `fn t_not(a: &TritWord) -> TritWord`
 - `fn t_hold(a: &TritWord) -> TritWord`
 - `fn t_sense(phase: f64, frame: Frame) -> TritWord`
+- `fn precheck_same_frame(a: &TritWord, b: &TritWord) -> bool` — O(1) frame equality check
+- `fn t_and_hot(a: &TritWord, b: &TritWord) -> TritWord` — hot-path TAND (requires same frame, debug_assert)
+- `fn t_or_hot(a: &TritWord, b: &TritWord) -> TritWord` — hot-path TOR (requires same frame, debug_assert)
 
 ---
 
@@ -77,7 +91,7 @@ pub enum Frame {
     Meta,
 }
 ```
-Implements `Display`, `Clone`, `Debug`, `PartialEq`, `Eq`, `Hash`.
+Implements `Display`, `FromStr`, `Clone`, `Debug`, `PartialEq`, `Eq`, `Hash`.
 
 ### `FrameRegistry` (struct)
 ```rust
@@ -158,31 +172,35 @@ Methods:
 ### `SafeFallback` (struct)
 IEC 61508 fail-safe semantics. Forces False on dangerous-domain operations that produce Hold with active interrupts.
 ```rust
-pub struct SafeFallback;
+pub struct SafeFallback {
+    pub dangerous_custom_domains: Vec<String>,
+    pub enabled: bool,
+}
 ```
 Methods:
-- `fn new() -> SafeFallback`
-- `fn register_dangerous(&mut self, domain: &str)` — register a domain as dangerous
-- `fn is_dangerous(&self, domain: &str) -> bool`
-- `fn is_enabled(&self) -> bool`
-- `fn set_enabled(&mut self, enabled: bool)`
-- `fn guard(&self, result: &TritWord, interrupts: &[MetaInterrupt], domain: &Domain) -> TritWord`
+- `fn new() -> SafeFallback` — pre-registers chemistry, genetics, structural, nuclear, pharmaceutical
+- `fn register_dangerous(&mut self, domain: &str)` — register a custom domain as dangerous
+- `fn is_dangerous(&self, domain: &Domain) -> bool` — Physical/Engineering always dangerous; MedicalEthics/ValueJudgment/General never
+- `fn guard(&self, domain: &Domain, result: &TritWord, interrupt_count: usize) -> (TritWord, Option<MetaInterrupt>)` — forces False when domain is dangerous, result is Hold/Unknown, and interrupt_count > 0
 
 ### `CustomRule` (struct)
 User-defined arbitration rule for custom domains.
 ```rust
 pub struct CustomRule {
     pub name: String,
-    pub domain: String,
-    pub priority_frame: String,
-    pub fallback_policy: String, // "hold" | "safe_fallback" | "negotiate"
+    pub priority_frame: Option<String>,
+    pub allow_forced_collapse: bool,
+    pub fallback: String, // "hold" | "negotiate" | "commit_first" | "safe_fallback"
 }
 ```
 
 ### `RuleLoader` (trait)
 ```rust
 pub trait RuleLoader {
-    fn load(&self, source: &str) -> Result<Vec<CustomRule>, String>;
+    type Error: std::fmt::Display;
+    fn load<P: AsRef<Path>>(path: P) -> Result<CustomRule, Self::Error>;
+    fn load_json(json: &str) -> Result<CustomRule, Self::Error>;
+    fn apply(rule: &CustomRule, inputs: &[TritWord]) -> ArbitrationResult;
 }
 ```
 
@@ -190,7 +208,7 @@ pub trait RuleLoader {
 Implements `RuleLoader` for JSON-format custom rules.
 
 ### `FrameMask` (struct, pub(crate))
-Internal O(1) bitmask for frame presence checks. Uses u8, supports up to 8 frame types.
+Internal O(1) bitmask for frame presence checks. Uses u8, supports up to 8 frame types. Not part of the public API.
 
 ---
 
@@ -209,7 +227,7 @@ Methods:
 
 ---
 
-## 5. `trit_core::net` — Distributed Protocol (M4-M6)
+## 5. `trit_core::net` — Distributed Protocol (M4-M8)
 
 ### `ResonanceBus` (struct)
 In-memory message bus for multi-node simulation. Max 256 nodes, 10,000 message log (ring buffer).
@@ -347,6 +365,41 @@ TCP length-prefix framing protocol (4-byte BE length + JSON payload, max 1 MiB):
 - `const MAX_FRAME_SIZE: usize = 1_048_576`
 - `async fn read_frame<R: AsyncRead + Unpin>(reader: &mut R) -> io::Result<Vec<u8>>`
 - `async fn write_frame<W: AsyncWrite + Unpin>(writer: &mut W, payload: &[u8]) -> io::Result<()>`
+
+### `ResonanceBus` partition tolerance (M7)
+Heartbeat-based peer health monitoring:
+- `HEARTBEAT_TIMEOUT_SECS: u64` — stale peer detection timeout (30s)
+- `SPLIT_BRAIN_TIMEOUT_SECS: u64` — split-brain detection timeout (60s)
+- `fn stale_peers(&self) -> Vec<String>` — peers with no heartbeat within timeout
+- `fn purge_stale_peers(&mut self)` — remove stale peers
+- `fn detect_split_brain(&self) -> bool` — true when network partition suspected
+
+### `ByzantineGatekeeper` (struct, M8)
+Validates incoming messages with 7 safety checks before bus dispatch.
+```rust
+pub struct ByzantineGatekeeper;
+```
+Methods:
+- `fn new(max_messages_per_window, rate_window_secs, max_per_peer_log) -> ByzantineGatekeeper`
+- `fn register_node(&mut self, node_id: &str)`
+- `fn unregister_node(&mut self, node_id: &str)`
+- `fn validate(&mut self, msg: &Message) -> Result<(), GateRejection>`
+- `fn record_log_entry(&mut self, peer_id: &str)`
+- `fn prune_log_entry(&mut self, peer_id: &str)`
+- `fn reset_peer(&mut self, peer_id: &str)`
+
+### `GateRejection` (enum, M8)
+```rust
+pub enum GateRejection {
+    InvalidSender(String),
+    PhaseOutOfRange { field: String, value: f64 },
+    InvalidFrame(String),
+    PayloadInconsistent(String),
+    RateLimited { peer: String, count: usize },
+    PerPeerLogFull { peer: String, count: usize },
+    UnknownSender(String),
+}
+```
 
 ---
 

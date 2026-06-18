@@ -8,12 +8,12 @@
 
 ### 文件
 
-| 文件 | 行数 | 职责 |
+| 文件 | 职责 |
 |---|---|---|
-| `mod.rs` | 57 | TritWord 定义 + 构造器 |
-| `value.rs` | 174 | TritValue 枚举 + LUT 实现 |
-| `phase.rs` | 148 | Phase 连续倾向度 + 量化 |
-| `algebra.rs` | 220 | TernaryAlgebra: TAND/TOR/TNOT/THOLD/TSENSE |
+| `mod.rs` | TritWord 定义 + 构造器 |
+| `value.rs` | TritValue 枚举 + LUT 实现 |
+| `phase.rs` | Phase 连续倾向度 + 量化 |
+| `algebra.rs` | TernaryAlgebra: TAND/TOR/TNOT/THOLD/TSENSE |
 
 ### 关键函数
 
@@ -46,9 +46,9 @@
 
 ### 文件
 
-| 文件 | 行数 | 职责 |
+| 文件 | 职责 |
 |---|---|---|
-| `mod.rs` | 118 | Frame 枚举 + FrameRegistry |
+| `mod.rs` | Frame 枚举 + FrameRegistry |
 
 ### 关键类型
 
@@ -68,14 +68,14 @@
 
 ### 文件
 
-| 文件 | 行数 | 职责 |
+| 文件 | 职责 |
 |---|---|---|
-| `mod.rs` | 237 | 模块声明 + 重导出 + 21 个测试 |
-| `domain.rs` | 108 | Domain 枚举 + ResolutionPolicy + ArbitrationResult |
-| `frame_mask.rs` | 52 | O(1) u8 位掩码帧检测 |
-| `interrupt.rs` | 85 | MetaInterrupt + ConflictType + MetaMonitor |
-| `rules.rs` | 90 | CustomRule + RuleLoader 特质 + JsonRuleLoader |
-| `safe_fallback.rs` | 124 | SafeFallback: IEC 61508 安全降级 |
+| `mod.rs` | 模块声明 + 重导出 + 21 个测试 |
+| `domain.rs` | Domain 枚举 + ResolutionPolicy + ArbitrationResult |
+| `frame_mask.rs` | O(1) u8 位掩码帧检测 |
+| `interrupt.rs` | MetaInterrupt + ConflictType + MetaMonitor |
+| `rules.rs` | CustomRule + RuleLoader 特质 + JsonRuleLoader |
+| `safe_fallback.rs` | SafeFallback: IEC 61508 安全降级 |
 
 ### 关键函数
 
@@ -98,23 +98,24 @@
 
 ---
 
-## `net/` — 分布式协议（M4–M6）
+## `net/` — 分布式协议（M4–M8）
 
 ### 文件
 
-| 文件 | 行数 | 职责 |
+| 文件 | 职责 |
 |---|---|---|
-| `mod.rs` | 27 | 模块声明 + 重导出 |
-| `bus.rs` | 91 | ResonanceBus 消息总线 |
-| `coupling.rs` | 209 | 耦合生命周期（RESONATE/DECOUPLE） |
-| `discovery.rs` | NEW | 种子节点发现（M6） |
-| `frame_codec.rs` | NEW | TCP 长度前缀帧协议（M5） |
-| `message.rs` | 192 | 协议消息类型与构造器 |
-| `negotiate.rs` | 109 | 多节点协商（单次遍历） |
-| `node.rs` | 255 | Node 状态机 |
-| `pll.rs` | 121 | 软件锁相环 |
-| `tcp_client.rs` | NEW | TCP 客户端连接器（M5） |
-| `tcp_server.rs` | NEW | TCP 节点服务器（M5） |
+| `mod.rs` | 模块声明 + 重导出 |
+| `bus.rs` | ResonanceBus 消息总线 |
+| `coupling.rs` | 耦合生命周期（RESONATE/DECOUPLE） |
+| `discovery.rs` | 种子节点发现（M6） |
+| `frame_codec.rs` | TCP 长度前缀帧协议（M5） |
+| `gate.rs` | 拜占庭门卫（M8） |
+| `message.rs` | 协议消息类型与构造器 |
+| `negotiate.rs` | 多节点协商（单次遍历） |
+| `node.rs` | Node 状态机 |
+| `pll.rs` | 软件锁相环 |
+| `tcp_client.rs` | TCP 客户端连接器（M5） |
+| `tcp_server.rs` | TCP 节点服务器（M5） |
 
 ### 关键函数
 
@@ -139,6 +140,10 @@
 | `write_frame` | `async fn write_frame<W>(writer: &mut W, payload: &[u8]) -> io::Result<()>` | 向流中写入一帧（M5） |
 | `parse_seeds` | `fn parse_seeds(seeds: &str) -> Vec<String>` | 解析逗号分隔的 `host:port` 种子列表（M6） |
 | `bootstrap` | `async fn bootstrap(bus, local_id, seeds) -> usize` | 连接种子节点并交换 HEARTBEAT（M6） |
+| `ByzantineGatekeeper::validate` | `fn validate(&mut self, msg: &Message) -> Result<(), GateRejection>` | 7 重拜占庭验证（M8） |
+| `ResonanceBus::stale_peers` | `fn stale_peers(&self) -> Vec<String>` | 检测超时未心跳的对等节点（M7） |
+| `ResonanceBus::purge_stale_peers` | `fn purge_stale_peers(&mut self)` | 移除失联节点（M7） |
+| `ResonanceBus::detect_split_brain` | `fn detect_split_brain(&self) -> bool` | 脑裂检测（M7） |
 
 ### 设计约束
 
@@ -146,6 +151,7 @@
 - PLL 参数（kp=0.3、deadband=0.05、max_correction=0.1）使用 ADR-004 中的值
 - TCP 帧协议使用 4 字节大端长度前缀 + JSON 负载，最大帧 1 MiB
 - `TcpNodeServer` 使用 `Arc<Mutex<ResonanceBus>>` 实现并发访问
+- ByzantineGatekeeper 是可选的（`Option<ByzantineGatekeeper>`），禁用时零开销
 - `net/` 模块是显式不稳定的——可能在 0.2.0 中进行重构
 
 ---
@@ -154,9 +160,9 @@
 
 ### 文件
 
-| 文件 | 行数 | 职责 |
+| 文件 | 职责 |
 |---|---|---|
-| `clock.rs` | 83 | HarmonicClock 正弦振荡器 |
+| `clock.rs` | HarmonicClock 正弦振荡器 |
 
 ### 关键函数
 
@@ -173,9 +179,9 @@
 
 ### 文件
 
-| 文件 | 行数 | 职责 |
+| 文件 | 职责 |
 |---|---|---|
-| `mod.rs` | 162 | BinaryBaseline 二元多数投票 |
+| `mod.rs` | BinaryBaseline 二元多数投票 |
 
 ### 关键函数
 
@@ -191,13 +197,14 @@
 
 ### 文件
 
-| 文件 | 行数 | 职责 |
+| 文件 | 职责 |
 |---|---|---|
-| `sandbox.rs` | 33 | ScenarioInput + SandboxOutput 类型定义 |
+| `sandbox.rs` | ScenarioInput + SandboxOutput 类型定义 |
 
 ### 二进制入口
 
-| 文件 | 行数 | 说明 |
+| 文件 | 说明 |
 |---|---|---|
-| `src/bin/sandbox.rs` | 230 | trit-sandbox CLI |
-| `src/bin/node.rs` | 233 | trit-node CLI |
+| `src/bin/sandbox.rs` | trit-sandbox CLI |
+| `src/bin/node.rs` | trit-node CLI |
+| `src/bin/dhat_profile.rs` | dhat 堆分析二进制 |

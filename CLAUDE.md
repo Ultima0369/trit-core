@@ -42,8 +42,8 @@ cargo run --release --bin trit-sandbox -- --scenario scenarios/career_value_conf
 The codebase is a **modular monolith** with these layers (bottom-up):
 
 ### 1. `src/trit/` — Core Ternary Algebra (frozen for 0.1.x)
-- **`TritValue`**: Three discrete states: `True` (+1), `Hold` (0), `False` (-1).
-- **`Phase`**: Continuous tendency 0.0–1.0 (0.5 = neutral). Wraps `f64` with bounds-checking.
+- **`TritValue`**: Four discrete states: `True` (+1), `Hold` (0), `False` (-1), `Unknown` (⊥ — out-of-distribution, propagates through TAND/TOR).
+- **`Phase`**: Continuous tendency 0.0–1.0 (0.5 = neutral). Wraps `f64` with bounds-clamping and NaN/Inf protection (logs warning via tracing). Use `try_new()` for strict validation that returns `Err`.
 - **`TritWord`**: The fundamental computation unit — bundles a `TritValue`, `Phase`, and `Frame`.
 - **`TernaryAlgebra`** (HTA — Harmonic Ternary Algebra): Static methods `t_and`, `t_or`, `t_not`, `t_hold`, `t_sense`. Cross-frame operations return `(TritWord, Option<MetaInterrupt>)` instead of forcing a binary collapse. Same-frame operations use standard ternary truth tables with phase averaging.
 
@@ -63,6 +63,8 @@ The codebase is a **modular monolith** with these layers (bottom-up):
 ### 5. `src/sandbox/` — CLI Simulation
 - `ScenarioInput` / `SandboxOutput`: Serde structs for JSON scenario I/O.
 - `src/bin/sandbox.rs`: CLI that reads a JSON scenario, runs TAND cascade across signals, applies policy arbitration, and prints JSON output.
+- `src/bin/node.rs`: Trit node CLI binary for sovereign node REPL (M4).
+- `src/bin/dhat_profile.rs`: dhat heap profiling binary for allocation analysis.
 
 ### 6. `src/net/` — Distributed Protocol (M4-M6)
 - **`bus/`** — `ResonanceBus`: in-memory message routing with VecDeque ring buffer (MAX_MESSAGE_LOG=10,000, MAX_NODES=256)
@@ -75,6 +77,7 @@ The codebase is a **modular monolith** with these layers (bottom-up):
 - **`pll/`** — Software phase-locked loop controller (kp=0.3, deadband=0.05)
 - **`tcp_client/`** — TCP client connector with resonate/decouple/heartbeat/negotiate methods (M5)
 - **`tcp_server/`** — TCP node server dispatching messages to ResonanceBus (M5)
+- **`gate/`** — Byzantine fault tolerance gatekeeper with 7 safety checks (M8)
 
 ### Data Flow
 ```

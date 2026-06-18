@@ -6,8 +6,8 @@
 
 A ternary decision engine for conflict-aware AI alignment.
 
-**Status**: v0.1.0 — M0–M8 complete, all code milestones delivered
-**Tests**: 298 passing, 0 failures
+**Status**: v0.1.0 — M0–M9 complete, all code milestones delivered
+**Tests**: 305 passing, 0 failures
 **License**: MIT
 
 ## Overview
@@ -55,8 +55,8 @@ Input Layer (multi-source signals)
 | `src/clock/` | Phase oscillator and time-scale management |
 | `src/sandbox/` | CLI simulation environment |
 | `src/baseline/` | Binary baseline comparator for validation |
-| `src/net/` | Distributed node protocol (M4-M8: TCP, PLL, seed discovery, partition tolerance, Byzantine fault tolerance) |
-| `docs/` | Architecture Decision Records (ADRs), whitepaper, preprint |
+| `src/net/` | Distributed node protocol (M4-M8: TCP, PLL, seed discovery, partition tolerance, Byzantine fault tolerance, gatekeeper) |
+| `docs/` | Full documentation system (37+ files): ADRs, concepts, usage guides, dev docs, insights, audits, Chinese translations — see [docs/INDEX.md](docs/INDEX.md) |
 | `tests/` | Unit tests and scenario integration tests |
 | `scenarios/` | Human-centric advisory cases (JSON, 17 files) |
 
@@ -69,6 +69,7 @@ Input Layer (multi-source signals)
 - **Timestamping**: chrono + uuid
 - **Observability**: tracing
 - **Heap Profiling**: dhat (zero-allocation hot path verified)
+- **Concurrency**: Multi-threaded stress testing (M9)
 
 ## Build & Run
 
@@ -97,6 +98,9 @@ cargo run --release --bin trit-node -- --frame Science --phase 0.75 --id my-node
 
 # Docker 3-node cluster
 docker compose up --build
+
+# Heap profiling (dhat)
+cargo run --release --bin dhat-profile
 ```
 
 ## Key Results (M2 Validation)
@@ -161,6 +165,7 @@ Across 17 human-centric advisory scenarios:
 | M6: Seed Node Discovery | ✅ Complete |
 | M7: Network Partition Tolerance | ✅ Complete |
 | M8: Byzantine Fault Tolerance | ✅ Complete |
+| M9: Concurrency Stress Testing | ✅ Complete |
 
 ## License
 

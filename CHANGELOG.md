@@ -24,10 +24,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Gatekeeper integration in ResonanceBus (optional, zero overhead when disabled).
 - TCP server validate-then-dispatch pipeline with REJECTED response prefix.
 - 7 Byzantine TCP integration tests + 25 gatekeeper unit tests + 31 message validation tests.
-- Total: 298 tests, 0 failures, 0 warnings, 0 clippy issues.
+- Total: 305 tests, 0 failures, 0 warnings, 0 clippy issues.
+
+### Added (M9)
+- Multi-threaded concurrency stress testing: concurrent bus operations under load.
+- Thread-safe ResonanceBus access patterns validated.
+- Concurrency test suite (6 tests) covering race conditions and deadlock prevention.
 
 ### Changed
-- README updated: M0-M8 milestones, 298 tests, updated tech stack.
+- README updated: M0-M9 milestones, 305 tests, updated tech stack.
 - All docs: version bumped from 0.1.0-alpha to 0.1.0.
 - Roadmap status: Draft → Complete.
 
@@ -75,4 +80,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `phase: f64` may introduce precision drift over long cascades (ADR-002).
 - TCP transport requires tokio runtime; not suitable for embedded/no_std contexts.
 - No formal verification (Coq/Lean) attached.
-- Performance target (10,000 TPS) validated at both micro-benchmark and end-to-end level; 29 criterion benchmarks across 9 groups; 10,000 TPS target exceeded by 65-101x (see docs/performance-validation.md).
+- Performance validated: 29 criterion benchmarks across 9 groups; 10,000 TPS target exceeded by 65-101x (see docs/performance-validation.md).
