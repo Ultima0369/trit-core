@@ -6,8 +6,8 @@
 
 A ternary decision engine for conflict-aware AI alignment.
 
-**Status**: v0.1.0-alpha — M0/M1/M2/M3/M4 core deliverables complete
-**Tests**: 227 passing, 0 failures
+**Status**: v0.1.0 — M0–M8 complete, all code milestones delivered
+**Tests**: 298 passing, 0 failures
 **License**: MIT
 
 ## Overview
@@ -55,7 +55,7 @@ Input Layer (multi-source signals)
 | `src/clock/` | Phase oscillator and time-scale management |
 | `src/sandbox/` | CLI simulation environment |
 | `src/baseline/` | Binary baseline comparator for validation |
-| `src/net/` | Distributed node protocol (M4-M6: TCP, PLL, seed discovery) |
+| `src/net/` | Distributed node protocol (M4-M8: TCP, PLL, seed discovery, partition tolerance, Byzantine fault tolerance) |
 | `docs/` | Architecture Decision Records (ADRs), whitepaper, preprint |
 | `tests/` | Unit tests and scenario integration tests |
 | `scenarios/` | Human-centric advisory cases (JSON, 17 files) |
@@ -63,10 +63,12 @@ Input Layer (multi-source signals)
 ## Technology Stack
 
 - **Language**: Rust 2021 Edition
-- **Serialization**: serde + serde_json (decision logs)
+- **Async Runtime**: tokio (TCP transport, multi-node cluster)
+- **Serialization**: serde + serde_json (decision logs, wire protocol)
 - **Error Handling**: thiserror
 - **Timestamping**: chrono + uuid
 - **Observability**: tracing
+- **Heap Profiling**: dhat (zero-allocation hot path verified)
 
 ## Build & Run
 
@@ -99,7 +101,7 @@ docker compose up --build
 
 ## Key Results (M2 Validation)
 
-Across 12 human-centric advisory scenarios:
+Across 17 human-centric advisory scenarios:
 - **67% of cases**: binary baseline produces misleading output; Trit-Core correctly preserves domain conflicts
 - **100% of ValueJudgment cases**: binary cannot express "this should not be decided by algorithm"
 - **100% of MedicalEthics cases**: binary ignores patient-specific context
@@ -154,7 +156,11 @@ Across 12 human-centric advisory scenarios:
 | M1: Sandbox CLI | ✅ Complete |
 | M2: Scenario Validation | ✅ Complete |
 | M3: Preprint & Open Source | ✅ Core complete |
-| M4: Distributed Prototype | ✅ Core complete |
+| M4: Distributed Prototype | ✅ Complete |
+| M5: TCP Transport Layer | ✅ Complete |
+| M6: Seed Node Discovery | ✅ Complete |
+| M7: Network Partition Tolerance | ✅ Complete |
+| M8: Byzantine Fault Tolerance | ✅ Complete |
 
 ## License
 
