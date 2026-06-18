@@ -18,7 +18,7 @@
 
 use crate::net::bus::ResonanceBus;
 use crate::net::frame_codec;
-use crate::net::message::{Message, MessagePayload};
+use crate::net::message::{HeartbeatPayload, Message, MessagePayload};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::{TcpListener, TcpStream};
@@ -94,7 +94,8 @@ impl TcpNodeServer {
     }
 }
 
-/// Handle a single TCP connection: read frames, dispatch to bus, send responses.
+/// Handle a single TCP connection: read frames, validate via gatekeeper (M8),
+/// dispatch to bus, send responses.
 async fn handle_connection(
     mut stream: TcpStream,
     bus: Arc<Mutex<ResonanceBus>>,
@@ -124,7 +125,21 @@ async fn handle_connection(
         let msg: Message = serde_json::from_slice(&payload)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
 
-        let response = dispatch_message(&bus, &msg).await;
+        // M8: validate then dispatch within one lock scope
+        let response = {
+            let mut bus = bus.lock().await;
+            match bus.validate_incoming(&msg) {
+                Ok(()) => dispatch_message_inner(&mut bus, &msg),
+                Err(rejection) => {
+                    warn!(
+                        sender = %msg.header.sender,
+                        rejection = %rejection,
+                        "Gatekeeper rejected message"
+                    );
+                    Some(build_rejection_response(&msg.header.sender, &rejection))
+                }
+            }
+        };
 
         if let Some(resp) = response {
             let resp_json = serde_json::to_vec(&resp)
@@ -134,16 +149,12 @@ async fn handle_connection(
     }
 }
 
-/// Dispatch an incoming message to the bus and produce a response if needed.
-async fn dispatch_message(bus: &Arc<Mutex<ResonanceBus>>, msg: &Message) -> Option<Message> {
+/// Dispatch a previously-validated message to the bus (M8: lock already held).
+fn dispatch_message_inner(bus: &mut ResonanceBus, msg: &Message) -> Option<Message> {
     let sender = &msg.header.sender;
-    let mut bus = bus.lock().await;
 
     match &msg.payload {
         MessagePayload::ResonateReq(_req) => {
-            // The request specifies a target via the sender field convention:
-            // sender is the requesting node, and we need to find a peer.
-            // For now, we use the first other registered node as the target.
             let target_id = bus.nodes.keys().find(|id| *id != sender).cloned();
 
             if let Some(target) = target_id {
@@ -157,7 +168,7 @@ async fn dispatch_message(bus: &Arc<Mutex<ResonanceBus>>, msg: &Message) -> Opti
         MessagePayload::ResonateAck(_ack) => {
             debug!(node = %sender, "dispatching RESONATE_ACK");
             bus.handle_resonate_ack(sender, msg);
-            None // ACKs don't generate responses
+            None
         }
         MessagePayload::DecoupleReq(_req) => {
             let cycles = { bus.nodes.get(sender).map(|n| n.cycles_coupled).unwrap_or(0) };
@@ -172,7 +183,6 @@ async fn dispatch_message(bus: &Arc<Mutex<ResonanceBus>>, msg: &Message) -> Opti
         MessagePayload::Negotiate(payload) => {
             debug!(participants = ?payload.participants, "dispatching NEGOTIATE");
             let (result, _has_conflict) = bus.negotiate(&payload.participants);
-            // Build a response message with the consensus result
             let response = Message::negotiate(
                 "tcp-server",
                 payload.participants.clone(),
@@ -195,7 +205,6 @@ async fn dispatch_message(bus: &Arc<Mutex<ResonanceBus>>, msg: &Message) -> Opti
             );
             bus.record_heartbeat(sender);
             bus.message_log.push_back(msg.clone());
-            // Echo heartbeat back
             let node = bus.nodes.get(sender);
             let state_str = node
                 .map(|n| format!("{:?}", n.state))
@@ -204,6 +213,18 @@ async fn dispatch_message(bus: &Arc<Mutex<ResonanceBus>>, msg: &Message) -> Opti
             Some(Message::heartbeat("tcp-server", &state_str, phase))
         }
     }
+}
+
+/// Build a rejection response message (M8).
+fn build_rejection_response(sender: &str, rejection: &crate::net::gate::GateRejection) -> Message {
+    let error_msg = format!("{}", rejection);
+    let mut msg = Message::heartbeat("tcp-server", "Sovereign", 0.5);
+    msg.payload = MessagePayload::Heartbeat(HeartbeatPayload {
+        node_state: format!("REJECTED:{}", error_msg),
+        current_phase: 0.0,
+    });
+    msg.header.sender = format!("tcp-server[{}]", sender);
+    msg
 }
 
 #[cfg(test)]

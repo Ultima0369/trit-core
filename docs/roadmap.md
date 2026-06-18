@@ -151,6 +151,25 @@
 
 ---
 
+### M8: Byzantine Fault Tolerance (Week 6–7)
+**Goal**: Protect distributed protocol against arbitrary/malicious (Byzantine) behavior.
+
+**Deliverables**:
+- [x] Message validation layer in `src/net/message.rs` — phase bounds, sender validation, frame name validation, payload consistency
+- [x] `src/net/gate.rs` — `ByzantineGatekeeper` with rate limiting, per-peer log caps, known-node enforcement
+- [x] `ResonanceBus` integration — optional gatekeeper, `validate_incoming()`, `purge_node()`
+- [x] `TcpNodeServer` validation hook — validate before dispatch, rejection response
+- [x] 7 Byzantine scenario tests (phase out-of-range, unknown sender, malformed frame, phase manipulation, rate limiting, valid-pass-through, no-gatekeeper baseline)
+
+**Acceptance Criteria**:
+- Gatekeeper rejects: phase >1.0, phase <0.0, NaN, Infinity, empty sender, unknown sender, invalid frame names, inconsistent Negotiate arrays
+- Rate limiting prevents DoS: >100 messages per second per peer rejected
+- Per-peer log cap enforced: >1000 entries per peer rejected
+- Gatekeeper is optional: when `None`, existing behavior is unchanged
+- All 7 Byzantine tests pass, all existing tests unbroken
+
+---
+
 ## Risk Register
 
 | Risk | Likelihood | Impact | Mitigation |

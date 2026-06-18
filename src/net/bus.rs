@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 use std::time::Instant;
 
+use crate::net::gate::{ByzantineGatekeeper, GateRejection};
 use crate::net::message::Message;
 use crate::net::node::Node;
 use crate::net::pll::PllController;
@@ -39,6 +40,8 @@ pub struct ResonanceBus {
     pub message_log: VecDeque<Message>,
     /// Last heartbeat time per node id (M7).
     pub last_heartbeat: std::collections::HashMap<String, Instant>,
+    /// Optional Byzantine gatekeeper (M8). When None, validation is skipped.
+    pub gatekeeper: Option<ByzantineGatekeeper>,
 }
 
 impl ResonanceBus {
@@ -48,7 +51,24 @@ impl ResonanceBus {
             plls: std::collections::HashMap::new(),
             message_log: VecDeque::new(),
             last_heartbeat: std::collections::HashMap::new(),
+            gatekeeper: None,
         }
+    }
+
+    /// Create a new ResonanceBus with a Byzantine gatekeeper (M8).
+    pub fn with_gatekeeper(gk: ByzantineGatekeeper) -> Self {
+        Self {
+            nodes: std::collections::HashMap::new(),
+            plls: std::collections::HashMap::new(),
+            message_log: VecDeque::new(),
+            last_heartbeat: std::collections::HashMap::new(),
+            gatekeeper: Some(gk),
+        }
+    }
+
+    /// Create a new ResonanceBus with a default gatekeeper (M8).
+    pub fn with_default_gatekeeper() -> Self {
+        Self::with_gatekeeper(ByzantineGatekeeper::default())
     }
 
     /// Register a node on the bus. Rejects registration if the node limit
@@ -62,9 +82,13 @@ impl ResonanceBus {
             );
             return;
         }
-        self.last_heartbeat.insert(node.id.clone(), Instant::now());
-        self.plls.insert(node.id.clone(), PllController::new());
-        self.nodes.insert(node.id.clone(), node);
+        let node_id = node.id.clone();
+        if let Some(ref mut gk) = self.gatekeeper {
+            gk.register_node(&node_id);
+        }
+        self.last_heartbeat.insert(node_id.clone(), Instant::now());
+        self.plls.insert(node_id.clone(), PllController::new());
+        self.nodes.insert(node_id, node);
     }
 
     /// Record a heartbeat from a node (M7).
@@ -189,11 +213,45 @@ impl ResonanceBus {
         self.nodes.get_mut(id)
     }
 
+    /// Remove a node and all its associated state (M8).
+    ///
+    /// Removes the node from nodes, PLLs, last_heartbeat, and the gatekeeper's
+    /// known_nodes list. Use this when a node is permanently evicted (e.g.,
+    /// after repeated Byzantine behavior).
+    pub fn purge_node(&mut self, node_id: &str) {
+        self.nodes.remove(node_id);
+        self.plls.remove(node_id);
+        self.last_heartbeat.remove(node_id);
+        if let Some(ref mut gk) = self.gatekeeper {
+            gk.unregister_node(node_id);
+        }
+    }
+
+    /// Validate an incoming message through the gatekeeper (M8).
+    ///
+    /// If no gatekeeper is configured, all messages pass.
+    /// If a gatekeeper is configured, runs all Byzantine checks.
+    /// Returns the gatekeeper's rejection reason on failure.
+    pub fn validate_incoming(&mut self, msg: &Message) -> Result<(), GateRejection> {
+        match self.gatekeeper {
+            Some(ref mut gk) => gk.validate(msg),
+            None => Ok(()),
+        }
+    }
+
     /// Push a message to the log, capping at MAX_MESSAGE_LOG.
     /// Uses VecDeque for O(1) amortized push/pop at both ends.
     pub(crate) fn push_log(&mut self, msg: Message) {
+        // Track per-peer log entries for gatekeeper
+        if let Some(ref mut gk) = self.gatekeeper {
+            gk.record_log_entry(&msg.header.sender);
+        }
         if self.message_log.len() >= MAX_MESSAGE_LOG {
-            self.message_log.pop_front();
+            if let Some(old) = self.message_log.pop_front() {
+                if let Some(ref mut gk) = self.gatekeeper {
+                    gk.prune_log_entry(&old.header.sender);
+                }
+            }
         }
         self.message_log.push_back(msg);
     }
