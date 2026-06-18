@@ -170,6 +170,27 @@
 
 ---
 
+### M9: Concurrency Stress Testing (Week 7)
+**Goal**: Validate ResonanceBus correctness under multi-threaded concurrent access.
+
+**Deliverables**:
+- [x] `tests/concurrency_test.rs` — 7 multi-threaded concurrency stress tests
+- [x] Concurrent heartbeat flood (20 clients × 50 heartbeats) over TCP
+- [x] Concurrent register and access (50 nodes registered from spawned tasks)
+- [x] Concurrent bus operations directly (heartbeat + negotiate + read, 10 tasks)
+- [x] Concurrent register + purge (register 40, purge 20 from spawned tasks)
+- [x] Concurrent TCP clients with gatekeeper (15 concurrent clients, 5 byzantine)
+- [x] Concurrent negotiate under load (6 groups × 50 rounds + 8 heartbeat tasks)
+- [x] Bus state snapshot consistency under concurrent mutation (5 mutators + 3 readers)
+
+**Acceptance Criteria**:
+- No deadlocks, no data races, no state corruption under concurrent access
+- Bus invariants hold: `stale_peers().len() <= nodes.len()`, `split_pairs <= n/2`
+- All 7 concurrency tests pass on multi-threaded tokio runtime
+- Full test suite: 305 tests, 0 failures
+
+---
+
 ## Risk Register
 
 | Risk | Likelihood | Impact | Mitigation |
