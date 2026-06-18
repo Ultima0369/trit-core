@@ -1,8 +1,8 @@
 # M2 Validation Report: Ternary vs Binary Baseline
 
-**Date**: 2026-06-17
-**Version**: 0.1.0-alpha
-**Status**: Draft
+**Date**: 2026-06-18
+**Version**: 0.1.0
+**Status**: Final
 
 ---
 

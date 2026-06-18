@@ -64,7 +64,7 @@
 
 | 文档 | 内容 |
 |---|---|
-| [validation-report](validation-report.md) | M2 三元 vs 二元对比验证（12 个场景） |
+| [validation-report](validation-report.md) | M2 三元 vs 二元对比验证（17 个场景） |
 | [performance-validation](performance-validation.md) | 端到端性能验证（TPS 对比、瓶颈分析） |
 | [security-audit](security-audit.md) | 应用安全审计（P1/P2 已修复） |
 | [code-quality-audit](code-quality-audit.md) | 代码质量审计（SOLID/DRY/复杂度） |
@@ -78,7 +78,7 @@
 
 | 文档 | 内容 |
 |---|---|
-| [technical-whitepaper.md](technical-whitepaper.md) | 技术白皮书（中文，v0.1.0-alpha） |
+| [technical-whitepaper.md](technical-whitepaper.md) | 技术白皮书（中文，v0.1.0） |
 | [preprint.md](preprint.md) | 预印本（英文，10+ 页） |
 | [api.md](api.md) | 公共 API 合约 |
 | [roadmap.md](roadmap.md) | 里程碑计划 |

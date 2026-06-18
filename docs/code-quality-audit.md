@@ -1,7 +1,7 @@
 # Trit-Core 代码质量审计报告
 
 **审计日期**: 2026-06-17
-**审计版本**: v0.1.0-alpha (commit: c8e9155)
+**审计版本**: v0.1.0 (commit: c8e9155)
 **审计方法**: SonarQube 规则映射 + SOLID 原则检查 + 圈复杂度分析 + 人工设计审查
 
 ---
@@ -514,7 +514,7 @@ fn should_correct_phase_toward_peer_when_error_exceeds_deadband() { }
 
 ## 7. 结论
 
-Trit-Core v0.1.0-alpha 作为 MVP，代码质量**中等偏上**（3.5/5）。核心模块（trit/frame/meta）架构清晰，`unsafe` 和 unsafe 代码为零。主要问题是 `main()` 函数过长和 frame/value 映射逻辑分散。
+Trit-Core v0.1.0 作为 MVP，代码质量**中等偏上**（3.5/5）。核心模块（trit/frame/meta）架构清晰，`unsafe` 和 unsafe 代码为零。主要问题是 `main()` 函数过长和 frame/value 映射逻辑分散。
 
 **建议行动计划**:
 1. M3 前执行 P2 级重构（main 拆分 + FromStr 提取），工作量约 1 小时

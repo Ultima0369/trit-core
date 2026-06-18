@@ -1,6 +1,6 @@
 # Trit-Core: A Ternary Decision Engine for Conflict-Aware AI Alignment
 
-**Version**: 0.1.0-alpha
+**Version**: 0.1.0
 **Date**: 2026-06-17
 **Authors**: Trit-Core Team
 

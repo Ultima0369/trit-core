@@ -1,6 +1,6 @@
 # PERFORMANCE VALIDATION — 性能验证报告
 
-**版本**：0.1.0-alpha  
+**版本**：0.1.0  
 **日期**：2026-06-17  
 **构建**：`opt-level=3`, `lto=true`, `codegen-units=1`
 

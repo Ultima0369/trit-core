@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0] - 2026-06-18
+
+### Added (M7)
+- Network partition tolerance: heartbeat monitoring with per-node timestamps.
+- Stale peer detection (`stale_peers()`, `purge_stale_peers()`) with 30s timeout.
+- Split-brain detection (`detect_split_brain()`) with 60s timeout.
+- TcpClient multi-message session support (BufReader/BufWriter rewrite).
+- Connection timeout (5s), read timeout (30s), write timeout (10s).
+- 6 partition fault-tolerance tests (connection loss, reconnect, partial partition, standalone, split-brain, heartbeat keepalive).
+- dhat heap profiling binary (`src/bin/dhat_profile.rs`): zero-allocation hot path verified.
+
+### Added (M8)
+- Byzantine fault tolerance: `ByzantineGatekeeper` with 7 safety checks.
+- Message validation layer: phase bounds, sender validation, frame name validation, payload consistency.
+- Rate limiting (100 msg/s per peer) and per-peer log cap (1000 entries).
+- Known-node enforcement with register/unregister lifecycle.
+- Gatekeeper integration in ResonanceBus (optional, zero overhead when disabled).
+- TCP server validate-then-dispatch pipeline with REJECTED response prefix.
+- 7 Byzantine TCP integration tests + 25 gatekeeper unit tests + 31 message validation tests.
+- Total: 298 tests, 0 failures, 0 warnings, 0 clippy issues.
+
+### Changed
+- README updated: M0-M8 milestones, 298 tests, updated tech stack.
+- All docs: version bumped from 0.1.0-alpha to 0.1.0.
+- Roadmap status: Draft → Complete.
+
 ## [0.1.0-alpha] - 2026-06-17
 
 ### Added
