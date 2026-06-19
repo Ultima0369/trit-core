@@ -59,6 +59,8 @@ pub mod adapters;
 pub mod anchor;
 pub mod attention;
 pub mod baseline;
+pub mod budget;
+pub mod calibration;
 pub mod clock;
 pub mod core;
 pub mod feedback;

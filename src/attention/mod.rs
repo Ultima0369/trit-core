@@ -5,4 +5,6 @@
 
 pub mod scheduler;
 
-pub use scheduler::{AttentionCmd, AttentionScheduler, LoadProfile, ShiftTarget};
+pub use scheduler::{
+    bandwidth_from_depth, AttentionCmd, AttentionScheduler, LoadProfile, ShiftTarget,
+};

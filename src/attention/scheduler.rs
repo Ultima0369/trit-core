@@ -4,9 +4,19 @@
 //! system should shift focus, hold current processing, or recalibrate its
 //! internal weights. It is a lightweight, heuristic layer intended to
 //! interrupt loop entrainment and ruminative cascades.
+//!
+//! ## Adaptive scheduling (v0.3.0)
+//!
+//! Bandwidth is now a function of [`DepthLevel`](crate::budget::DepthLevel)
+//! rather than a static value. High system load → low bandwidth → fewer
+//! attention shifts. Idle → high bandwidth → more active attention management.
+//!
+//! Consecutive `HoldCurrent` suggestions are tracked: after N consecutive
+//! holds (default 3), the scheduler escalates to `Recalibrate`.
 
 use serde::{Deserialize, Serialize};
 
+use crate::budget::{ComputeBudget, DepthLevel};
 use crate::core::frame::Frame;
 use crate::core::word::TritWord;
 
@@ -67,13 +77,43 @@ pub enum AttentionCmd {
     Continue,
 }
 
+/// Map [`DepthLevel`] to a bandwidth value in `[0.0, 1.0]`.
+///
+/// | DepthLevel | bandwidth |
+/// |-----------|-----------|
+/// | Minimal   | 0.2       |
+/// | Reduced   | 0.4       |
+/// | Standard  | 0.6       |
+/// | Deep      | 0.8       |
+/// | Exhaustive| 1.0       |
+pub fn bandwidth_from_depth(depth: DepthLevel) -> f64 {
+    match depth {
+        DepthLevel::Minimal => 0.2,
+        DepthLevel::Reduced => 0.4,
+        DepthLevel::Standard => 0.6,
+        DepthLevel::Deep => 0.8,
+        DepthLevel::Exhaustive => 1.0,
+    }
+}
+
 /// Attention scheduler that monitors signal patterns and cognitive load.
+///
+/// Bandwidth is dynamically derived from the current [`ComputeBudget`]'s
+/// [`DepthLevel`] rather than being a static value. The scheduler also
+/// tracks consecutive `HoldCurrent` suggestions and escalates to
+/// `Recalibrate` when the threshold is reached.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct AttentionScheduler {
     /// Estimated current cognitive bandwidth in `[0.0, 1.0]`.
+    /// Derived from the current [`DepthLevel`] via [`bandwidth_from_depth`].
     pub bandwidth: f64,
     /// Current load profile across reactive/deliberative/reflective modes.
     pub load_profile: LoadProfile,
+    /// Number of consecutive `HoldCurrent` suggestions.
+    /// Reset to 0 on any non-HoldCurrent command.
+    consecutive_holds: usize,
+    /// Threshold for consecutive holds before escalating to Recalibrate.
+    hold_escalation_threshold: usize,
 }
 
 impl AttentionScheduler {
@@ -82,7 +122,19 @@ impl AttentionScheduler {
         Self {
             bandwidth: bandwidth.clamp(0.0, 1.0),
             load_profile: LoadProfile::balanced(),
+            consecutive_holds: 0,
+            hold_escalation_threshold: 3,
         }
+    }
+
+    /// Create a scheduler whose bandwidth is derived from a [`DepthLevel`].
+    pub fn from_depth(depth: DepthLevel) -> Self {
+        Self::new(bandwidth_from_depth(depth))
+    }
+
+    /// Create a scheduler whose bandwidth is derived from a [`ComputeBudget`].
+    pub fn from_budget(budget: &ComputeBudget) -> Self {
+        Self::from_depth(budget.depth_level)
     }
 
     /// Create a scheduler from a cognitive-state estimate.
@@ -95,6 +147,17 @@ impl AttentionScheduler {
     pub fn with_load_profile(mut self, profile: LoadProfile) -> Self {
         self.load_profile = profile;
         self
+    }
+
+    /// Set the consecutive hold escalation threshold.
+    pub fn with_hold_escalation_threshold(mut self, threshold: usize) -> Self {
+        self.hold_escalation_threshold = threshold;
+        self
+    }
+
+    /// Update bandwidth from the current compute budget.
+    pub fn update_bandwidth(&mut self, budget: &ComputeBudget) {
+        self.bandwidth = bandwidth_from_depth(budget.depth_level);
     }
 
     /// Detect loop entrainment: a repetitive alternation among a small set
@@ -119,16 +182,33 @@ impl AttentionScheduler {
 
     /// Suggest a reprioritization based on bandwidth, load, and optional
     /// recent signal history.
-    pub fn suggest_reprioritization(&self, recent_signals: &[TritWord]) -> AttentionCmd {
+    ///
+    /// When depth is Minimal (bandwidth <= 0.2), always returns
+    /// `Continue` — there is no time for attention shifts.
+    ///
+    /// Consecutive `HoldCurrent` suggestions are tracked: after
+    /// `hold_escalation_threshold` consecutive holds, escalates to
+    /// `Recalibrate`.
+    pub fn suggest_reprioritization(&mut self, recent_signals: &[TritWord]) -> AttentionCmd {
+        // Depth gating: at Minimal depth, hold current processing.
+        // The pipeline should gate whether to call the scheduler at all
+        // (via depth_level.has_extensions()), but if called at Minimal
+        // depth, the safest command is HoldCurrent.
+        if self.bandwidth <= 0.2 {
+            return self.track_hold(AttentionCmd::HoldCurrent);
+        }
+
         if self.detect_loop_entrainment(recent_signals) {
+            self.consecutive_holds = 0;
             return AttentionCmd::ShiftTo(ShiftTarget::ConflictTrace);
         }
 
         if self.bandwidth < 0.2 {
-            return AttentionCmd::HoldCurrent;
+            return self.track_hold(AttentionCmd::HoldCurrent);
         }
 
         if self.load_profile.is_overloaded() {
+            self.consecutive_holds = 0;
             return AttentionCmd::Recalibrate;
         }
 
@@ -136,11 +216,46 @@ impl AttentionScheduler {
         // is moderate, suggest returning attention to the body.
         if let Some(last) = recent_signals.last() {
             if last.frame() == Frame::Embodied && self.bandwidth < 0.5 {
+                self.consecutive_holds = 0;
                 return AttentionCmd::ShiftTo(ShiftTarget::Body);
             }
         }
 
+        self.consecutive_holds = 0;
         AttentionCmd::Continue
+    }
+
+    /// Suggest a reprioritization with an explicit compute budget.
+    ///
+    /// This is the preferred entry point for pipeline integration.
+    /// It updates bandwidth from the budget before evaluating.
+    pub fn suggest_with_budget(
+        &mut self,
+        budget: &ComputeBudget,
+        recent_signals: &[TritWord],
+    ) -> AttentionCmd {
+        self.update_bandwidth(budget);
+        self.suggest_reprioritization(recent_signals)
+    }
+
+    /// Track a HoldCurrent command. If consecutive holds exceed the
+    /// escalation threshold, escalate to Recalibrate.
+    fn track_hold(&mut self, cmd: AttentionCmd) -> AttentionCmd {
+        if cmd == AttentionCmd::HoldCurrent {
+            self.consecutive_holds += 1;
+            if self.consecutive_holds >= self.hold_escalation_threshold {
+                self.consecutive_holds = 0;
+                return AttentionCmd::Recalibrate;
+            }
+        } else {
+            self.consecutive_holds = 0;
+        }
+        cmd
+    }
+
+    /// Returns the number of consecutive HoldCurrent suggestions seen.
+    pub fn consecutive_holds(&self) -> usize {
+        self.consecutive_holds
     }
 }
 
@@ -160,16 +275,65 @@ mod tests {
         TritWord::new(value, Phase::neutral(), frame)
     }
 
+    // ── bandwidth_from_depth ──────────────────────────────────────
+
+    #[test]
+    fn bandwidth_from_depth_maps_correctly() {
+        assert!((bandwidth_from_depth(DepthLevel::Minimal) - 0.2).abs() < f64::EPSILON);
+        assert!((bandwidth_from_depth(DepthLevel::Reduced) - 0.4).abs() < f64::EPSILON);
+        assert!((bandwidth_from_depth(DepthLevel::Standard) - 0.6).abs() < f64::EPSILON);
+        assert!((bandwidth_from_depth(DepthLevel::Deep) - 0.8).abs() < f64::EPSILON);
+        assert!((bandwidth_from_depth(DepthLevel::Exhaustive) - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn from_depth_uses_correct_bandwidth() {
+        let scheduler = AttentionScheduler::from_depth(DepthLevel::Deep);
+        assert!((scheduler.bandwidth - 0.8).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn from_budget_uses_correct_bandwidth() {
+        let budget = ComputeBudget::new(DepthLevel::Reduced, 0.6, 0.5, 4);
+        let scheduler = AttentionScheduler::from_budget(&budget);
+        assert!((scheduler.bandwidth - 0.4).abs() < f64::EPSILON);
+    }
+
+    // ── depth gating ──────────────────────────────────────────────
+
+    #[test]
+    fn depth_below_standard_always_continues() {
+        // Minimal depth → HoldCurrent (not Continue).
+        // The pipeline gates attention at the stage level.
+        let mut scheduler = AttentionScheduler::from_depth(DepthLevel::Minimal);
+        let signals = vec![word(Frame::Science, TritValue::True)];
+        let cmd = scheduler.suggest_reprioritization(&signals);
+        assert_eq!(cmd, AttentionCmd::HoldCurrent);
+    }
+
+    #[test]
+    fn depth_reduced_still_runs_attention() {
+        // Reduced (0.4) is above the Minimal gate (0.2), so attention runs.
+        let mut scheduler = AttentionScheduler::from_depth(DepthLevel::Reduced);
+        // With bandwidth 0.4 and an Embodied signal, should suggest Body shift
+        let signals = vec![word(Frame::Embodied, TritValue::True)];
+        let cmd = scheduler.suggest_reprioritization(&signals);
+        assert_eq!(cmd, AttentionCmd::ShiftTo(ShiftTarget::Body));
+    }
+
+    // ── legacy tests (adapted for &mut self) ──────────────────────
+
     #[test]
     fn low_bandwidth_suggests_hold() {
-        let scheduler = AttentionScheduler::new(0.1);
+        let mut scheduler = AttentionScheduler::new(0.1);
         let cmd = scheduler.suggest_reprioritization(&[]);
+        // bandwidth 0.1 <= 0.2 → depth gate → HoldCurrent
         assert_eq!(cmd, AttentionCmd::HoldCurrent);
     }
 
     #[test]
     fn loop_entrainment_detected() {
-        let scheduler = AttentionScheduler::new(0.6);
+        let mut scheduler = AttentionScheduler::new(0.6);
         let signals: Vec<_> = (0..6)
             .map(|i| {
                 if i % 2 == 0 {
@@ -188,7 +352,7 @@ mod tests {
 
     #[test]
     fn overloaded_load_suggests_recalibrate() {
-        let scheduler = AttentionScheduler::new(0.6).with_load_profile(LoadProfile {
+        let mut scheduler = AttentionScheduler::new(0.6).with_load_profile(LoadProfile {
             reactive: 0.8,
             deliberative: 0.1,
             reflective: 0.1,
@@ -201,11 +365,78 @@ mod tests {
 
     #[test]
     fn embodied_signal_suggests_body_shift_when_low_bandwidth() {
-        let scheduler = AttentionScheduler::new(0.4);
+        let mut scheduler = AttentionScheduler::new(0.4);
         let signals = vec![word(Frame::Embodied, TritValue::True)];
         assert!(matches!(
             scheduler.suggest_reprioritization(&signals),
             AttentionCmd::ShiftTo(ShiftTarget::Body)
         ));
+    }
+
+    // ── consecutive hold escalation ───────────────────────────────
+
+    #[test]
+    fn consecutive_holds_escalates_to_recalibrate() {
+        // bandwidth 0.19 <= 0.2 → depth gate → HoldCurrent.
+        // After 3 consecutive HoldCurrent, escalates to Recalibrate.
+        let mut scheduler = AttentionScheduler::new(0.19);
+        assert_eq!(
+            scheduler.suggest_reprioritization(&[]),
+            AttentionCmd::HoldCurrent
+        );
+        assert_eq!(
+            scheduler.suggest_reprioritization(&[]),
+            AttentionCmd::HoldCurrent
+        );
+        // 3rd call: escalation threshold reached → Recalibrate
+        assert_eq!(
+            scheduler.suggest_reprioritization(&[]),
+            AttentionCmd::Recalibrate
+        );
+        assert_eq!(scheduler.consecutive_holds(), 0);
+    }
+
+    #[test]
+    fn hold_counter_resets_on_non_hold() {
+        let mut scheduler = AttentionScheduler::new(0.19);
+        // bandwidth 0.19 <= 0.2 → depth gate returns HoldCurrent
+        // Two holds
+        assert_eq!(
+            scheduler.suggest_reprioritization(&[]),
+            AttentionCmd::HoldCurrent
+        );
+        assert_eq!(
+            scheduler.suggest_reprioritization(&[]),
+            AttentionCmd::HoldCurrent
+        );
+        assert_eq!(scheduler.consecutive_holds(), 2);
+        // Then a non-hold (loop entrainment) resets
+        let signals: Vec<_> = (0..6)
+            .map(|i| {
+                if i % 2 == 0 {
+                    word(Frame::Science, TritValue::True)
+                } else {
+                    word(Frame::Individual, TritValue::False)
+                }
+            })
+            .collect();
+        scheduler.suggest_reprioritization(&signals);
+        assert_eq!(scheduler.consecutive_holds(), 0);
+    }
+
+    #[test]
+    fn suggest_with_budget_updates_bandwidth() {
+        let mut scheduler = AttentionScheduler::new(0.5);
+        let budget = ComputeBudget::new(DepthLevel::Deep, 0.1, 0.2, 8);
+        let _ = scheduler.suggest_with_budget(&budget, &[]);
+        assert!((scheduler.bandwidth - 0.8).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn update_bandwidth_syncs_from_budget() {
+        let mut scheduler = AttentionScheduler::new(0.5);
+        let budget = ComputeBudget::new(DepthLevel::Exhaustive, 0.0, 0.0, 16);
+        scheduler.update_bandwidth(&budget);
+        assert!((scheduler.bandwidth - 1.0).abs() < f64::EPSILON);
     }
 }

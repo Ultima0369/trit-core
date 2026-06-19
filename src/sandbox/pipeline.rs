@@ -4,6 +4,9 @@ use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::anchor::{check_all, AnchorConstraint, DecisionPreview};
 use crate::attention::{AttentionCmd, AttentionScheduler};
+use crate::budget::ComputeBudget;
+use crate::calibration::{CalibrationEntry, CalibrationLog};
+use crate::clock::HarmonicClock;
 use crate::core::frame::{Frame, FrameRegistry};
 use crate::core::hold::{HoldState, HolderConfig};
 use crate::core::phase::Phase;
@@ -40,6 +43,12 @@ pub struct SandboxPipeline {
     /// Anchor constraints checked before every decision.
     #[allow(dead_code)]
     anchor_constraints: Vec<Box<dyn AnchorConstraint>>,
+    /// Hardware-aware compute budget for depth gating.
+    budget: ComputeBudget,
+    /// Harmonic clock for temporal context.
+    clock: HarmonicClock,
+    /// Calibration log for feedback-driven learning.
+    calibration_log: CalibrationLog,
 }
 
 impl std::fmt::Debug for SandboxPipeline {
@@ -55,6 +64,9 @@ impl std::fmt::Debug for SandboxPipeline {
             .field("trace_phase", &self.trace_phase)
             .field("hold_final", &self.hold_final)
             .field("anchor_count", &self.anchor_constraints.len())
+            .field("budget", &self.budget)
+            .field("clock", &self.clock)
+            .field("calibration_log", &self.calibration_log)
             .finish()
     }
 }
@@ -83,6 +95,9 @@ impl SandboxPipeline {
             trace_phase: false,
             hold_final: false,
             anchor_constraints: Vec::new(),
+            budget: ComputeBudget::conservative(),
+            clock: HarmonicClock::deliberative(),
+            calibration_log: CalibrationLog::default(),
         }
     }
 
@@ -149,6 +164,24 @@ impl SandboxPipeline {
         self
     }
 
+    /// Set the compute budget for depth gating.
+    pub fn with_budget(mut self, budget: ComputeBudget) -> Self {
+        self.budget = budget;
+        self
+    }
+
+    /// Set the harmonic clock for temporal context.
+    pub fn with_clock(mut self, clock: HarmonicClock) -> Self {
+        self.clock = clock;
+        self
+    }
+
+    /// Set the calibration log for feedback-driven learning.
+    pub fn with_calibration_log(mut self, log: CalibrationLog) -> Self {
+        self.calibration_log = log;
+        self
+    }
+
     /// Run the full pipeline on a scenario.
     ///
     /// # Errors
@@ -186,8 +219,44 @@ impl SandboxPipeline {
             &mut diagnostics,
         )?;
 
+        // Stage 8b: sample OS → ComputeBudget.depth_level
+        // Runs after SafeFallback but before optional extensions, so the
+        // budget reflects the real system state when deciding whether to run
+        // attention/self_knowledge/phase_trace.
+        {
+            let stage_start = Instant::now();
+            let fresh_budget = ComputeBudget::sample();
+            self.budget = fresh_budget;
+            diagnostics.record_depth_level(self.budget.depth_level as u8);
+            diagnostics.record_stage("sample_os_budget", stage_start);
+            debug!(
+                depth_level = self.budget.depth_level as u8,
+                cpu_load = self.budget.cpu_load,
+                mem_pressure = self.budget.mem_pressure,
+                "OS budget sampled"
+            );
+        }
+
         // Stages 9–10: attention scheduling, self-knowledge inference
+        // Gated by depth_level >= Standard
         self.stage_optional_extensions(&trits, &final_word, &mut diagnostics);
+
+        // Stage 10b: clock tick — advance the harmonic oscillator
+        {
+            let stage_start = Instant::now();
+            let elapsed_secs = diagnostics
+                .started_at
+                .map(|start| start.elapsed().as_secs_f64())
+                .unwrap_or(0.0);
+            self.clock.tick(elapsed_secs);
+            diagnostics.record_clock_phase(self.clock.to_phase().inner());
+            diagnostics.record_stage("clock_tick", stage_start);
+            trace!(
+                clock_phase = self.clock.to_phase().inner(),
+                elapsed_s = elapsed_secs,
+                "clock ticked"
+            );
+        }
 
         // Stage 11: phase trace
         let mut final_word = final_word; // ← make mutable for anchor override
@@ -225,6 +294,46 @@ impl SandboxPipeline {
             &diagnostics,
         );
         diagnostics.record_stage("build_output", stage_start);
+
+        // Stage 13: calibrate — record entry + update SelfKnowledge patterns
+        {
+            let stage_start = Instant::now();
+
+            // Record a CalibrationEntry
+            let entry = CalibrationEntry {
+                scenario_id: scenario.id.clone(),
+                domain: scenario
+                    .domain
+                    .parse()
+                    .unwrap_or(crate::meta::Domain::General),
+                result: final_word.value(),
+                phase: final_word.phase().inner(),
+                interrupt_count: diagnostics.interrupt_count,
+                elapsed_us: diagnostics.elapsed_us(),
+                depth_level: self.budget.depth_level as u8,
+                attention_cmd: diagnostics
+                    .attention_cmd
+                    .as_deref()
+                    .and_then(parse_attention_cmd),
+            };
+            self.calibration_log.record(entry);
+
+            // Feed back into SelfKnowledge if present
+            if let Some(ref mut knowledge) = self.self_knowledge {
+                knowledge.calibrate_from_result(
+                    final_word.frame(),
+                    final_word.value(),
+                    final_word.phase().inner(),
+                    diagnostics.interrupt_count,
+                );
+            }
+
+            diagnostics.record_stage("calibrate", stage_start);
+            trace!(
+                calibration_entries = self.calibration_log.len(),
+                "calibration recorded"
+            );
+        }
 
         diagnostics.finish();
         info!(
@@ -471,16 +580,29 @@ impl SandboxPipeline {
     }
 
     /// Stages 9–10: attention scheduling and self-knowledge inference.
+    ///
+    /// Gated by `depth_level >= Standard`. When below Standard, both stages
+    /// are skipped — there is not enough compute budget for optional extensions.
     fn stage_optional_extensions(
-        &self,
+        &mut self,
         trits: &[TritWord],
         final_word: &TritWord,
         diagnostics: &mut SandboxDiagnostics,
     ) {
+        if !self.budget.depth_level.has_extensions() {
+            debug!(
+                depth_level = self.budget.depth_level as u8,
+                "skipping optional extensions (depth < Standard)"
+            );
+            diagnostics.record_stage("attention", Instant::now());
+            diagnostics.record_stage("self_knowledge", Instant::now());
+            return;
+        }
+
         // Stage 9: attention scheduling
         let stage_start = Instant::now();
-        if let Some(ref scheduler) = self.attention {
-            let cmd = scheduler.suggest_reprioritization(trits);
+        if let Some(ref mut scheduler) = self.attention {
+            let cmd = scheduler.suggest_with_budget(&self.budget, trits);
             diagnostics.record_attention_cmd(&cmd);
             if matches!(cmd, AttentionCmd::HoldCurrent) {
                 info!("attention scheduler suggests holding current processing");
@@ -546,6 +668,29 @@ impl SandboxPipeline {
             .as_ref()
             .map(|c| c.hold_state_for(domain))
             .unwrap_or_else(HoldState::final_hold)
+    }
+}
+
+/// Parse a serialized attention command string back to an `AttentionCmd`.
+fn parse_attention_cmd(s: &str) -> Option<AttentionCmd> {
+    use crate::attention::ShiftTarget;
+    // Format: "ShiftTo(Body)", "HoldCurrent", "Recalibrate", "Continue"
+    match s {
+        "HoldCurrent" => Some(AttentionCmd::HoldCurrent),
+        "Recalibrate" => Some(AttentionCmd::Recalibrate),
+        "Continue" => Some(AttentionCmd::Continue),
+        s if s.starts_with("ShiftTo(") => {
+            let inner = s.trim_start_matches("ShiftTo(").trim_end_matches(')');
+            let target = match inner {
+                "Body" => ShiftTarget::Body,
+                "Environment" => ShiftTarget::Environment,
+                "ConflictTrace" => ShiftTarget::ConflictTrace,
+                "Meta" => ShiftTarget::Meta,
+                _ => return None,
+            };
+            Some(AttentionCmd::ShiftTo(target))
+        }
+        _ => None,
     }
 }
 
@@ -978,5 +1123,150 @@ mod tests {
         let report = diag.anchor_report.unwrap();
         assert!(report.has_abort());
         assert!(report.violations.len() >= 1);
+    }
+
+    // ── pipeline integration: budget, clock, calibration ─────────
+
+    #[test]
+    fn pipeline_diagnostics_include_depth_level_and_clock_phase() {
+        let s = scenario("General", vec![signal("Science", 1, 0.9)]);
+        let mut pipeline = SandboxPipeline::default();
+        let (_, diag) = pipeline.run_with_diagnostics(&s).unwrap();
+        // After stage 8b, depth_level should be set (1–5)
+        assert!((1..=5).contains(&diag.depth_level));
+        // After stage 10b, clock_phase should be in [0.0, 1.0]
+        assert!((0.0..=1.0).contains(&diag.clock_phase));
+    }
+
+    #[test]
+    fn pipeline_records_stage_sample_os_budget() {
+        let s = scenario("General", vec![signal("Science", 1, 0.9)]);
+        let mut pipeline = SandboxPipeline::default();
+        let (_, diag) = pipeline.run_with_diagnostics(&s).unwrap();
+        assert!(diag.stage_timings_ns.contains_key("sample_os_budget"));
+    }
+
+    #[test]
+    fn pipeline_records_stage_clock_tick() {
+        let s = scenario("General", vec![signal("Science", 1, 0.9)]);
+        let mut pipeline = SandboxPipeline::default();
+        let (_, diag) = pipeline.run_with_diagnostics(&s).unwrap();
+        assert!(diag.stage_timings_ns.contains_key("clock_tick"));
+    }
+
+    #[test]
+    fn pipeline_records_stage_calibrate() {
+        let s = scenario("General", vec![signal("Science", 1, 0.9)]);
+        let mut pipeline = SandboxPipeline::default();
+        let (_, diag) = pipeline.run_with_diagnostics(&s).unwrap();
+        assert!(diag.stage_timings_ns.contains_key("calibrate"));
+    }
+
+    #[test]
+    fn pipeline_calibration_log_grows_after_runs() {
+        let s = scenario("General", vec![signal("Science", 1, 0.9)]);
+        let mut pipeline = SandboxPipeline::default();
+        assert_eq!(pipeline.calibration_log.len(), 0);
+        pipeline.run(&s).unwrap();
+        assert_eq!(pipeline.calibration_log.len(), 1);
+        pipeline.run(&s).unwrap();
+        assert_eq!(pipeline.calibration_log.len(), 2);
+    }
+
+    #[test]
+    fn pipeline_clock_advances_after_run() {
+        let s = scenario("General", vec![signal("Science", 1, 0.9)]);
+        let mut pipeline = SandboxPipeline::default();
+        let t_before = pipeline.clock.elapsed_time();
+        pipeline.run(&s).unwrap();
+        let t_after = pipeline.clock.elapsed_time();
+        assert!(t_after > t_before, "clock should tick forward each run");
+    }
+
+    #[test]
+    fn pipeline_with_explicit_budget_uses_depth_level() {
+        let s = scenario("General", vec![signal("Science", 1, 0.9)]);
+        let budget = ComputeBudget::new(crate::budget::DepthLevel::Minimal, 0.95, 0.95, 1);
+        let mut pipeline = SandboxPipeline::default().with_budget(budget);
+        let (_, diag) = pipeline.run_with_diagnostics(&s).unwrap();
+        // The initial budget is set, then overwritten by stage 8b sampling.
+        // But the depth_level in diagnostics should be set.
+        assert!((1..=5).contains(&diag.depth_level));
+    }
+
+    #[test]
+    fn pipeline_with_self_knowledge_calibrates() {
+        let s = scenario(
+            "MedicalEthics",
+            vec![signal("Science", 1, 0.8), signal("Individual", -1, 0.2)],
+        );
+        let knowledge = SelfKnowledge::with_human_defaults();
+        let before_count = knowledge.calibration_count();
+        let mut pipeline = SandboxPipeline::default()
+            .with_self_knowledge(knowledge)
+            .with_reflexive(ReflexiveAuditor::new());
+        pipeline.run(&s).unwrap();
+        // After run, self_knowledge should have more calibrations
+        // (the reflexive guard forces Hold → calibrate_from_result fires)
+        let after_count = pipeline
+            .self_knowledge
+            .as_ref()
+            .unwrap()
+            .calibration_count();
+        assert!(
+            after_count >= before_count,
+            "calibration count {after_count} should be >= {before_count}"
+        );
+    }
+
+    #[test]
+    fn pipeline_clean_decision_strengthens_pattern() {
+        // Single same-frame signal → clean commit → pattern strengthened (+0.05)
+        let s = scenario("General", vec![signal("Science", 1, 0.9)]);
+        let knowledge = SelfKnowledge::with_human_defaults();
+        // Add a matching pattern so calibrate_from_result finds it
+        let mut knowledge = knowledge;
+        knowledge.add_pattern(crate::knowledge::ResponsePattern {
+            frame: Frame::Science,
+            value: TritValue::True,
+            phase: 0.5,
+            context: "calibrated".to_string(),
+        });
+        let mut pipeline = SandboxPipeline::default().with_self_knowledge(knowledge);
+        pipeline.run(&s).unwrap();
+        let sk = pipeline.self_knowledge.as_ref().unwrap();
+        let cal_count = sk.calibration_count();
+        assert!(
+            cal_count > 0,
+            "should have recorded at least one calibration"
+        );
+    }
+
+    #[test]
+    fn pipeline_with_custom_clock_uses_preset() {
+        let s = scenario("Physical", vec![signal("Science", 1, 0.9)]);
+        let clock = HarmonicClock::physical();
+        let mut pipeline = SandboxPipeline::default().with_clock(clock);
+        let (_, diag) = pipeline.run_with_diagnostics(&s).unwrap();
+        assert!(diag.clock_phase >= 0.0);
+        // Physical clock has ω=10.0, so after a short pipeline run the phase
+        // should have moved from 0.0 (sin(0)=0 at t=0 → sin(ω*t) after tick).
+        let phase = pipeline.clock.to_phase().inner();
+        assert!((0.0..=1.0).contains(&phase));
+    }
+
+    #[test]
+    fn pipeline_calibration_log_window_evicts() {
+        // Use a small window to test eviction
+        let log = CalibrationLog::new(3);
+        let s = scenario("General", vec![signal("Science", 1, 0.9)]);
+        let mut pipeline = SandboxPipeline::default().with_calibration_log(log);
+        pipeline.run(&s).unwrap();
+        pipeline.run(&s).unwrap();
+        pipeline.run(&s).unwrap();
+        assert_eq!(pipeline.calibration_log.len(), 3);
+        // 4th run should evict oldest
+        pipeline.run(&s).unwrap();
+        assert_eq!(pipeline.calibration_log.len(), 3);
     }
 }

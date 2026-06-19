@@ -44,6 +44,10 @@ pub struct SandboxDiagnostics {
     /// Optional anchor report from Layer 1 checks.
     #[serde(skip)]
     pub anchor_report: Option<AnchorReport>,
+    /// Compute depth level used for this run (1–5).
+    pub depth_level: u8,
+    /// Clock phase at the time of this run, in [0.0, 1.0].
+    pub clock_phase: f64,
 }
 
 impl SandboxDiagnostics {
@@ -113,6 +117,16 @@ impl SandboxDiagnostics {
             .push(phase.clamp(0.0, 1.0));
     }
 
+    /// Record the compute depth level from the budget.
+    pub fn record_depth_level(&mut self, depth_level: u8) {
+        self.depth_level = depth_level;
+    }
+
+    /// Record the clock phase.
+    pub fn record_clock_phase(&mut self, phase: f64) {
+        self.clock_phase = phase;
+    }
+
     /// Total elapsed time in microseconds.
     pub fn elapsed_us(&self) -> u64 {
         self.elapsed_ns / 1_000
@@ -128,10 +142,11 @@ impl SandboxDiagnostics {
     /// Human-readable summary.
     pub fn summary(&self) -> String {
         format!(
-            "signals={}, interrupts={}, fallback={}, elapsed={}µs",
+            "signals={}, interrupts={}, fallback={}, depth={}, elapsed={}µs",
             self.signal_count,
             self.interrupt_count,
             self.safe_fallback_triggered,
+            self.depth_level,
             self.elapsed_us()
         )
     }
