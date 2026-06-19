@@ -1,0 +1,13 @@
+# cargo-tarpaulin configuration for Trit-Core.
+# Run: cargo tarpaulin --out Html --output-dir tarpaulin-report
+
+[default]
+features = ""
+all-features = true
+no-default-features = false
+tests = true
+doc = true
+run-types = "Tests"
+output-dir = "tarpaulin-report"
+fail-under = 0
+out = ["Html", "Json"]

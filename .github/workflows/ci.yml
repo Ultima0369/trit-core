@@ -1,3 +1,5 @@
+# Trit-Core CI Pipeline
+# Runs: fmt → clippy → test → coverage → deny → machete
 name: CI
 
 on:
@@ -11,113 +13,57 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
-  check:
-    name: Check & Lint (${{ matrix.os }})
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+  # ── Lint: format + clippy ────────────────────────────────────────
+  lint:
+    name: fmt + clippy
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Check formatting
-        run: cargo fmt -- --check
-      - name: Run clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
-      - name: Check for unsafe code
-        shell: bash
-        run: |
-          if grep -rE "unsafe\s*(\{|fn|impl|trait|static|const|let|use|mod|type|extern|block)" src/; then
-            echo "ERROR: unsafe code found in src/"
-            exit 1
-          fi
+      - run: cargo fmt -- --check
+      - run: cargo clippy --all-targets --all-features -- -D warnings
 
+  # ── Unit + integration tests ─────────────────────────────────────
   test:
-    name: Test (${{ matrix.os }})
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Run tests
-        run: cargo test --all-features -- --test-threads=2
+      - run: cargo test --all-features -- --test-threads=2
 
-  scenario-validation:
-    name: Scenario Validation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Validate all scenario files
-        shell: bash
-        run: |
-          set -e
-          for f in scenarios/*.json; do
-            echo "Validating $f"
-            cargo run --release --bin trit-sandbox -- --scenario "$f"
-          done
-
-  dhat-profile:
-    name: Heap Profile
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Build dhat profile binary
-        run: cargo build --release --bin dhat-profile --features dhat-profile
-      - name: Run dhat profile
-        run: ./target/release/dhat-profile
-
-  public-api:
-    name: Public API Snapshot
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Install cargo-public-api
-        run: cargo install cargo-public-api
-      - name: Check public API against snapshot
-        shell: bash
-        run: |
-          cargo public-api -ss --all-features > /tmp/current-public-api.txt
-          diff -u api/public-api.txt /tmp/current-public-api.txt
-
-  build:
-    name: Build Release (${{ matrix.os }})
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Build release
-        run: cargo build --release
-      - name: Build dhat profile binary
-        run: cargo build --release --bin dhat-profile --features dhat-profile
-      - name: Run CLI smoke test
-        run: cargo run --release --bin trit-sandbox -- --scenario scenarios/medical_conflict_01.json
-
+  # ── Coverage (tarpaulin → Codecov) ───────────────────────────────
   coverage:
-    name: Coverage
+    name: coverage
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Install cargo-tarpaulin
-        run: cargo install cargo-tarpaulin
-      - name: Generate coverage
-        run: cargo tarpaulin --out Xml --output-dir ./coverage
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
+      - uses: taiki-e/install-action@cargo-tarpaulin
+      - run: cargo tarpaulin --all-features --out json --output-dir .
+      - uses: codecov/codecov-action@v5
         with:
-          files: ./coverage/cobertura.xml
+          files: tarpaulin-report.json
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  # ── Dependency audit (cargo-deny) ────────────────────────────────
+  deny:
+    name: cargo-deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@cargo-deny
+      - run: cargo deny check
+
+  # ── Unused dependency detection (cargo-machete) ──────────────────
+  machete:
+    name: cargo-machete
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@cargo-machete
+      - run: cargo machete

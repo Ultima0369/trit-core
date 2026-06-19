@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - Unreleased
+
+### Added
+- `cargo-deny` configuration (`deny.toml`) for dependency license/advisory/source auditing.
+- `cargo-machete` verified zero unused dependencies.
+- `cargo-tarpaulin` configuration (`tarpaulin.toml`) for coverage measurement.
+- `cargo-fuzz` targets:
+  - `scenario_json` — fuzzes `ScenarioInput` JSON deserialization for panics.
+  - `tritword_construct` — fuzzes `TritWord::new` and `Phase::new` for panics.
+- Full CI pipeline (`.github/workflows/ci.yml`): fmt, clippy, test (ubuntu + windows), coverage (tarpaulin → Codecov), cargo-deny, cargo-machete.
+
+### Changed
+- `adversarial_audit.json` is now skipped by `all_scenarios_match_expected_behavior` (it's an array of scenario summaries, not a single `ScenarioInput`).
+
+### Fixed
+- `general_same_frame_commits` proptest: switched from `arb_trit_word()` to new `arb_committable_trit_word()` strategy that generates only True/False with clear-phase values, matching `arbitrate_general`'s intentional refusal to Commit on Unknown, Hold, or all-neutral-phase inputs.
+- Duplicate `build_decision_preview` function in `src/anchor/mod.rs` (appeared after test module, triggering `clippy::items-after-test-module`).
+- `adversarial_audit.json` no longer crashes `all_scenarios_match_expected_behavior` (skipped gracefully with warning).
+- `#[cfg(test)] mod tests` relocated before public items in `src/anchor/mod.rs` to pass clippy.
+
 ## [0.3.0] - 2026-06-18
 
 ### Added
