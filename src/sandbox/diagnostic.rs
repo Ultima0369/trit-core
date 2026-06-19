@@ -1,3 +1,4 @@
+use crate::anchor::AnchorReport;
 use crate::core::word::TritWord;
 use crate::meta::{ArbitrationResult, MetaInterrupt};
 use serde::Serialize;
@@ -40,6 +41,9 @@ pub struct SandboxDiagnostics {
     /// Optional phase shift trace (when --trace-phase is enabled).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub phase_trace: Option<Vec<f64>>,
+    /// Optional anchor report from Layer 1 checks.
+    #[serde(skip)]
+    pub anchor_report: Option<AnchorReport>,
 }
 
 impl SandboxDiagnostics {

@@ -2,6 +2,7 @@ use std::time::Instant;
 
 use tracing::{debug, error, info, instrument, trace, warn};
 
+use crate::anchor::{check_all, AnchorConstraint, DecisionPreview};
 use crate::attention::{AttentionCmd, AttentionScheduler};
 use crate::core::frame::{Frame, FrameRegistry};
 use crate::core::hold::{HoldState, HolderConfig};
@@ -26,7 +27,6 @@ use crate::sandbox::validate::{sanitize_log_field, validate_scenario};
 /// Mind-engineering extensions (reflexive audit, attention scheduling,
 /// self-knowledge) are opt-in via builder methods and do not change the
 /// default behavior unless explicitly enabled.
-#[derive(Debug, Clone)]
 pub struct SandboxPipeline {
     registry: Option<FrameRegistry>,
     dry_run: bool,
@@ -37,6 +37,26 @@ pub struct SandboxPipeline {
     holder_config: Option<HolderConfig>,
     trace_phase: bool,
     hold_final: bool,
+    /// Anchor constraints checked before every decision.
+    #[allow(dead_code)]
+    anchor_constraints: Vec<Box<dyn AnchorConstraint>>,
+}
+
+impl std::fmt::Debug for SandboxPipeline {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SandboxPipeline")
+            .field("registry", &self.registry)
+            .field("dry_run", &self.dry_run)
+            .field("safe_fallback", &self.safe_fallback)
+            .field("reflexive", &self.reflexive)
+            .field("attention", &self.attention)
+            .field("self_knowledge", &self.self_knowledge)
+            .field("holder_config", &self.holder_config)
+            .field("trace_phase", &self.trace_phase)
+            .field("hold_final", &self.hold_final)
+            .field("anchor_count", &self.anchor_constraints.len())
+            .finish()
+    }
 }
 
 impl Default for SandboxPipeline {
@@ -62,6 +82,7 @@ impl SandboxPipeline {
             holder_config: None,
             trace_phase: false,
             hold_final: false,
+            anchor_constraints: Vec::new(),
         }
     }
 
@@ -121,6 +142,13 @@ impl SandboxPipeline {
         self
     }
 
+    /// Attach an anchor constraint (Layer 1). Multiple anchors can be added;
+    /// they are checked in order before every decision is finalized.
+    pub fn with_anchor(mut self, anchor: Box<dyn AnchorConstraint>) -> Self {
+        self.anchor_constraints.push(anchor);
+        self
+    }
+
     /// Run the full pipeline on a scenario.
     ///
     /// # Errors
@@ -162,8 +190,29 @@ impl SandboxPipeline {
         self.stage_optional_extensions(&trits, &final_word, &mut diagnostics);
 
         // Stage 11: phase trace
+        let mut final_word = final_word; // ← make mutable for anchor override
         if self.trace_phase {
             diagnostics.record_phase(final_word.phase().inner());
+        }
+
+        // Stage 11b: anchor check (Layer 1)
+        // Runs after SafeFallback but before output construction.
+        // Anchor constraints have veto power — Abort forces Hold,
+        // DowngradeToHold forces Hold + alert.
+        if !self.anchor_constraints.is_empty() {
+            let stage_start = Instant::now();
+            let preview = build_decision_preview(scenario, &final_word);
+            let anchor_report = check_all(&self.anchor_constraints, &preview);
+            if anchor_report.has_violations() {
+                warn!(
+                    violation_count = anchor_report.violations.len(),
+                    has_abort = anchor_report.has_abort(),
+                    "anchor violations detected"
+                );
+                diagnostics.anchor_report = Some(anchor_report.clone());
+                final_word = TritWord::hold(Frame::Meta);
+            }
+            diagnostics.record_stage("anchor_check", stage_start);
         }
 
         // Stage 12: build output
@@ -563,6 +612,49 @@ fn build_trits(signals: &[SignalInput]) -> Result<Vec<TritWord>, SandboxError> {
         .collect()
 }
 
+/// Build a DecisionPreview from the current scenario and proposed final word.
+fn build_decision_preview(scenario: &ScenarioInput, final_word: &TritWord) -> DecisionPreview {
+    // In MVP, we infer environmental impact heuristically from the scenario.
+    // Future: real sensor data streams from environmental context.
+    let expected_energy_joules = scenario
+        .environmental_context
+        .as_ref()
+        .map(|ctx| ctx.ambient_arousal * 1e6)
+        .unwrap_or(0.0);
+    let expected_carbon_kg = scenario
+        .environmental_context
+        .as_ref()
+        .map(|ctx| ctx.ambient_arousal * 1e3)
+        .unwrap_or(0.0);
+    let affected_population = scenario
+        .environmental_context
+        .as_ref()
+        .map(|ctx| (ctx.social_density * 1e6) as u64)
+        .filter(|&p| p > 0);
+    let irreversible_change_risk = scenario
+        .environmental_context
+        .as_ref()
+        .map(|ctx| ctx.ambient_arousal * 0.1)
+        .unwrap_or(0.0);
+    let ecosystem_impact_zone = scenario.environmental_context.as_ref().and_then(|ctx| {
+        if ctx.ambient_arousal > 0.7 {
+            Some(crate::anchor::EcosystemZone::Atmospheric)
+        } else {
+            None
+        }
+    });
+
+    DecisionPreview {
+        expected_energy_joules,
+        expected_carbon_kg,
+        affected_population,
+        irreversible_change_risk,
+        ecosystem_impact_zone,
+        frame: final_word.frame(),
+        trit_value: final_word.value(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -801,5 +893,90 @@ mod tests {
         assert_eq!(out.final_value_code, 1);
         assert!(out.policy_action.contains("Preserve"));
         assert_eq!(out.final_frame, "FirstPerson");
+    }
+
+    #[test]
+    fn anchor_thermal_baseline_aborts_decision() {
+        use crate::anchor::thermal_baseline::ThermalBaseline;
+
+        let s = scenario("General", vec![signal("Science", 1, 0.9)]);
+        let mut pipeline =
+            SandboxPipeline::default().with_anchor(Box::new(ThermalBaseline::exceeded()));
+        let (out, diag) = pipeline.run_with_diagnostics(&s).unwrap();
+        // Thermal baseline exceeded → Abort → forced Hold
+        assert_eq!(out.final_value_code, 0);
+        assert_eq!(out.final_frame, "Meta");
+        assert!(diag.anchor_report.is_some());
+        assert!(diag.anchor_report.unwrap().has_abort());
+    }
+
+    #[test]
+    fn anchor_safe_thermal_passes_through() {
+        use crate::anchor::thermal_baseline::ThermalBaseline;
+
+        let s = scenario("General", vec![signal("Science", 1, 0.9)]);
+        let mut pipeline =
+            SandboxPipeline::default().with_anchor(Box::new(ThermalBaseline::safe()));
+        let (out, diag) = pipeline.run_with_diagnostics(&s).unwrap();
+        // Safe baseline → no violation → normal commit
+        assert_eq!(out.final_value_code, 1);
+        assert!(diag.anchor_report.is_none());
+    }
+
+    #[test]
+    fn anchor_ecological_degraded_aborts() {
+        use crate::anchor::ecological_base::EcologicalBase;
+
+        let s = scenario("General", vec![signal("Science", -1, 0.9)]);
+        let mut pipeline =
+            SandboxPipeline::default().with_anchor(Box::new(EcologicalBase::degraded()));
+        let (out, diag) = pipeline.run_with_diagnostics(&s).unwrap();
+        assert_eq!(out.final_value_code, 0);
+        assert!(diag.anchor_report.is_some());
+    }
+
+    #[test]
+    fn anchor_wellbeing_high_irreversible_risk_aborts() {
+        use crate::anchor::wellbeing_priority::WellbeingPriority;
+        use crate::core::sensor::EnvironmentalContext;
+
+        let s = ScenarioInput {
+            id: "test".into(),
+            description: "test".into(),
+            domain: "Engineering".into(),
+            signals: vec![signal("Science", 1, 0.9)],
+            expected_behavior: "hold".into(),
+            environmental_context: Some(EnvironmentalContext {
+                ambient_arousal: 0.9, // high → irreversible_change_risk = 0.09 > 0.01
+                social_density: 0.5,
+                ..Default::default()
+            }),
+        };
+        let mut pipeline =
+            SandboxPipeline::default().with_anchor(Box::new(WellbeingPriority::new()));
+        let (out, diag) = pipeline.run_with_diagnostics(&s).unwrap();
+        // High irreversible risk → Abort → forced Hold
+        assert_eq!(out.final_value_code, 0);
+        assert!(diag.anchor_report.is_some());
+    }
+
+    #[test]
+    fn anchor_multiple_constraints_all_checked() {
+        use crate::anchor::ecological_base::EcologicalBase;
+        use crate::anchor::thermal_baseline::ThermalBaseline;
+        use crate::anchor::wellbeing_priority::WellbeingPriority;
+
+        let s = scenario("General", vec![signal("Science", 1, 0.9)]);
+        let mut pipeline = SandboxPipeline::default()
+            .with_anchor(Box::new(ThermalBaseline::safe()))
+            .with_anchor(Box::new(EcologicalBase::degraded()))
+            .with_anchor(Box::new(WellbeingPriority::new()));
+        let (out, diag) = pipeline.run_with_diagnostics(&s).unwrap();
+        // Ecological degraded → Abort among multiple anchors
+        assert_eq!(out.final_value_code, 0);
+        assert!(diag.anchor_report.is_some());
+        let report = diag.anchor_report.unwrap();
+        assert!(report.has_abort());
+        assert!(report.violations.len() >= 1);
     }
 }
