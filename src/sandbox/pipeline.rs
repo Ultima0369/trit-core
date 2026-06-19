@@ -3,7 +3,7 @@ use std::time::Instant;
 use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::anchor::{check_all, AnchorConstraint, DecisionPreview};
-use crate::attention::{AttentionCmd, AttentionScheduler};
+use crate::attention::{AttentionCmd, AttentionScheduler, ShiftTarget};
 use crate::budget::ComputeBudget;
 use crate::calibration::{CalibrationEntry, CalibrationLog};
 use crate::clock::HarmonicClock;
@@ -513,12 +513,15 @@ impl SandboxPipeline {
             return;
         }
 
-        // Stage 9: attention scheduling
+        // Stage 9: attention scheduling (with clock phase modulation)
         let stage_start = Instant::now();
         if let Some(ref mut scheduler) = self.attention {
             let cmd = scheduler.suggest_with_budget(&self.budget, trits);
-            diagnostics.record_attention_cmd(&cmd);
-            if matches!(cmd, AttentionCmd::HoldCurrent) {
+            // Modulate with clock phase: near peaks bias toward ShiftTo,
+            // near troughs bias toward HoldCurrent.
+            let modulated = modulate_attention_with_clock_phase(cmd, self.clock.to_phase().inner());
+            diagnostics.record_attention_cmd(&modulated);
+            if matches!(modulated, AttentionCmd::HoldCurrent) {
                 info!("attention scheduler suggests holding current processing");
             }
         }
@@ -748,6 +751,44 @@ fn parse_attention_cmd(s: &str) -> Option<AttentionCmd> {
             warn!(cmd = %other, "unrecognized attention command format; recording as Continue");
             None
         }
+    }
+}
+
+/// Modulate the attention command based on clock phase.
+///
+/// Near phase peaks (0.8–1.0): bias toward `ShiftTo(ConflictTrace)` if the
+/// scheduler would otherwise hold or continue — the system is at peak
+/// temporal energy and should reconsider its focus.
+/// Near phase troughs (0.0–0.2): bias toward `HoldCurrent` — the system
+/// is at minimum temporal energy and should conserve attention.
+/// In between (0.2–0.8): pass through the scheduler's original command.
+fn modulate_attention_with_clock_phase(cmd: AttentionCmd, clock_phase: f64) -> AttentionCmd {
+    if clock_phase > 0.8 {
+        match &cmd {
+            AttentionCmd::HoldCurrent | AttentionCmd::Continue => {
+                trace!(
+                    clock_phase,
+                    original_cmd = ?cmd,
+                    "clock phase peak → shifting to ConflictTrace"
+                );
+                AttentionCmd::ShiftTo(ShiftTarget::ConflictTrace)
+            }
+            _ => cmd,
+        }
+    } else if clock_phase < 0.2 {
+        match &cmd {
+            AttentionCmd::ShiftTo(_) | AttentionCmd::Continue => {
+                trace!(
+                    clock_phase,
+                    original_cmd = ?cmd,
+                    "clock phase trough → holding current"
+                );
+                AttentionCmd::HoldCurrent
+            }
+            _ => cmd,
+        }
+    } else {
+        cmd
     }
 }
 
@@ -1325,5 +1366,44 @@ mod tests {
         // 4th run should evict oldest
         pipeline.run(&s).unwrap();
         assert_eq!(pipeline.calibration_log.len(), 3);
+    }
+
+    #[test]
+    fn clock_phase_peak_biases_toward_shift() {
+        // Phase 0.9 (peak) + HoldCurrent → modulated to ShiftTo(ConflictTrace)
+        let result = modulate_attention_with_clock_phase(AttentionCmd::HoldCurrent, 0.9);
+        assert!(matches!(
+            result,
+            AttentionCmd::ShiftTo(ShiftTarget::ConflictTrace)
+        ));
+    }
+
+    #[test]
+    fn clock_phase_trough_biases_toward_hold() {
+        // Phase 0.1 (trough) + ShiftTo → modulated to HoldCurrent
+        let result =
+            modulate_attention_with_clock_phase(AttentionCmd::ShiftTo(ShiftTarget::Body), 0.1);
+        assert_eq!(result, AttentionCmd::HoldCurrent);
+    }
+
+    #[test]
+    fn clock_phase_midrange_passes_through() {
+        // Phase 0.5 (neutral) — no modulation
+        let result = modulate_attention_with_clock_phase(AttentionCmd::Continue, 0.5);
+        assert_eq!(result, AttentionCmd::Continue);
+    }
+
+    #[test]
+    fn clock_phase_peak_respects_recalibrate() {
+        // Recalibrate should pass through even at peak phase
+        let result = modulate_attention_with_clock_phase(AttentionCmd::Recalibrate, 0.95);
+        assert_eq!(result, AttentionCmd::Recalibrate);
+    }
+
+    #[test]
+    fn clock_phase_trough_respects_recalibrate() {
+        // Recalibrate should pass through even at trough
+        let result = modulate_attention_with_clock_phase(AttentionCmd::Recalibrate, 0.05);
+        assert_eq!(result, AttentionCmd::Recalibrate);
     }
 }
