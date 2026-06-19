@@ -45,8 +45,16 @@ pub struct SandboxDiagnostics {
     #[serde(skip)]
     pub anchor_report: Option<AnchorReport>,
     /// Compute depth level used for this run (1–5).
+    ///
+    /// Serialized as a `u8` so consumers can interpret the depth without
+    /// needing the `DepthLevel` enum definition. Values: 1=Minimal,
+    /// 2=Reduced, 3=Standard, 4=Deep, 5=Exhaustive.
     pub depth_level: u8,
-    /// Clock phase at the time of this run, in [0.0, 1.0].
+    /// Clock phase at the time of this run, in `[0.0, 1.0]`.
+    ///
+    /// Derived from the harmonic oscillator via `HarmonicClock::to_phase()`.
+    /// 0.0 = trough, 0.5 = neutral, 1.0 = peak. Serialized as a plain `f64`
+    /// for direct use in downstream telemetry dashboards.
     pub clock_phase: f64,
 }
 

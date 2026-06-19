@@ -41,7 +41,6 @@ pub struct SandboxPipeline {
     trace_phase: bool,
     hold_final: bool,
     /// Anchor constraints checked before every decision.
-    #[allow(dead_code)]
     anchor_constraints: Vec<Box<dyn AnchorConstraint>>,
     /// Hardware-aware compute budget for depth gating.
     budget: ComputeBudget,
@@ -220,43 +219,14 @@ impl SandboxPipeline {
         )?;
 
         // Stage 8b: sample OS → ComputeBudget.depth_level
-        // Runs after SafeFallback but before optional extensions, so the
-        // budget reflects the real system state when deciding whether to run
-        // attention/self_knowledge/phase_trace.
-        {
-            let stage_start = Instant::now();
-            let fresh_budget = ComputeBudget::sample();
-            self.budget = fresh_budget;
-            diagnostics.record_depth_level(self.budget.depth_level as u8);
-            diagnostics.record_stage("sample_os_budget", stage_start);
-            debug!(
-                depth_level = self.budget.depth_level as u8,
-                cpu_load = self.budget.cpu_load,
-                mem_pressure = self.budget.mem_pressure,
-                "OS budget sampled"
-            );
-        }
+        self.stage_sample_budget(&mut diagnostics);
 
         // Stages 9–10: attention scheduling, self-knowledge inference
         // Gated by depth_level >= Standard
         self.stage_optional_extensions(&trits, &final_word, &mut diagnostics);
 
         // Stage 10b: clock tick — advance the harmonic oscillator
-        {
-            let stage_start = Instant::now();
-            let elapsed_secs = diagnostics
-                .started_at
-                .map(|start| start.elapsed().as_secs_f64())
-                .unwrap_or(0.0);
-            self.clock.tick(elapsed_secs);
-            diagnostics.record_clock_phase(self.clock.to_phase().inner());
-            diagnostics.record_stage("clock_tick", stage_start);
-            trace!(
-                clock_phase = self.clock.to_phase().inner(),
-                elapsed_s = elapsed_secs,
-                "clock ticked"
-            );
-        }
+        self.stage_tick_clock(&mut diagnostics);
 
         // Stage 11: phase trace
         let mut final_word = final_word; // ← make mutable for anchor override
@@ -265,75 +235,19 @@ impl SandboxPipeline {
         }
 
         // Stage 11b: anchor check (Layer 1)
-        // Runs after SafeFallback but before output construction.
-        // Anchor constraints have veto power — Abort forces Hold,
-        // DowngradeToHold forces Hold + alert.
-        if !self.anchor_constraints.is_empty() {
-            let stage_start = Instant::now();
-            let preview = build_decision_preview(scenario, &final_word);
-            let anchor_report = check_all(&self.anchor_constraints, &preview);
-            if anchor_report.has_violations() {
-                warn!(
-                    violation_count = anchor_report.violations.len(),
-                    has_abort = anchor_report.has_abort(),
-                    "anchor violations detected"
-                );
-                diagnostics.anchor_report = Some(anchor_report.clone());
-                final_word = TritWord::hold(Frame::Meta);
-            }
-            diagnostics.record_stage("anchor_check", stage_start);
-        }
+        final_word = self.stage_anchor_check(scenario, final_word, &mut diagnostics);
 
         // Stage 12: build output
-        let stage_start = Instant::now();
-        let output = self.stage_build_output(
+        let output = self.stage_build_output_with_timing(
             scenario,
             &final_word,
             &policy_action_str,
             reflexive_alert.as_ref(),
-            &diagnostics,
+            &mut diagnostics,
         );
-        diagnostics.record_stage("build_output", stage_start);
 
         // Stage 13: calibrate — record entry + update SelfKnowledge patterns
-        {
-            let stage_start = Instant::now();
-
-            // Record a CalibrationEntry
-            let entry = CalibrationEntry {
-                scenario_id: scenario.id.clone(),
-                domain: scenario
-                    .domain
-                    .parse()
-                    .unwrap_or(crate::meta::Domain::General),
-                result: final_word.value(),
-                phase: final_word.phase().inner(),
-                interrupt_count: diagnostics.interrupt_count,
-                elapsed_us: diagnostics.elapsed_us(),
-                depth_level: self.budget.depth_level as u8,
-                attention_cmd: diagnostics
-                    .attention_cmd
-                    .as_deref()
-                    .and_then(parse_attention_cmd),
-            };
-            self.calibration_log.record(entry);
-
-            // Feed back into SelfKnowledge if present
-            if let Some(ref mut knowledge) = self.self_knowledge {
-                knowledge.calibrate_from_result(
-                    final_word.frame(),
-                    final_word.value(),
-                    final_word.phase().inner(),
-                    diagnostics.interrupt_count,
-                );
-            }
-
-            diagnostics.record_stage("calibrate", stage_start);
-            trace!(
-                calibration_entries = self.calibration_log.len(),
-                "calibration recorded"
-            );
-        }
+        self.stage_calibrate(scenario, &final_word, &mut diagnostics);
 
         diagnostics.finish();
         info!(
@@ -622,6 +536,137 @@ impl SandboxPipeline {
         let _ = receiver_estimate;
     }
 
+    /// Stage 8b: sample OS metrics and update the compute budget.
+    ///
+    /// Runs after SafeFallback but before optional extensions, so the
+    /// budget reflects the real system state when deciding whether to run
+    /// attention/self_knowledge/phase_trace.
+    fn stage_sample_budget(&mut self, diagnostics: &mut SandboxDiagnostics) {
+        let stage_start = Instant::now();
+        let fresh_budget = ComputeBudget::sample();
+        self.budget = fresh_budget;
+        diagnostics.record_depth_level(self.budget.depth_level as u8);
+        diagnostics.record_stage("sample_os_budget", stage_start);
+        debug!(
+            depth_level = self.budget.depth_level as u8,
+            cpu_load = self.budget.cpu_load,
+            mem_pressure = self.budget.mem_pressure,
+            "OS budget sampled"
+        );
+    }
+
+    /// Stage 10b: advance the harmonic oscillator by elapsed wall-clock time.
+    fn stage_tick_clock(&mut self, diagnostics: &mut SandboxDiagnostics) {
+        let stage_start = Instant::now();
+        let elapsed_secs = diagnostics
+            .started_at
+            .map(|start| start.elapsed().as_secs_f64())
+            .unwrap_or(0.0);
+        self.clock.tick(elapsed_secs);
+        diagnostics.record_clock_phase(self.clock.to_phase().inner());
+        diagnostics.record_stage("clock_tick", stage_start);
+        trace!(
+            clock_phase = self.clock.to_phase().inner(),
+            elapsed_s = elapsed_secs,
+            "clock ticked"
+        );
+    }
+
+    /// Stage 11b: anchor check — enforce Layer 1 constraints.
+    ///
+    /// Anchor constraints have veto power: Abort forces Hold,
+    /// DowngradeToHold forces Hold + alert. Returns the (possibly
+    /// overridden) final word.
+    fn stage_anchor_check(
+        &self,
+        scenario: &ScenarioInput,
+        mut final_word: TritWord,
+        diagnostics: &mut SandboxDiagnostics,
+    ) -> TritWord {
+        if self.anchor_constraints.is_empty() {
+            return final_word;
+        }
+        let stage_start = Instant::now();
+        let preview = build_decision_preview(scenario, &final_word);
+        let anchor_report = check_all(&self.anchor_constraints, &preview);
+        if anchor_report.has_violations() {
+            warn!(
+                violation_count = anchor_report.violations.len(),
+                has_abort = anchor_report.has_abort(),
+                "anchor violations detected"
+            );
+            diagnostics.anchor_report = Some(anchor_report.clone());
+            final_word = TritWord::hold(Frame::Meta);
+        }
+        diagnostics.record_stage("anchor_check", stage_start);
+        final_word
+    }
+
+    /// Stage 12: build output with timing.
+    fn stage_build_output_with_timing(
+        &self,
+        scenario: &ScenarioInput,
+        final_word: &TritWord,
+        policy_action_str: &str,
+        reflexive_alert: Option<&ReflexiveAlert>,
+        diagnostics: &mut SandboxDiagnostics,
+    ) -> SandboxOutput {
+        let stage_start = Instant::now();
+        let output = self.stage_build_output(
+            scenario,
+            final_word,
+            policy_action_str,
+            reflexive_alert,
+            diagnostics,
+        );
+        diagnostics.record_stage("build_output", stage_start);
+        output
+    }
+
+    /// Stage 13: calibrate — record a CalibrationEntry and feed back into SelfKnowledge.
+    fn stage_calibrate(
+        &mut self,
+        scenario: &ScenarioInput,
+        final_word: &TritWord,
+        diagnostics: &mut SandboxDiagnostics,
+    ) {
+        let stage_start = Instant::now();
+
+        let entry = CalibrationEntry {
+            scenario_id: scenario.id.clone(),
+            domain: scenario
+                .domain
+                .parse()
+                .unwrap_or(crate::meta::Domain::General),
+            result: final_word.value(),
+            phase: final_word.phase().inner(),
+            interrupt_count: diagnostics.interrupt_count,
+            elapsed_us: diagnostics.elapsed_us(),
+            depth_level: self.budget.depth_level,
+            attention_cmd: diagnostics
+                .attention_cmd
+                .as_deref()
+                .and_then(parse_attention_cmd),
+        };
+        self.calibration_log.record(entry);
+
+        // Feed back into SelfKnowledge if present
+        if let Some(ref mut knowledge) = self.self_knowledge {
+            knowledge.calibrate_from_result(
+                final_word.frame(),
+                final_word.value(),
+                final_word.phase().inner(),
+                diagnostics.interrupt_count,
+            );
+        }
+
+        diagnostics.record_stage("calibrate", stage_start);
+        trace!(
+            calibration_entries = self.calibration_log.len(),
+            "calibration recorded"
+        );
+    }
+
     /// Stage 12: build the final SandboxOutput.
     fn stage_build_output(
         &self,
@@ -686,11 +731,23 @@ fn parse_attention_cmd(s: &str) -> Option<AttentionCmd> {
                 "Environment" => ShiftTarget::Environment,
                 "ConflictTrace" => ShiftTarget::ConflictTrace,
                 "Meta" => ShiftTarget::Meta,
-                _ => return None,
+                other => {
+                    // ShiftTo(Frame(...)) or ShiftTo(Label(...)) — not yet
+                    // produced by the scheduler but may be in future versions.
+                    // Try to parse as a Frame name first, then fall back to Label.
+                    if let Ok(frame) = other.parse::<crate::core::frame::Frame>() {
+                        ShiftTarget::Frame(frame)
+                    } else {
+                        ShiftTarget::Label(other.to_string())
+                    }
+                }
             };
             Some(AttentionCmd::ShiftTo(target))
         }
-        _ => None,
+        other => {
+            warn!(cmd = %other, "unrecognized attention command format; recording as Continue");
+            None
+        }
     }
 }
 

@@ -39,6 +39,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ArbitrationResult::fmt::Display` implementation for human-readable output.
 - `SandboxOutput` custom `Deserialize` with validation: `final_phase ∈ [0.0, 1.0]`, `final_value_code ∈ {-1, 0, 1}`.
 - `HarmonicClock::to_phase()` method mapping `[-1.0, 1.0]` to `[0.0, 1.0]` for Phase compatibility.
+- Unified adaptive scheduling layer (Layers 4–5 of cognitive architecture):
+  - `src/budget/` — `ComputeBudget` + `DepthLevel` enum: OS-level CPU/memory/thread sampling gating how deep the pipeline computes.
+  - `src/calibration/` — `CalibrationLog`: fixed-size ring buffer recording decision history for pattern calibration.
+  - `src/attention/scheduler.rs` — depth-gated bandwidth via `bandwidth_from_depth()`, consecutive `HoldCurrent` escalation to `Recalibrate`.
+  - `src/knowledge/self_model.rs` — `calibrate_from_result()` feedback loop with tiered confidence ceiling (0.6→0.95).
+  - `src/clock.rs` — `for_domain()` preset mapping (Physical→ω=10.0, deliberative→ω=0.5) and `elapsed_time()`.
+  - `src/sandbox/pipeline.rs` — three new stages: 8b (sample OS budget), 10b (clock tick), 13 (calibrate + feedback); depth gating for optional extensions.
+  - `src/sandbox/diagnostic.rs` — `depth_level: u8` and `clock_phase: f64` fields for telemetry.
+  - 354 passing tests (+11 pipeline integration tests).
 - `FrameRegistry::register_from_words()` and `FrameRegistry::validate_all()` methods for frame whitelisting.
 - `tests/error_path_test.rs` — 16 error path tests covering all `SandboxError` variants.
 - Expanded `tests/cli_test.rs` with end-to-end CLI coverage for new scenarios, `--validate-only`, `--dry-run`, path-traversal rejection, and unknown-argument rejection.

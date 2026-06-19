@@ -14,6 +14,7 @@
 use std::collections::VecDeque;
 
 use crate::attention::AttentionCmd;
+use crate::budget::DepthLevel;
 use crate::core::value::TritValue;
 use crate::meta::Domain;
 
@@ -35,7 +36,7 @@ pub struct CalibrationEntry {
     /// Total pipeline elapsed time in microseconds.
     pub elapsed_us: u64,
     /// Compute depth level used for this run.
-    pub depth_level: u8,
+    pub depth_level: DepthLevel,
     /// Attention command produced (if any).
     pub attention_cmd: Option<AttentionCmd>,
 }
@@ -164,7 +165,7 @@ mod tests {
             phase: 0.5,
             interrupt_count: interrupts,
             elapsed_us: 1000,
-            depth_level: 3,
+            depth_level: DepthLevel::Standard,
             attention_cmd: None,
         }
     }
