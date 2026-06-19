@@ -225,6 +225,41 @@ pub fn check_all(
     report
 }
 
+/// Build a [`DecisionPreview`] from a scenario input and proposed final word.
+///
+/// Moved from `src/sandbox/pipeline.rs` — this is anchor-layer logic,
+/// not pipeline logic. In MVP, environmental impact is inferred
+/// heuristically from the scenario's `EnvironmentalContext`.
+pub fn build_decision_preview(
+    scenario: &crate::sandbox::ScenarioInput,
+    final_word: &crate::core::word::TritWord,
+) -> DecisionPreview {
+    let env = scenario.environmental_context.as_ref();
+    let expected_energy_joules = env.map(|ctx| ctx.ambient_arousal * 1e6).unwrap_or(0.0);
+    let expected_carbon_kg = env.map(|ctx| ctx.ambient_arousal * 1e3).unwrap_or(0.0);
+    let affected_population = env
+        .map(|ctx| (ctx.social_density * 1e6) as u64)
+        .filter(|&p| p > 0);
+    let irreversible_change_risk = env.map(|ctx| ctx.ambient_arousal * 0.1).unwrap_or(0.0);
+    let ecosystem_impact_zone = env.and_then(|ctx| {
+        if ctx.ambient_arousal > 0.7 {
+            Some(crate::anchor::EcosystemZone::Atmospheric)
+        } else {
+            None
+        }
+    });
+
+    DecisionPreview {
+        expected_energy_joules,
+        expected_carbon_kg,
+        affected_population,
+        irreversible_change_risk,
+        ecosystem_impact_zone,
+        frame: final_word.frame(),
+        trit_value: final_word.value(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -326,40 +361,5 @@ mod tests {
         let report = check_all(&constraints, &DecisionPreview::neutral());
         assert!(report.has_abort());
         assert_eq!(report.violations.len(), 1);
-    }
-}
-
-/// Build a [`DecisionPreview`] from a scenario input and proposed final word.
-///
-/// Moved from `src/sandbox/pipeline.rs` — this is anchor-layer logic,
-/// not pipeline logic. In MVP, environmental impact is inferred
-/// heuristically from the scenario's `EnvironmentalContext`.
-pub fn build_decision_preview(
-    scenario: &crate::sandbox::ScenarioInput,
-    final_word: &crate::core::word::TritWord,
-) -> DecisionPreview {
-    let env = scenario.environmental_context.as_ref();
-    let expected_energy_joules = env.map(|ctx| ctx.ambient_arousal * 1e6).unwrap_or(0.0);
-    let expected_carbon_kg = env.map(|ctx| ctx.ambient_arousal * 1e3).unwrap_or(0.0);
-    let affected_population = env
-        .map(|ctx| (ctx.social_density * 1e6) as u64)
-        .filter(|&p| p > 0);
-    let irreversible_change_risk = env.map(|ctx| ctx.ambient_arousal * 0.1).unwrap_or(0.0);
-    let ecosystem_impact_zone = env.and_then(|ctx| {
-        if ctx.ambient_arousal > 0.7 {
-            Some(crate::anchor::EcosystemZone::Atmospheric)
-        } else {
-            None
-        }
-    });
-
-    DecisionPreview {
-        expected_energy_joules,
-        expected_carbon_kg,
-        affected_population,
-        irreversible_change_risk,
-        ecosystem_impact_zone,
-        frame: final_word.frame(),
-        trit_value: final_word.value(),
     }
 }

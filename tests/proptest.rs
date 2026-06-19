@@ -55,6 +55,20 @@ fn arb_computable_trit_word() -> impl Strategy<Value = TritWord> {
         .prop_map(|(value, frame, phase)| TritWord::new(value, phase, frame))
 }
 
+/// A TritWord that `arbitrate_general` will Commit in same-frame scenarios:
+/// no Unknown (out-of-distribution), no Hold (TAND conflict), and at least
+/// one input has a clear phase tendency (not all near-neutral noise).
+fn arb_committable_trit_word() -> impl Strategy<Value = TritWord> {
+    (
+        prop_oneof![Just(TritValue::True), Just(TritValue::False)],
+        arb_frame(),
+        // Generate phases with clear tendency: exclude [0.499, 0.501]
+        prop_oneof![(0.0f64..=0.499), (0.501f64..=1.0),]
+            .prop_map(|v| Phase::new_clamped((v * 1000.0).round() / 1000.0)),
+    )
+        .prop_map(|(value, frame, phase)| TritWord::new(value, phase, frame))
+}
+
 // ============================================================================
 // Layer 1 — TritValue algebra
 // ============================================================================
@@ -163,8 +177,16 @@ proptest! {
     }
 
     #[test]
-    fn general_same_frame_commits(a in arb_trit_word(), b in arb_trit_word()) {
+    fn general_same_frame_commits(
+        a in arb_committable_trit_word(),
+        b in arb_committable_trit_word()
+    ) {
         prop_assume!(a.frame() == b.frame());
+        // Same-frame Commit is rejected when any input is Hold (TAND conflict),
+        // when any input is Unknown (out-of-distribution), or when all phases
+        // are near-neutral (noise, not a real commitment). arb_committable_trit_word()
+        // generates only True/False with clear-phase tendencies, so this path
+        // reliably produces Commit.
         let policy = ResolutionPolicy::new(Domain::General);
         let result = policy.arbitrate(&[a, b]).unwrap();
         prop_assert!(matches!(result, ArbitrationResult::Commit(_)));
