@@ -244,44 +244,49 @@ impl SelfKnowledge {
         phase: f64,
         interrupt_count: usize,
     ) -> bool {
-        // Only calibrate on clear signals: clean commit or conflicted hold.
         if result.is_computable() && result != TritValue::Hold && interrupt_count == 0 {
-            // Clean decision: strengthen the pattern.
-            let pattern = ResponsePattern {
-                frame,
-                value: result,
-                phase,
-                context: "calibrated".to_string(),
-            };
-            self.calibrate(
-                pattern,
-                0.05,
-                format!(
-                    "clean {:?} decision with phase {:.3}, no interrupts",
-                    result, phase
-                ),
-            );
+            self.calibrate_clean(frame, result, phase);
             true
         } else if result == TritValue::Hold && interrupt_count > 0 {
-            // Conflicted decision: weaken the pattern.
-            let pattern = ResponsePattern {
-                frame,
-                value: TritValue::Hold,
-                phase,
-                context: "calibrated".to_string(),
-            };
-            self.calibrate(
-                pattern,
-                -0.05,
-                format!(
-                    "conflicted Hold with {} interrupts, phase {:.3}",
-                    interrupt_count, phase
-                ),
-            );
+            self.calibrate_conflicted(frame, phase, interrupt_count);
             true
         } else {
             false
         }
+    }
+
+    /// Strengthen: clean decision with no interrupts.
+    fn calibrate_clean(&mut self, frame: Frame, result: TritValue, phase: f64) {
+        self.calibrate(
+            ResponsePattern {
+                frame,
+                value: result,
+                phase,
+                context: "calibrated".into(),
+            },
+            0.05,
+            format!(
+                "clean {:?} decision with phase {:.3}, no interrupts",
+                result, phase
+            ),
+        );
+    }
+
+    /// Weaken: conflicted Hold with interrupts present.
+    fn calibrate_conflicted(&mut self, frame: Frame, phase: f64, interrupt_count: usize) {
+        self.calibrate(
+            ResponsePattern {
+                frame,
+                value: TritValue::Hold,
+                phase,
+                context: "calibrated".into(),
+            },
+            -0.05,
+            format!(
+                "conflicted Hold with {} interrupts, phase {:.3}",
+                interrupt_count, phase
+            ),
+        );
     }
 
     /// Number of calibration events recorded.

@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use tracing::{debug, error, info, instrument, trace, warn};
 
-use crate::anchor::{check_all, AnchorConstraint, DecisionPreview};
+use crate::anchor::{check_all, AnchorConstraint};
 use crate::attention::{AttentionCmd, AttentionScheduler, ShiftTarget};
 use crate::budget::ComputeBudget;
 use crate::calibration::{CalibrationEntry, CalibrationLog};
@@ -31,23 +31,23 @@ use crate::sandbox::validate::{sanitize_log_field, validate_scenario};
 /// self-knowledge) are opt-in via builder methods and do not change the
 /// default behavior unless explicitly enabled.
 pub struct SandboxPipeline {
-    registry: Option<FrameRegistry>,
-    dry_run: bool,
-    safe_fallback: SafeFallback,
-    reflexive: Option<ReflexiveAuditor>,
-    attention: Option<AttentionScheduler>,
-    self_knowledge: Option<SelfKnowledge>,
-    holder_config: Option<HolderConfig>,
-    trace_phase: bool,
-    hold_final: bool,
+    pub(crate) registry: Option<FrameRegistry>,
+    pub(crate) dry_run: bool,
+    pub(crate) safe_fallback: SafeFallback,
+    pub(crate) reflexive: Option<ReflexiveAuditor>,
+    pub(crate) attention: Option<AttentionScheduler>,
+    pub(crate) self_knowledge: Option<SelfKnowledge>,
+    pub(crate) holder_config: Option<HolderConfig>,
+    pub(crate) trace_phase: bool,
+    pub(crate) hold_final: bool,
     /// Anchor constraints checked before every decision.
-    anchor_constraints: Vec<Box<dyn AnchorConstraint>>,
+    pub(crate) anchor_constraints: Vec<Box<dyn AnchorConstraint>>,
     /// Hardware-aware compute budget for depth gating.
-    budget: ComputeBudget,
+    pub(crate) budget: ComputeBudget,
     /// Harmonic clock for temporal context.
-    clock: HarmonicClock,
+    pub(crate) clock: HarmonicClock,
     /// Calibration log for feedback-driven learning.
-    calibration_log: CalibrationLog,
+    pub(crate) calibration_log: CalibrationLog,
 }
 
 impl std::fmt::Debug for SandboxPipeline {
@@ -590,7 +590,7 @@ impl SandboxPipeline {
             return final_word;
         }
         let stage_start = Instant::now();
-        let preview = build_decision_preview(scenario, &final_word);
+        let preview = crate::anchor::build_decision_preview(scenario, &final_word);
         let anchor_report = check_all(&self.anchor_constraints, &preview);
         if anchor_report.has_violations() {
             warn!(
@@ -717,6 +717,26 @@ impl SandboxPipeline {
             .map(|c| c.hold_state_for(domain))
             .unwrap_or_else(HoldState::final_hold)
     }
+
+    /// Access the clock's elapsed time (for integration tests).
+    pub fn clock_elapsed(&self) -> f64 {
+        self.clock.elapsed_time()
+    }
+
+    /// Access the clock's phase (for integration tests).
+    pub fn clock_phase_value(&self) -> f64 {
+        self.clock.to_phase().inner()
+    }
+
+    /// Access the calibration log length (for integration tests).
+    pub fn calibration_log_len(&self) -> usize {
+        self.calibration_log.len()
+    }
+
+    /// Access the self-knowledge model (for integration tests).
+    pub fn self_knowledge_ref(&self) -> Option<&SelfKnowledge> {
+        self.self_knowledge.as_ref()
+    }
 }
 
 /// Parse a serialized attention command string back to an `AttentionCmd`.
@@ -762,7 +782,7 @@ fn parse_attention_cmd(s: &str) -> Option<AttentionCmd> {
 /// Near phase troughs (0.0–0.2): bias toward `HoldCurrent` — the system
 /// is at minimum temporal energy and should conserve attention.
 /// In between (0.2–0.8): pass through the scheduler's original command.
-fn modulate_attention_with_clock_phase(cmd: AttentionCmd, clock_phase: f64) -> AttentionCmd {
+pub fn modulate_attention_with_clock_phase(cmd: AttentionCmd, clock_phase: f64) -> AttentionCmd {
     if clock_phase > 0.8 {
         match &cmd {
             AttentionCmd::HoldCurrent | AttentionCmd::Continue => {
@@ -853,557 +873,4 @@ fn build_trits(signals: &[SignalInput]) -> Result<Vec<TritWord>, SandboxError> {
             TritWord::from_parts(value, phase, frame).map_err(SandboxError::from)
         })
         .collect()
-}
-
-/// Build a DecisionPreview from the current scenario and proposed final word.
-fn build_decision_preview(scenario: &ScenarioInput, final_word: &TritWord) -> DecisionPreview {
-    // In MVP, we infer environmental impact heuristically from the scenario.
-    // Future: real sensor data streams from environmental context.
-    let expected_energy_joules = scenario
-        .environmental_context
-        .as_ref()
-        .map(|ctx| ctx.ambient_arousal * 1e6)
-        .unwrap_or(0.0);
-    let expected_carbon_kg = scenario
-        .environmental_context
-        .as_ref()
-        .map(|ctx| ctx.ambient_arousal * 1e3)
-        .unwrap_or(0.0);
-    let affected_population = scenario
-        .environmental_context
-        .as_ref()
-        .map(|ctx| (ctx.social_density * 1e6) as u64)
-        .filter(|&p| p > 0);
-    let irreversible_change_risk = scenario
-        .environmental_context
-        .as_ref()
-        .map(|ctx| ctx.ambient_arousal * 0.1)
-        .unwrap_or(0.0);
-    let ecosystem_impact_zone = scenario.environmental_context.as_ref().and_then(|ctx| {
-        if ctx.ambient_arousal > 0.7 {
-            Some(crate::anchor::EcosystemZone::Atmospheric)
-        } else {
-            None
-        }
-    });
-
-    DecisionPreview {
-        expected_energy_joules,
-        expected_carbon_kg,
-        affected_population,
-        irreversible_change_risk,
-        ecosystem_impact_zone,
-        frame: final_word.frame(),
-        trit_value: final_word.value(),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn scenario(domain: &str, signals: Vec<SignalInput>) -> ScenarioInput {
-        ScenarioInput {
-            id: "test".into(),
-            description: "test".into(),
-            domain: domain.into(),
-            signals,
-            expected_behavior: "hold".into(),
-            environmental_context: None,
-        }
-    }
-
-    fn signal(frame: &str, value: i8, phase: f64) -> SignalInput {
-        SignalInput {
-            frame: frame.into(),
-            value,
-            phase,
-            sensor: None,
-        }
-    }
-
-    #[test]
-    fn pipeline_medical_conflict_preserves_individual() {
-        let s = scenario(
-            "MedicalEthics",
-            vec![signal("Science", 1, 0.8), signal("Individual", -1, 0.2)],
-        );
-        let mut pipeline = SandboxPipeline::default();
-        let (out, diag) = pipeline.run_with_diagnostics(&s).unwrap();
-        assert_eq!(out.final_value_code, -1);
-        assert!(out.policy_action.contains("Preserve"));
-        assert_eq!(diag.signal_count, 2);
-        assert!(diag.elapsed_ns < 1_000_000_000);
-    }
-
-    #[test]
-    fn pipeline_value_judgment_holds() {
-        let s = scenario(
-            "ValueJudgment",
-            vec![signal("Individual", -1, 0.3), signal("Consensus", 1, 0.7)],
-        );
-        let mut pipeline = SandboxPipeline::default();
-        let (out, _) = pipeline.run_with_diagnostics(&s).unwrap();
-        assert_eq!(out.final_value_code, 0);
-        assert!(out.policy_action.contains("Hold"));
-    }
-
-    #[test]
-    fn pipeline_value_judgment_same_frame_still_holds() {
-        // Regression guard: ValueJudgment must remain Hold even when all
-        // signals share the same frame and TAND would otherwise commit.
-        let s = scenario(
-            "ValueJudgment",
-            vec![signal("Science", 1, 0.9), signal("Science", 1, 0.8)],
-        );
-        let mut pipeline = SandboxPipeline::default();
-        let (out, _) = pipeline.run_with_diagnostics(&s).unwrap();
-        assert_eq!(out.final_value_code, 0);
-        assert_eq!(out.final_frame, "Meta");
-        assert!(out.policy_action.contains("Hold"));
-    }
-
-    #[test]
-    fn pipeline_engineering_commits_false() {
-        let s = scenario(
-            "Engineering",
-            vec![signal("Individual", 1, 0.6), signal("Science", -1, 0.4)],
-        );
-        let mut pipeline = SandboxPipeline::default();
-        let out = pipeline.run(&s).unwrap();
-        assert_eq!(out.final_value_code, -1);
-    }
-
-    #[test]
-    fn pipeline_rejects_invalid_frame() {
-        let s = scenario("General", vec![signal("Bogus", 1, 0.5)]);
-        let mut pipeline = SandboxPipeline::default();
-        assert!(pipeline.run(&s).is_err());
-    }
-
-    #[test]
-    fn pipeline_rejects_invalid_phase() {
-        let s = scenario("General", vec![signal("Science", 1, 1.5)]);
-        let mut pipeline = SandboxPipeline::default();
-        assert!(pipeline.run(&s).is_err());
-    }
-
-    #[test]
-    fn pipeline_rejects_empty_signals() {
-        let s = scenario("General", vec![]);
-        let mut pipeline = SandboxPipeline::default();
-        assert!(pipeline.run(&s).is_err());
-    }
-
-    #[test]
-    fn pipeline_rejects_invalid_domain() {
-        let s = scenario("Bogus", vec![signal("Science", 1, 0.5)]);
-        let mut pipeline = SandboxPipeline::default();
-        assert!(pipeline.run(&s).is_err());
-    }
-
-    #[test]
-    fn pipeline_single_signal_commits() {
-        let s = scenario("General", vec![signal("Science", 1, 0.9)]);
-        let mut pipeline = SandboxPipeline::default();
-        let out = pipeline.run(&s).unwrap();
-        assert_eq!(out.final_value_code, 1);
-        assert_eq!(out.final_frame, "Science");
-    }
-
-    #[test]
-    fn pipeline_custom_domain_runs() {
-        let s = scenario(
-            "Custom(literature)",
-            vec![signal("Science", 1, 0.8), signal("Individual", -1, 0.2)],
-        );
-        let mut pipeline = SandboxPipeline::default();
-        let out = pipeline.run(&s).unwrap();
-        assert!(out.policy_action.contains("Negotiate"));
-    }
-
-    #[test]
-    fn pipeline_output_helpers_work() {
-        let s = scenario("General", vec![signal("Science", 1, 0.9)]);
-        let mut pipeline = SandboxPipeline::default();
-        let out = pipeline.run(&s).unwrap();
-        assert!(out.is_commit_true());
-        assert!(!out.is_commit_false());
-        assert!(!out.is_hold());
-    }
-
-    #[test]
-    fn pipeline_physical_hold_with_interrupts_forces_false() {
-        // Cross-frame conflict with no Science frame produces Hold + interrupts;
-        // SafeFallback forces False in the dangerous Physical domain.
-        let s = scenario(
-            "Physical",
-            vec![signal("Individual", 1, 0.9), signal("Consensus", -1, 0.2)],
-        );
-        let mut pipeline = SandboxPipeline::default();
-        let (out, diag) = pipeline.run_with_diagnostics(&s).unwrap();
-        assert_eq!(out.final_value_code, -1);
-        assert!(!out.interrupts.is_empty());
-        assert!(diag.safe_fallback_triggered);
-    }
-
-    #[test]
-    fn pipeline_with_registry_rejects_unregistered_frame() {
-        let mut reg = FrameRegistry::new();
-        reg.register(Frame::Science);
-        let mut pipeline = SandboxPipeline::with_registry(reg);
-        let s = ScenarioInput {
-            id: "test".into(),
-            description: "test".into(),
-            domain: "General".into(),
-            signals: vec![SignalInput {
-                frame: "Individual".into(),
-                value: 1,
-                phase: 0.5,
-                sensor: None,
-            }],
-            expected_behavior: "hold".into(),
-            environmental_context: None,
-        };
-        assert!(pipeline.run(&s).is_err());
-    }
-
-    #[test]
-    fn pipeline_with_registry_accepts_registered_frame() {
-        let mut reg = FrameRegistry::new();
-        reg.register(Frame::Science);
-        let mut pipeline = SandboxPipeline::with_registry(reg);
-        let s = ScenarioInput {
-            id: "test".into(),
-            description: "test".into(),
-            domain: "General".into(),
-            signals: vec![SignalInput {
-                frame: "Science".into(),
-                value: 1,
-                phase: 0.9,
-                sensor: None,
-            }],
-            expected_behavior: "hold".into(),
-            environmental_context: None,
-        };
-        let out = pipeline.run(&s).unwrap();
-        assert_eq!(out.final_value_code, 1);
-    }
-
-    #[test]
-    fn pipeline_default_has_no_registry() {
-        let mut pipeline = SandboxPipeline::default();
-        // Default pipeline has no registry, so any frame is accepted
-        let s = ScenarioInput {
-            id: "test".into(),
-            description: "test".into(),
-            domain: "General".into(),
-            signals: vec![SignalInput {
-                frame: "Consensus".into(),
-                value: -1,
-                phase: 0.3,
-                sensor: None,
-            }],
-            expected_behavior: "hold".into(),
-            environmental_context: None,
-        };
-        assert!(pipeline.run(&s).is_ok());
-    }
-
-    #[test]
-    fn pipeline_reflexive_guard_overrides_forced_collapse() {
-        // MedicalEthics preserves Individual even when it conflicts with Science,
-        // producing a forced False with unresolved cross-frame interrupts.
-        let s = scenario(
-            "MedicalEthics",
-            vec![signal("Science", 1, 0.9), signal("Individual", -1, 0.2)],
-        );
-        let mut pipeline = SandboxPipeline::default().with_reflexive(ReflexiveAuditor::new());
-        let (out, diag) = pipeline.run_with_diagnostics(&s).unwrap();
-        assert!(diag.reflexive_guard_triggered);
-        assert_eq!(out.final_value_code, 0);
-        assert!(out.reflexive_alert.is_some());
-    }
-
-    #[test]
-    fn pipeline_first_person_preserved_over_science() {
-        let s = scenario(
-            "General",
-            vec![signal("Science", -1, 0.4), signal("FirstPerson", 1, 0.8)],
-        );
-        let mut pipeline = SandboxPipeline::default();
-        let (out, _) = pipeline.run_with_diagnostics(&s).unwrap();
-        assert_eq!(out.final_value_code, 1);
-        assert!(out.policy_action.contains("Preserve"));
-        assert_eq!(out.final_frame, "FirstPerson");
-    }
-
-    #[test]
-    fn anchor_thermal_baseline_aborts_decision() {
-        use crate::anchor::thermal_baseline::ThermalBaseline;
-
-        let s = scenario("General", vec![signal("Science", 1, 0.9)]);
-        let mut pipeline =
-            SandboxPipeline::default().with_anchor(Box::new(ThermalBaseline::exceeded()));
-        let (out, diag) = pipeline.run_with_diagnostics(&s).unwrap();
-        // Thermal baseline exceeded → Abort → forced Hold
-        assert_eq!(out.final_value_code, 0);
-        assert_eq!(out.final_frame, "Meta");
-        assert!(diag.anchor_report.is_some());
-        assert!(diag.anchor_report.unwrap().has_abort());
-    }
-
-    #[test]
-    fn anchor_safe_thermal_passes_through() {
-        use crate::anchor::thermal_baseline::ThermalBaseline;
-
-        let s = scenario("General", vec![signal("Science", 1, 0.9)]);
-        let mut pipeline =
-            SandboxPipeline::default().with_anchor(Box::new(ThermalBaseline::safe()));
-        let (out, diag) = pipeline.run_with_diagnostics(&s).unwrap();
-        // Safe baseline → no violation → normal commit
-        assert_eq!(out.final_value_code, 1);
-        assert!(diag.anchor_report.is_none());
-    }
-
-    #[test]
-    fn anchor_ecological_degraded_aborts() {
-        use crate::anchor::ecological_base::EcologicalBase;
-
-        let s = scenario("General", vec![signal("Science", -1, 0.9)]);
-        let mut pipeline =
-            SandboxPipeline::default().with_anchor(Box::new(EcologicalBase::degraded()));
-        let (out, diag) = pipeline.run_with_diagnostics(&s).unwrap();
-        assert_eq!(out.final_value_code, 0);
-        assert!(diag.anchor_report.is_some());
-    }
-
-    #[test]
-    fn anchor_wellbeing_high_irreversible_risk_aborts() {
-        use crate::anchor::wellbeing_priority::WellbeingPriority;
-        use crate::core::sensor::EnvironmentalContext;
-
-        let s = ScenarioInput {
-            id: "test".into(),
-            description: "test".into(),
-            domain: "Engineering".into(),
-            signals: vec![signal("Science", 1, 0.9)],
-            expected_behavior: "hold".into(),
-            environmental_context: Some(EnvironmentalContext {
-                ambient_arousal: 0.9, // high → irreversible_change_risk = 0.09 > 0.01
-                social_density: 0.5,
-                ..Default::default()
-            }),
-        };
-        let mut pipeline =
-            SandboxPipeline::default().with_anchor(Box::new(WellbeingPriority::new()));
-        let (out, diag) = pipeline.run_with_diagnostics(&s).unwrap();
-        // High irreversible risk → Abort → forced Hold
-        assert_eq!(out.final_value_code, 0);
-        assert!(diag.anchor_report.is_some());
-    }
-
-    #[test]
-    fn anchor_multiple_constraints_all_checked() {
-        use crate::anchor::ecological_base::EcologicalBase;
-        use crate::anchor::thermal_baseline::ThermalBaseline;
-        use crate::anchor::wellbeing_priority::WellbeingPriority;
-
-        let s = scenario("General", vec![signal("Science", 1, 0.9)]);
-        let mut pipeline = SandboxPipeline::default()
-            .with_anchor(Box::new(ThermalBaseline::safe()))
-            .with_anchor(Box::new(EcologicalBase::degraded()))
-            .with_anchor(Box::new(WellbeingPriority::new()));
-        let (out, diag) = pipeline.run_with_diagnostics(&s).unwrap();
-        // Ecological degraded → Abort among multiple anchors
-        assert_eq!(out.final_value_code, 0);
-        assert!(diag.anchor_report.is_some());
-        let report = diag.anchor_report.unwrap();
-        assert!(report.has_abort());
-        assert!(!report.violations.is_empty());
-    }
-
-    // ── pipeline integration: budget, clock, calibration ─────────
-
-    #[test]
-    fn pipeline_diagnostics_include_depth_level_and_clock_phase() {
-        let s = scenario("General", vec![signal("Science", 1, 0.9)]);
-        let mut pipeline = SandboxPipeline::default();
-        let (_, diag) = pipeline.run_with_diagnostics(&s).unwrap();
-        // After stage 8b, depth_level should be set (1–5)
-        assert!((1..=5).contains(&diag.depth_level));
-        // After stage 10b, clock_phase should be in [0.0, 1.0]
-        assert!((0.0..=1.0).contains(&diag.clock_phase));
-    }
-
-    #[test]
-    fn pipeline_records_stage_sample_os_budget() {
-        let s = scenario("General", vec![signal("Science", 1, 0.9)]);
-        let mut pipeline = SandboxPipeline::default();
-        let (_, diag) = pipeline.run_with_diagnostics(&s).unwrap();
-        assert!(diag.stage_timings_ns.contains_key("sample_os_budget"));
-    }
-
-    #[test]
-    fn pipeline_records_stage_clock_tick() {
-        let s = scenario("General", vec![signal("Science", 1, 0.9)]);
-        let mut pipeline = SandboxPipeline::default();
-        let (_, diag) = pipeline.run_with_diagnostics(&s).unwrap();
-        assert!(diag.stage_timings_ns.contains_key("clock_tick"));
-    }
-
-    #[test]
-    fn pipeline_records_stage_calibrate() {
-        let s = scenario("General", vec![signal("Science", 1, 0.9)]);
-        let mut pipeline = SandboxPipeline::default();
-        let (_, diag) = pipeline.run_with_diagnostics(&s).unwrap();
-        assert!(diag.stage_timings_ns.contains_key("calibrate"));
-    }
-
-    #[test]
-    fn pipeline_calibration_log_grows_after_runs() {
-        let s = scenario("General", vec![signal("Science", 1, 0.9)]);
-        let mut pipeline = SandboxPipeline::default();
-        assert_eq!(pipeline.calibration_log.len(), 0);
-        pipeline.run(&s).unwrap();
-        assert_eq!(pipeline.calibration_log.len(), 1);
-        pipeline.run(&s).unwrap();
-        assert_eq!(pipeline.calibration_log.len(), 2);
-    }
-
-    #[test]
-    fn pipeline_clock_advances_after_run() {
-        let s = scenario("General", vec![signal("Science", 1, 0.9)]);
-        let mut pipeline = SandboxPipeline::default();
-        let t_before = pipeline.clock.elapsed_time();
-        pipeline.run(&s).unwrap();
-        let t_after = pipeline.clock.elapsed_time();
-        assert!(t_after > t_before, "clock should tick forward each run");
-    }
-
-    #[test]
-    fn pipeline_with_explicit_budget_uses_depth_level() {
-        let s = scenario("General", vec![signal("Science", 1, 0.9)]);
-        let budget = ComputeBudget::new(crate::budget::DepthLevel::Minimal, 0.95, 0.95, 1);
-        let mut pipeline = SandboxPipeline::default().with_budget(budget);
-        let (_, diag) = pipeline.run_with_diagnostics(&s).unwrap();
-        // The initial budget is set, then overwritten by stage 8b sampling.
-        // But the depth_level in diagnostics should be set.
-        assert!((1..=5).contains(&diag.depth_level));
-    }
-
-    #[test]
-    fn pipeline_with_self_knowledge_calibrates() {
-        let s = scenario(
-            "MedicalEthics",
-            vec![signal("Science", 1, 0.8), signal("Individual", -1, 0.2)],
-        );
-        let knowledge = SelfKnowledge::with_human_defaults();
-        let before_count = knowledge.calibration_count();
-        let mut pipeline = SandboxPipeline::default()
-            .with_self_knowledge(knowledge)
-            .with_reflexive(ReflexiveAuditor::new());
-        pipeline.run(&s).unwrap();
-        // After run, self_knowledge should have more calibrations
-        // (the reflexive guard forces Hold → calibrate_from_result fires)
-        let after_count = pipeline
-            .self_knowledge
-            .as_ref()
-            .unwrap()
-            .calibration_count();
-        assert!(
-            after_count >= before_count,
-            "calibration count {after_count} should be >= {before_count}"
-        );
-    }
-
-    #[test]
-    fn pipeline_clean_decision_strengthens_pattern() {
-        // Single same-frame signal → clean commit → pattern strengthened (+0.05)
-        let s = scenario("General", vec![signal("Science", 1, 0.9)]);
-        let knowledge = SelfKnowledge::with_human_defaults();
-        // Add a matching pattern so calibrate_from_result finds it
-        let mut knowledge = knowledge;
-        knowledge.add_pattern(crate::knowledge::ResponsePattern {
-            frame: Frame::Science,
-            value: TritValue::True,
-            phase: 0.5,
-            context: "calibrated".to_string(),
-        });
-        let mut pipeline = SandboxPipeline::default().with_self_knowledge(knowledge);
-        pipeline.run(&s).unwrap();
-        let sk = pipeline.self_knowledge.as_ref().unwrap();
-        let cal_count = sk.calibration_count();
-        assert!(
-            cal_count > 0,
-            "should have recorded at least one calibration"
-        );
-    }
-
-    #[test]
-    fn pipeline_with_custom_clock_uses_preset() {
-        let s = scenario("Physical", vec![signal("Science", 1, 0.9)]);
-        let clock = HarmonicClock::physical();
-        let mut pipeline = SandboxPipeline::default().with_clock(clock);
-        let (_, diag) = pipeline.run_with_diagnostics(&s).unwrap();
-        assert!(diag.clock_phase >= 0.0);
-        // Physical clock has ω=10.0, so after a short pipeline run the phase
-        // should have moved from 0.0 (sin(0)=0 at t=0 → sin(ω*t) after tick).
-        let phase = pipeline.clock.to_phase().inner();
-        assert!((0.0..=1.0).contains(&phase));
-    }
-
-    #[test]
-    fn pipeline_calibration_log_window_evicts() {
-        // Use a small window to test eviction
-        let log = CalibrationLog::new(3);
-        let s = scenario("General", vec![signal("Science", 1, 0.9)]);
-        let mut pipeline = SandboxPipeline::default().with_calibration_log(log);
-        pipeline.run(&s).unwrap();
-        pipeline.run(&s).unwrap();
-        pipeline.run(&s).unwrap();
-        assert_eq!(pipeline.calibration_log.len(), 3);
-        // 4th run should evict oldest
-        pipeline.run(&s).unwrap();
-        assert_eq!(pipeline.calibration_log.len(), 3);
-    }
-
-    #[test]
-    fn clock_phase_peak_biases_toward_shift() {
-        // Phase 0.9 (peak) + HoldCurrent → modulated to ShiftTo(ConflictTrace)
-        let result = modulate_attention_with_clock_phase(AttentionCmd::HoldCurrent, 0.9);
-        assert!(matches!(
-            result,
-            AttentionCmd::ShiftTo(ShiftTarget::ConflictTrace)
-        ));
-    }
-
-    #[test]
-    fn clock_phase_trough_biases_toward_hold() {
-        // Phase 0.1 (trough) + ShiftTo → modulated to HoldCurrent
-        let result =
-            modulate_attention_with_clock_phase(AttentionCmd::ShiftTo(ShiftTarget::Body), 0.1);
-        assert_eq!(result, AttentionCmd::HoldCurrent);
-    }
-
-    #[test]
-    fn clock_phase_midrange_passes_through() {
-        // Phase 0.5 (neutral) — no modulation
-        let result = modulate_attention_with_clock_phase(AttentionCmd::Continue, 0.5);
-        assert_eq!(result, AttentionCmd::Continue);
-    }
-
-    #[test]
-    fn clock_phase_peak_respects_recalibrate() {
-        // Recalibrate should pass through even at peak phase
-        let result = modulate_attention_with_clock_phase(AttentionCmd::Recalibrate, 0.95);
-        assert_eq!(result, AttentionCmd::Recalibrate);
-    }
-
-    #[test]
-    fn clock_phase_trough_respects_recalibrate() {
-        // Recalibrate should pass through even at trough
-        let result = modulate_attention_with_clock_phase(AttentionCmd::Recalibrate, 0.05);
-        assert_eq!(result, AttentionCmd::Recalibrate);
-    }
 }
