@@ -11,16 +11,16 @@ Systematically audit, fix, merge, and supplement trit-core's `docs/` directory s
 
 ### Phase 1: Merge duplicates + fix hard data errors
 
-**P1.1 — Merge `performance-audit.md` → `performance-validation.md`**
+**P1.1 — Merge `performance-audit.md` → `reports/performance-validation.md`**
 - Delete `docs/performance-audit.md`
-- Ensure `performance-validation.md` is the single source of performance truth
+- Ensure `reports/performance-validation.md` is the single source of performance truth
 - Update all cross-references: BENCHMARK.md, FUTURE.md, INDEX.md, README.md, CHANGELOG.md
 
-**P1.2 — Merge `whitepaper.md` → `technical-whitepaper.md`**
-- Delete `docs/whitepaper.md` (English, content overlaps with technical-whitepaper.md)
-- `technical-whitepaper.md` is the authoritative technical whitepaper (Chinese, more comprehensive)
-- `preprint.md` is the separate English academic paper — no overlap issue
-- Update all cross-references: INDEX.md, README.md, REVIEWER_GUIDE.md, zh/README.zh.md
+**P1.2 — Merge `whitepaper.md` → `archive/technical-whitepaper.md`**
+- Delete `docs/whitepaper.md` (English, content overlaps with archive/technical-whitepaper.md)
+- `archive/technical-whitepaper.md` is the authoritative technical whitepaper (Chinese, more comprehensive)
+- `archive/preprint.md` is the separate English academic paper — no overlap issue
+- Update all cross-references: INDEX.md, README.md, how-to/REVIEWER_GUIDE.md, zh/README.zh.md
 
 **P1.3 — Fix all hard data errors**
 Across all docs, fix the following stale numbers:
@@ -29,11 +29,11 @@ Across all docs, fix the following stale numbers:
 |------|----------------|---------|
 | QUICKSTART.md | 170 tests | 227 tests |
 | CONTRIBUTING.md | 170 tests | 227 tests |
-| technical-whitepaper.md L8 | ~3,900 lines / 114 tests | ~6,500 lines / 227 tests |
-| code-quality-audit.md L19 | 34 tests | 227 tests |
+| archive/technical-whitepaper.md L8 | ~3,900 lines / 114 tests | ~6,500 lines / 227 tests |
+| reports/code-quality-audit.md L19 | 34 tests | 227 tests |
 | README.md L73 | `cargo test --all-features` shows "(34 tests)" | remove count |
 | CHANGELOG.md L52 | "end-to-end benchmarks pending" | "end-to-end benchmarks complete; 29 criterion benchmarks across 9 groups; 10,000 TPS target exceeded by 65-101x" |
-| CLAUDE.md L112 | "end-to-end benchmarks (JSON I/O, TCP roundtrip, concurrent bus) are planned" | "end-to-end benchmarks (JSON I/O, TCP roundtrip, concurrent bus) complete — see docs/performance-validation.md" |
+| CLAUDE.md L112 | "end-to-end benchmarks (JSON I/O, TCP roundtrip, concurrent bus) are planned" | "end-to-end benchmarks (JSON I/O, TCP roundtrip, concurrent bus) complete — see docs/reports/performance-validation.md" |
 | zh/architecture-audit.zh.md | likely has stale test count | check and fix |
 | zh/whitepaper.zh.md L8 | "~3,900 行 Rust / 114 个测试" | update to current |
 
@@ -47,12 +47,12 @@ Across all docs, fix the following stale numbers:
 **P2.2 — FUTURE.md §4**
 - Current title: "性能目标未经验证"
 - New title: "性能目标已初步验证"
-- Update content: mention performance-validation.md, cite key TPS numbers, note that further validation (dhat heap analysis, multi-threaded load tests) is still needed
+- Update content: mention reports/performance-validation.md, cite key TPS numbers, note that further validation (dhat heap analysis, multi-threaded load tests) is still needed
 
 **P2.3 — BENCHMARK.md**
 - Update criterion groups from 5 to 9 (add: pipeline, tcp_roundtrip, concurrent_bus, json_serde)
 - Add the 4 new groups with descriptions
-- Update performance numbers to match performance-validation.md
+- Update performance numbers to match reports/performance-validation.md
 - Update JSON serde bottleneck note (was "90%" now "25-49%")
 
 **P2.4 — MODULES.md §net/ header**
@@ -70,7 +70,7 @@ Across all docs, fix the following stale numbers:
 - Add `src/net/` to project structure table
 - Add `src/baseline/` to project structure table (currently missing)
 - Update test count
-- Add new doc links: performance-validation.md, REVIEWER_GUIDE.md
+- Add new doc links: reports/performance-validation.md, how-to/REVIEWER_GUIDE.md
 
 **P3.2 — zh/api.zh.md**
 - Verify §5 (net module) matches English api.md
@@ -101,11 +101,11 @@ Add a new 6th layer between "深度洞察" and "历史文档":
 
 | 文档 | 内容 |
 |---|---|
-| [validation-report](validation-report.md) | M2 三元 vs 二元对比验证 |
-| [performance-validation](performance-validation.md) | 端到端性能验证（TPS 对比、瓶颈分析） |
-| [security-audit](security-audit.md) | 应用安全审计（P1/P2 已修复） |
-| [code-quality-audit](code-quality-audit.md) | 代码质量审计（SOLID/DRY/复杂度） |
-| [REVIEWER_GUIDE](REVIEWER_GUIDE.md) | 评审者指引（核心声明验证步骤） |
+| [validation-report](../../reports/validation-report.md) | M2 三元 vs 二元对比验证 |
+| [performance-validation](../../reports/performance-validation.md) | 端到端性能验证（TPS 对比、瓶颈分析） |
+| [security-audit](../../reports/security-audit.md) | 应用安全审计（P1/P2 已修复） |
+| [code-quality-audit](../../reports/code-quality-audit.md) | 代码质量审计（SOLID/DRY/复杂度） |
+| [REVIEWER_GUIDE](../../how-to/REVIEWER_GUIDE.md) | 评审者指引（核心声明验证步骤） |
 ```
 
 Remove these 5 files from the "历史文档" appendix. Keep adr/, zh/, preprint, whitepaper (if not deleted), roadmap, api, CHANGELOG in "历史文档".
@@ -114,7 +114,7 @@ Remove these 5 files from the "历史文档" appendix. Keep adr/, zh/, preprint,
 - Sync the "Deep Dives" and "Historical Documents" sections with INDEX.md changes
 - Update document counts and descriptions
 
-**P4.3 — REVIEWER_GUIDE.md**
+**P4.3 — how-to/REVIEWER_GUIDE.md**
 - Update document navigation table if any linked docs changed
 
 ### Phase 5: Fill remaining gaps

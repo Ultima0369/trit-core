@@ -1,0 +1,10 @@
+{
+  "id": "physical_crane_overload",
+  "description": "起重机操作员凭经验认为负载安全，但风速传感器数据显示存在边际超载风险。",
+  "domain": "Physical",
+  "signals": [
+    { "frame": "Individual", "value": 1, "phase": 0.7 },
+    { "frame": "Science", "value": -1, "phase": 0.45 }
+  ],
+  "expected_behavior": "commit_false"
+}

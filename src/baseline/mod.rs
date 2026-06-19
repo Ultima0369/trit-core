@@ -2,7 +2,11 @@
 // Implements simple majority-rule logic (no Hold state) to demonstrate
 // where binary systems fail to preserve conflicts that Trit-Core detects.
 
-use crate::trit::{TritValue, TritWord};
+use crate::core::value::TritValue;
+use crate::core::word::TritWord;
+
+#[cfg(test)]
+use crate::core::frame::Frame;
 
 /// Result of a binary baseline evaluation.
 #[derive(Debug, Clone, PartialEq)]
@@ -29,15 +33,15 @@ impl BinaryBaseline {
     pub fn evaluate(signals: &[TritWord]) -> BinaryResult {
         let trues: usize = signals
             .iter()
-            .filter(|t| t.value == TritValue::True)
+            .filter(|t| t.value() == TritValue::True)
             .count();
         let falses: usize = signals
             .iter()
-            .filter(|t| t.value == TritValue::False)
+            .filter(|t| t.value() == TritValue::False)
             .count();
         let holds: usize = signals
             .iter()
-            .filter(|t| t.value == TritValue::Hold)
+            .filter(|t| t.value() == TritValue::Hold)
             .count();
 
         let value = if trues > falses {
@@ -69,8 +73,8 @@ impl BinaryBaseline {
     /// Returns true if the binary result would have "smoothed" or "overridden"
     /// a conflict that the ternary system correctly identified.
     pub fn compare(ternary: &TritWord, binary: &BinaryResult) -> BinaryResult {
-        let conflicts = ternary.value == TritValue::Hold
-            || (ternary.value != binary.value && ternary.value != TritValue::Hold);
+        let conflicts = ternary.value() == TritValue::Hold
+            || (ternary.value() != binary.value && ternary.value() != TritValue::Hold);
 
         BinaryResult {
             value: binary.value,
@@ -78,10 +82,15 @@ impl BinaryBaseline {
             reasoning: if conflicts {
                 format!(
                     "{} [CONFLICT: ternary={:?}, binary would override]",
-                    binary.reasoning, ternary.value
+                    binary.reasoning,
+                    ternary.value()
                 )
             } else {
-                format!("{} [AGREE: ternary={:?}]", binary.reasoning, ternary.value)
+                format!(
+                    "{} [AGREE: ternary={:?}]",
+                    binary.reasoning,
+                    ternary.value()
+                )
             },
         }
     }
@@ -92,15 +101,14 @@ impl BinaryBaseline {
         if signals.is_empty() {
             return false;
         }
-        let first_frame = &signals[0].frame;
-        signals.iter().any(|t| &t.frame != first_frame)
+        let first_frame = signals[0].frame();
+        signals.iter().any(|t| t.frame() != first_frame)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::frame::Frame;
 
     #[test]
     fn binary_majority_true_wins() {
@@ -158,5 +166,61 @@ mod tests {
         let ternary = TritWord::hold(Frame::Meta);
         let comparison = BinaryBaseline::compare(&ternary, &binary);
         assert!(comparison.conflicts_with_ternary);
+    }
+
+    #[test]
+    fn binary_all_hold_defaults_false() {
+        let signals = vec![
+            TritWord::hold(Frame::Science),
+            TritWord::hold(Frame::Science),
+        ];
+        let result = BinaryBaseline::evaluate(&signals);
+        assert_eq!(result.value, TritValue::False);
+        assert!(result.reasoning.contains("0 True, 0 False"));
+    }
+
+    #[test]
+    fn binary_ignores_unknown() {
+        // Unknown values are not counted as True, False, or Hold.
+        let signals = vec![
+            TritWord::unknown(Frame::Science),
+            TritWord::tru(Frame::Science),
+            TritWord::fals(Frame::Science),
+        ];
+        let result = BinaryBaseline::evaluate(&signals);
+        // Tie (1 True, 1 False) → False
+        assert_eq!(result.value, TritValue::False);
+    }
+
+    #[test]
+    fn compare_agrees_when_values_match() {
+        let binary = BinaryBaseline::evaluate(&[TritWord::tru(Frame::Science)]);
+        let ternary = TritWord::tru(Frame::Science);
+        let comparison = BinaryBaseline::compare(&ternary, &binary);
+        assert!(!comparison.conflicts_with_ternary);
+        assert!(comparison.reasoning.contains("AGREE"));
+    }
+
+    #[test]
+    fn empty_signals_have_no_hidden_conflict() {
+        assert!(!BinaryBaseline::has_hidden_conflict(&[]));
+    }
+
+    #[test]
+    fn single_signal_has_no_hidden_conflict() {
+        let signals = vec![TritWord::tru(Frame::Science)];
+        assert!(!BinaryBaseline::has_hidden_conflict(&signals));
+    }
+
+    #[test]
+    fn reasoning_includes_counts() {
+        let signals = vec![
+            TritWord::tru(Frame::Science),
+            TritWord::hold(Frame::Science),
+        ];
+        let result = BinaryBaseline::evaluate(&signals);
+        assert!(result.reasoning.contains("1 True"));
+        assert!(result.reasoning.contains("0 False"));
+        assert!(result.reasoning.contains("1 Hold"));
     }
 }

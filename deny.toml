@@ -1,0 +1,32 @@
+# cargo-deny configuration for Trit-Core.
+# Run: cargo deny check
+
+[graph]
+# Use all features to get the full dependency graph.
+all-features = true
+
+[licenses]
+version = 2
+# List of explicitly allowed licenses.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Unicode-DFS-2016",
+    "Unicode-3.0",
+    "BSD-3-Clause",
+    "ISC",
+    "OpenSSL",
+    "MPL-2.0",
+]
+confidence-threshold = 0.8
+
+[bans]
+# Prevent multiple versions of the same crate where possible.
+multiple-versions = "warn"
+# Wildcard dependencies are not allowed in releases.
+wildcards = "warn"
+
+[advisories]
+version = 2
+# Fail on known security advisories.
+yanked = "warn"

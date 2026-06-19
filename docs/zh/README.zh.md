@@ -3,6 +3,8 @@
 **版本**：0.1.0  
 **协议**：MIT License
 
+> **历史版本说明**：本文档为 Trit-Core v0.1.x 的中文 README。当前 v0.2.0 已重构 API（如 `TritWord` 字段私有、`Phase::new` 返回 `Result`）并移除网络层。最新说明请参考根目录 `README.md`、`docs/reference/api.md` 与 `docs/reference/MODULES.md`。
+
 ---
 
 ## 项目概述
@@ -57,7 +59,7 @@ Trit-Core 是一个**三值决策引擎**，用于处理人类中心场景中的
 | `src/baseline/` | 二元基线对比（验证用） |
 | `src/bin/sandbox.rs` | 命令行工具（CLI） |
 | `src/bin/node.rs` | 分布式节点入口 |
-| `docs/zh/` | **中文技术文档**（ADR、白皮书、路线图、API） |
+| `docs/zh/` | **中文技术文档**（按 Diátaxis 组织：教程、指南、解释、参考、归档） |
 | `scenarios/` | 测试场景（JSON） |
 | `tests/` | 单元测试与集成测试（227 个） |
 
@@ -88,15 +90,16 @@ cargo run --bin trit-sandbox -- --scenario scenarios/medical_conflict_01.json
 |------|--------|--------|
 | 项目说明 | `README.md` | `docs/zh/README.zh.md`（本文） |
 | 文档导航 | `docs/INDEX.md` | — |
+| 综合技术白皮书 | `docs/technical-whitepaper.md` | `docs/technical-whitepaper.md` |
 | 架构决策记录 | `docs/adr/` | `docs/zh/adr/` |
-| 技术白皮书 | `docs/technical-whitepaper.md` | `docs/zh/whitepaper.zh.md` |
-| 路线图与验收 | `docs/roadmap.md` | `docs/zh/roadmap.zh.md` |
-| API 契约 | `docs/api.md` | `docs/zh/api.zh.md` |
-| 学术预印本 | `docs/preprint.md` | `docs/zh/preprint.zh.md` |
-| 架构审计 | `docs/zh/architecture-audit.zh.md` | `docs/zh/architecture-audit.zh.md` |
-| 性能验证 | `docs/performance-validation.md` | — |
-| 安全审计 | `docs/security-audit.md` | — |
-| 评审者指引 | `docs/REVIEWER_GUIDE.md` | — |
+| 技术白皮书（v0.1.x 归档） | `docs/archive/technical-whitepaper.md` | `docs/zh/archive/whitepaper.zh.md` |
+| 路线图与验收 | `docs/explanation/roadmap.md` | `docs/zh/explanation/roadmap.zh.md` |
+| API 契约 | `docs/reference/api.md` | `docs/zh/reference/api.zh.md` |
+| 学术预印本 | `docs/archive/preprint.md` | `docs/zh/archive/preprint.zh.md` |
+| 架构审计 | `docs/explanation/insights/` | `docs/zh/explanation/architecture-audit.zh.md` |
+| 性能验证 | `docs/reports/performance-validation.md` | — |
+| 安全审计 | `docs/reports/security-audit.md` | — |
+| 评审者指引 | `docs/how-to/REVIEWER_GUIDE.md` | — |
 
 ---
 

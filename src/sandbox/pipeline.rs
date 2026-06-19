@@ -1,0 +1,779 @@
+use std::time::Instant;
+
+use tracing::{debug, error, info, instrument, trace, warn};
+
+use crate::attention::{AttentionCmd, AttentionScheduler};
+use crate::core::frame::{Frame, FrameRegistry};
+use crate::core::hold::{HoldState, HolderConfig};
+use crate::core::phase::Phase;
+use crate::core::value::TritValue;
+use crate::core::word::TritWord;
+use crate::core::TernaryAlgebra;
+use crate::knowledge::SelfKnowledge;
+use crate::meta::{ArbitrationResult, Domain, MetaInterrupt, ResolutionPolicy, SafeFallback};
+use crate::reflexive::{ReflexiveAlert, ReflexiveAuditor};
+use crate::sandbox::diagnostic::SandboxDiagnostics;
+use crate::sandbox::error::SandboxError;
+use crate::sandbox::input::{ScenarioInput, SignalInput};
+use crate::sandbox::output::SandboxOutput;
+use crate::sandbox::validate::{sanitize_log_field, validate_scenario};
+
+/// Standard sandbox pipeline: TAND cascade → policy arbitration → SafeFallback.
+///
+/// When constructed with [`with_registry`](SandboxPipeline::with_registry), all
+/// signal frames are validated against the registry before processing.
+///
+/// Mind-engineering extensions (reflexive audit, attention scheduling,
+/// self-knowledge) are opt-in via builder methods and do not change the
+/// default behavior unless explicitly enabled.
+#[derive(Debug, Clone)]
+pub struct SandboxPipeline {
+    registry: Option<FrameRegistry>,
+    dry_run: bool,
+    safe_fallback: SafeFallback,
+    reflexive: Option<ReflexiveAuditor>,
+    attention: Option<AttentionScheduler>,
+    self_knowledge: Option<SelfKnowledge>,
+    holder_config: Option<HolderConfig>,
+    trace_phase: bool,
+    hold_final: bool,
+}
+
+impl Default for SandboxPipeline {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SandboxPipeline {
+    /// Create a new pipeline with an optional frame whitelist.
+    ///
+    /// When a registry is provided, all signal frames must be registered
+    /// before the pipeline processes them — unregistered frames cause a
+    /// `SandboxError::InvalidFrame` error.
+    pub fn new() -> Self {
+        Self {
+            registry: None,
+            dry_run: false,
+            safe_fallback: SafeFallback::new(),
+            reflexive: None,
+            attention: None,
+            self_knowledge: None,
+            holder_config: None,
+            trace_phase: false,
+            hold_final: false,
+        }
+    }
+
+    /// Create a pipeline that validates all signal frames against the given registry.
+    pub fn with_registry(registry: FrameRegistry) -> Self {
+        Self {
+            registry: Some(registry),
+            ..Self::new()
+        }
+    }
+
+    /// Enable dry-run mode: build trits and run TAND, but skip arbitration and SafeFallback.
+    pub fn with_dry_run(mut self, dry_run: bool) -> Self {
+        self.dry_run = dry_run;
+        self
+    }
+
+    /// Inject a custom SafeFallback configuration.
+    pub fn with_safe_fallback(mut self, safe_fallback: SafeFallback) -> Self {
+        self.safe_fallback = safe_fallback;
+        self
+    }
+
+    /// Attach a reflexive auditor.
+    pub fn with_reflexive(mut self, auditor: ReflexiveAuditor) -> Self {
+        self.reflexive = Some(auditor);
+        self
+    }
+
+    /// Attach an attention scheduler.
+    pub fn with_attention(mut self, scheduler: AttentionScheduler) -> Self {
+        self.attention = Some(scheduler);
+        self
+    }
+
+    /// Attach a self-knowledge model.
+    pub fn with_self_knowledge(mut self, knowledge: SelfKnowledge) -> Self {
+        self.self_knowledge = Some(knowledge);
+        self
+    }
+
+    /// Attach a holder configuration.
+    pub fn with_holder_config(mut self, config: HolderConfig) -> Self {
+        self.holder_config = Some(config);
+        self
+    }
+
+    /// Enable phase-trace collection.
+    pub fn with_trace_phase(mut self, enabled: bool) -> Self {
+        self.trace_phase = enabled;
+        self
+    }
+
+    /// Treat Hold as the final answer (do not auto-question).
+    pub fn with_hold_final(mut self, enabled: bool) -> Self {
+        self.hold_final = enabled;
+        self
+    }
+
+    /// Run the full pipeline on a scenario.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SandboxError` if the scenario is invalid or if any signal
+    /// cannot be converted into a `TritWord`.
+    pub fn run(&mut self, scenario: &ScenarioInput) -> Result<SandboxOutput, SandboxError> {
+        self.run_with_diagnostics(scenario).map(|(out, _)| out)
+    }
+
+    /// Run the full pipeline and return both the output and diagnostic telemetry.
+    ///
+    /// This is the primary observable entry point. It records per-stage timing,
+    /// interrupt counts, frame distribution, and SafeFallback activation.
+    #[instrument(skip_all, fields(scenario_id = %scenario.id, domain = %scenario.domain, signal_count = scenario.signals.len()))]
+    pub fn run_with_diagnostics(
+        &mut self,
+        scenario: &ScenarioInput,
+    ) -> Result<(SandboxOutput, SandboxDiagnostics), SandboxError> {
+        let mut diagnostics = SandboxDiagnostics::new();
+        info!(scenario_id = %scenario.id, "pipeline started");
+
+        // Stages 1–4: validate, build policy, build trits, registry check
+        let trits = self.stage_validate_and_build(scenario, &mut diagnostics)?;
+
+        // Stage 5: batch TAND cascade
+        let (current, interrupts) = self.stage_tand_cascade(&trits, &mut diagnostics);
+
+        // Stages 6–8: arbitration, reflexive guard, SafeFallback
+        let (final_word, policy_action_str, reflexive_alert) = self.stage_arbitrate_and_guard(
+            scenario,
+            &trits,
+            &current,
+            interrupts,
+            &mut diagnostics,
+        )?;
+
+        // Stages 9–10: attention scheduling, self-knowledge inference
+        self.stage_optional_extensions(&trits, &final_word, &mut diagnostics);
+
+        // Stage 11: phase trace
+        if self.trace_phase {
+            diagnostics.record_phase(final_word.phase().inner());
+        }
+
+        // Stage 12: build output
+        let stage_start = Instant::now();
+        let output = self.stage_build_output(
+            scenario,
+            &final_word,
+            &policy_action_str,
+            reflexive_alert.as_ref(),
+            &diagnostics,
+        );
+        diagnostics.record_stage("build_output", stage_start);
+
+        diagnostics.finish();
+        info!(
+            scenario_id = %output.scenario_id,
+            final_value = %output.final_value,
+            final_frame = %output.final_frame,
+            elapsed_ns = diagnostics.elapsed_ns,
+            elapsed_us = diagnostics.elapsed_us(),
+            "pipeline complete"
+        );
+        Ok((output, diagnostics))
+    }
+
+    /// Stages 1–4: validate scenario, build policy, build trits, registry check.
+    fn stage_validate_and_build(
+        &self,
+        scenario: &ScenarioInput,
+        diagnostics: &mut SandboxDiagnostics,
+    ) -> Result<Vec<TritWord>, SandboxError> {
+        // Stage 1: validate scenario
+        let stage_start = Instant::now();
+        trace!("validating scenario input");
+        validate_scenario(scenario).map_err(|e| {
+            error!(error = %e, category = %e.category_name(), "scenario validation failed");
+            e
+        })?;
+        diagnostics.record_stage("validate", stage_start);
+        debug!("scenario input validated");
+
+        // Stage 2: build policy
+        let stage_start = Instant::now();
+        let _policy = build_policy(&scenario.domain).map_err(|e| {
+            error!(error = %e, category = %e.category_name(), "policy build failed");
+            e
+        })?;
+        diagnostics.record_stage("build_policy", stage_start);
+        info!(domain = %scenario.domain, "policy built");
+
+        // Stage 3: build trits
+        let stage_start = Instant::now();
+        let trits = build_trits(&scenario.signals).map_err(|e| {
+            error!(error = %e, category = %e.category_name(), "signal conversion failed");
+            e
+        })?;
+        diagnostics.record_inputs(&trits);
+        diagnostics.record_stage("build_trits", stage_start);
+        debug!(signal_count = trits.len(), "trits built");
+
+        // Stage 4: frame registry validation
+        let stage_start = Instant::now();
+        if let Some(ref reg) = self.registry {
+            trace!("validating frames against registry whitelist");
+            if let Err(unregistered) = reg.validate_all(&trits) {
+                let index = trits
+                    .iter()
+                    .position(|w| w.frame() == unregistered)
+                    .unwrap_or(0);
+                let reason = format!(
+                    "frame '{}' is not registered in the pipeline frame whitelist",
+                    unregistered
+                );
+                error!(frame = %unregistered, index, "frame registry rejection");
+                return Err(SandboxError::InvalidFrame { index, reason });
+            }
+        }
+        diagnostics.record_stage("registry_check", stage_start);
+        Ok(trits)
+    }
+
+    /// Stage 5: batch TAND cascade over all input trits.
+    fn stage_tand_cascade(
+        &self,
+        trits: &[TritWord],
+        diagnostics: &mut SandboxDiagnostics,
+    ) -> (TritWord, Vec<MetaInterrupt>) {
+        let stage_start = Instant::now();
+        trace!("running batch TAND cascade");
+        let (current, interrupts) = TernaryAlgebra::t_and_n(trits);
+        diagnostics.record_interrupts(&interrupts);
+        diagnostics.record_stage("t_and_n", stage_start);
+        info!(
+            result_value = ?current.value(),
+            result_frame = %current.frame(),
+            interrupt_count = interrupts.len(),
+            "TAND cascade complete"
+        );
+        (current, interrupts)
+    }
+
+    /// Stages 6–8: policy arbitration, reflexive guard, SafeFallback.
+    fn stage_arbitrate_and_guard(
+        &mut self,
+        scenario: &ScenarioInput,
+        trits: &[TritWord],
+        current: &TritWord,
+        interrupts: Vec<MetaInterrupt>,
+        diagnostics: &mut SandboxDiagnostics,
+    ) -> Result<(TritWord, String, Option<ReflexiveAlert>), SandboxError> {
+        if self.dry_run {
+            info!("dry-run mode: skipping arbitration and SafeFallback");
+            diagnostics.record_policy_action(&ArbitrationResult::Negotiate);
+            diagnostics.record_stage("arbitrate", Instant::now());
+            diagnostics.record_stage("reflexive_guard", Instant::now());
+            diagnostics.record_stage("safe_fallback", Instant::now());
+            return Ok((*current, "DryRun".to_string(), None));
+        }
+
+        // Stage 6: policy arbitration
+        let stage_start = Instant::now();
+        trace!("running policy arbitration");
+        let policy = build_policy(&scenario.domain)?;
+        let policy_result = policy.arbitrate(trits).map_err(|e| {
+            error!(error = %e, "policy arbitration failed");
+            SandboxError::InvalidScenario(format!("arbitration failed: {e}"))
+        })?;
+        diagnostics.record_policy_action(&policy_result);
+        diagnostics.record_stage("arbitrate", stage_start);
+        info!(policy_action = %policy_result, "arbitration complete");
+
+        let arbitrated_word = self.resolve_arbitrated_word(&policy_result, current);
+
+        // Stage 7: reflexive guard
+        let stage_start = Instant::now();
+        let reflexive_alert =
+            self.stage_reflexive_guard(&policy, &arbitrated_word, &interrupts, diagnostics);
+        diagnostics.record_stage("reflexive_guard", stage_start);
+
+        // Stage 8: SafeFallback
+        let stage_start = Instant::now();
+        let final_word =
+            self.stage_safe_fallback(&policy, &arbitrated_word, interrupts, diagnostics);
+        diagnostics.record_stage("safe_fallback", stage_start);
+
+        // If reflexive guard fired and output is still forced True/False, override to Hold
+        let final_word = if reflexive_alert.is_some() && final_word.value().is_computable() {
+            TritWord::hold(Frame::Meta)
+        } else {
+            final_word
+        };
+
+        Ok((final_word, format!("{}", policy_result), reflexive_alert))
+    }
+
+    /// Resolve the word to use after arbitration.
+    fn resolve_arbitrated_word(
+        &self,
+        policy_result: &ArbitrationResult,
+        current: &TritWord,
+    ) -> TritWord {
+        match policy_result {
+            ArbitrationResult::Commit(w) | ArbitrationResult::Preserve(w) => *w,
+            // A deliberate Hold result (e.g., ValueJudgment) must not be
+            // overridden by the TAND cascade; otherwise a same-frame input
+            // would accidentally commit to True/False.
+            ArbitrationResult::Hold => TritWord::hold(Frame::Meta),
+            _ => *current,
+        }
+    }
+
+    /// Stage 7: reflexive guard — check for forced decisions with unresolved conflicts.
+    fn stage_reflexive_guard(
+        &mut self,
+        policy: &ResolutionPolicy,
+        arbitrated_word: &TritWord,
+        interrupts: &[MetaInterrupt],
+        diagnostics: &mut SandboxDiagnostics,
+    ) -> Option<ReflexiveAlert> {
+        if let Some(ref mut auditor) = self.reflexive {
+            for int in interrupts {
+                auditor.record_interrupt(int.clone());
+            }
+            if self.trace_phase {
+                auditor.record_phase_shift(crate::reflexive::PhaseShift::new(
+                    arbitrated_word.phase().inner(),
+                    arbitrated_word.phase().inner(),
+                    "arbitration",
+                ));
+            }
+            let alert = reflexive_guard(
+                auditor,
+                &policy.domain,
+                arbitrated_word,
+                interrupts,
+                &self.safe_fallback,
+            );
+            if alert.is_some() {
+                diagnostics.mark_reflexive_guard();
+            }
+            return alert;
+        }
+        None
+    }
+
+    /// Stage 8: SafeFallback — force False in dangerous domains when uncertain.
+    fn stage_safe_fallback(
+        &self,
+        policy: &ResolutionPolicy,
+        arbitrated_word: &TritWord,
+        mut interrupts: Vec<MetaInterrupt>,
+        diagnostics: &mut SandboxDiagnostics,
+    ) -> TritWord {
+        trace!("running SafeFallback guard");
+        let (final_word, fb_interrupt) =
+            self.safe_fallback
+                .guard(&policy.domain, arbitrated_word, interrupts.len());
+        if let Some(int) = fb_interrupt {
+            warn!(
+                domain = %policy.domain,
+                "SafeFallback triggered: forcing False in dangerous domain"
+            );
+            diagnostics.mark_safe_fallback();
+            interrupts.push(int);
+        } else {
+            debug!("SafeFallback passed through");
+        }
+        diagnostics.interrupts = interrupts;
+        final_word
+    }
+
+    /// Stages 9–10: attention scheduling and self-knowledge inference.
+    fn stage_optional_extensions(
+        &self,
+        trits: &[TritWord],
+        final_word: &TritWord,
+        diagnostics: &mut SandboxDiagnostics,
+    ) {
+        // Stage 9: attention scheduling
+        let stage_start = Instant::now();
+        if let Some(ref scheduler) = self.attention {
+            let cmd = scheduler.suggest_reprioritization(trits);
+            diagnostics.record_attention_cmd(&cmd);
+            if matches!(cmd, AttentionCmd::HoldCurrent) {
+                info!("attention scheduler suggests holding current processing");
+            }
+        }
+        diagnostics.record_stage("attention", stage_start);
+
+        // Stage 10: self-knowledge inference
+        let stage_start = Instant::now();
+        let receiver_estimate = self.self_knowledge.as_ref().map(|k| {
+            let estimate = k.infer_receiver_state(final_word);
+            diagnostics.record_receiver_estimate(estimate.clone());
+            estimate
+        });
+        diagnostics.record_stage("self_knowledge", stage_start);
+        // receiver_estimate is consumed by stage_build_output via diagnostics
+        let _ = receiver_estimate;
+    }
+
+    /// Stage 12: build the final SandboxOutput.
+    fn stage_build_output(
+        &self,
+        scenario: &ScenarioInput,
+        final_word: &TritWord,
+        policy_action_str: &str,
+        reflexive_alert: Option<&ReflexiveAlert>,
+        diagnostics: &SandboxDiagnostics,
+    ) -> SandboxOutput {
+        let hold_state = if final_word.value() == TritValue::Hold {
+            Some(self.holder_state(&scenario.domain))
+        } else {
+            None
+        };
+        SandboxOutput {
+            scenario_id: sanitize_log_field(&scenario.id),
+            final_value: format!("{:?}", final_word.value()),
+            final_value_code: final_word.value().to_i8(),
+            final_frame: format!("{}", final_word.frame()),
+            final_phase_raw: final_word.phase().inner(),
+            interrupts: diagnostics
+                .interrupts
+                .iter()
+                .map(|i| format!("{:?}: {}", i.conflict, sanitize_log_field(&i.reason)))
+                .collect(),
+            policy_action: policy_action_str.to_string(),
+            reflexive_alert: self
+                .reflexive
+                .as_ref()
+                .and(reflexive_alert)
+                .map(|a| format!("{} - {}", a.reason, a.recommendation)),
+            attention_cmd: diagnostics.attention_cmd.clone(),
+            receiver_estimate: diagnostics.receiver_estimate.clone(),
+            hold_state,
+        }
+    }
+
+    /// Compute the HoldState to attach to a Hold output.
+    fn holder_state(&self, domain: &str) -> HoldState {
+        if self.hold_final {
+            return HoldState::final_hold();
+        }
+        self.holder_config
+            .as_ref()
+            .map(|c| c.hold_state_for(domain))
+            .unwrap_or_else(HoldState::final_hold)
+    }
+}
+
+/// Reflexive guard: check whether a forced True/False decision was made
+/// while unresolved cross-frame conflicts remain.
+fn reflexive_guard(
+    _auditor: &mut ReflexiveAuditor,
+    domain: &Domain,
+    decision: &TritWord,
+    interrupts: &[MetaInterrupt],
+    safe_fallback: &SafeFallback,
+) -> Option<ReflexiveAlert> {
+    let unresolved_conflicts = interrupts
+        .iter()
+        .filter(|i| matches!(i.conflict, crate::meta::ConflictType::FrameMismatch))
+        .count();
+
+    let is_forced = decision.value() == TritValue::True || decision.value() == TritValue::False;
+
+    if unresolved_conflicts > 0 && is_forced {
+        // In dangerous domains the forced output may be required by
+        // SafeFallback; do not second-guess safety overrides.
+        let dangerous = safe_fallback.is_dangerous(domain);
+        if dangerous {
+            return None;
+        }
+        let alert = ReflexiveAlert {
+            reason: format!(
+                "Forced {:?} output with {} unresolved frame conflict(s)",
+                decision.value(),
+                unresolved_conflicts
+            ),
+            recommendation: "Reflexive guard suggests returning Hold.".to_string(),
+        };
+        return Some(alert);
+    }
+
+    None
+}
+
+fn build_policy(domain_str: &str) -> Result<ResolutionPolicy, SandboxError> {
+    let domain = domain_str
+        .parse::<Domain>()
+        .map_err(|e| SandboxError::InvalidDomain(format!("{}", e)))?;
+    Ok(ResolutionPolicy::new(domain))
+}
+
+fn build_trits(signals: &[SignalInput]) -> Result<Vec<TritWord>, SandboxError> {
+    signals
+        .iter()
+        .enumerate()
+        .map(|(i, s)| {
+            let frame: Frame = s.frame.parse().map_err(|e| SandboxError::InvalidFrame {
+                index: i,
+                reason: format!("{}", e),
+            })?;
+            let value = TritValue::from(s.value);
+            let phase = Phase::new(s.phase).map_err(|e| SandboxError::InvalidPhase {
+                index: i,
+                reason: format!("{}", e),
+            })?;
+            TritWord::from_parts(value, phase, frame).map_err(SandboxError::from)
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn scenario(domain: &str, signals: Vec<SignalInput>) -> ScenarioInput {
+        ScenarioInput {
+            id: "test".into(),
+            description: "test".into(),
+            domain: domain.into(),
+            signals,
+            expected_behavior: "hold".into(),
+            environmental_context: None,
+        }
+    }
+
+    fn signal(frame: &str, value: i8, phase: f64) -> SignalInput {
+        SignalInput {
+            frame: frame.into(),
+            value,
+            phase,
+            sensor: None,
+        }
+    }
+
+    #[test]
+    fn pipeline_medical_conflict_preserves_individual() {
+        let s = scenario(
+            "MedicalEthics",
+            vec![signal("Science", 1, 0.8), signal("Individual", -1, 0.2)],
+        );
+        let mut pipeline = SandboxPipeline::default();
+        let (out, diag) = pipeline.run_with_diagnostics(&s).unwrap();
+        assert_eq!(out.final_value_code, -1);
+        assert!(out.policy_action.contains("Preserve"));
+        assert_eq!(diag.signal_count, 2);
+        assert!(diag.elapsed_ns < 1_000_000_000);
+    }
+
+    #[test]
+    fn pipeline_value_judgment_holds() {
+        let s = scenario(
+            "ValueJudgment",
+            vec![signal("Individual", -1, 0.3), signal("Consensus", 1, 0.7)],
+        );
+        let mut pipeline = SandboxPipeline::default();
+        let (out, _) = pipeline.run_with_diagnostics(&s).unwrap();
+        assert_eq!(out.final_value_code, 0);
+        assert!(out.policy_action.contains("Hold"));
+    }
+
+    #[test]
+    fn pipeline_value_judgment_same_frame_still_holds() {
+        // Regression guard: ValueJudgment must remain Hold even when all
+        // signals share the same frame and TAND would otherwise commit.
+        let s = scenario(
+            "ValueJudgment",
+            vec![signal("Science", 1, 0.9), signal("Science", 1, 0.8)],
+        );
+        let mut pipeline = SandboxPipeline::default();
+        let (out, _) = pipeline.run_with_diagnostics(&s).unwrap();
+        assert_eq!(out.final_value_code, 0);
+        assert_eq!(out.final_frame, "Meta");
+        assert!(out.policy_action.contains("Hold"));
+    }
+
+    #[test]
+    fn pipeline_engineering_commits_false() {
+        let s = scenario(
+            "Engineering",
+            vec![signal("Individual", 1, 0.6), signal("Science", -1, 0.4)],
+        );
+        let mut pipeline = SandboxPipeline::default();
+        let out = pipeline.run(&s).unwrap();
+        assert_eq!(out.final_value_code, -1);
+    }
+
+    #[test]
+    fn pipeline_rejects_invalid_frame() {
+        let s = scenario("General", vec![signal("Bogus", 1, 0.5)]);
+        let mut pipeline = SandboxPipeline::default();
+        assert!(pipeline.run(&s).is_err());
+    }
+
+    #[test]
+    fn pipeline_rejects_invalid_phase() {
+        let s = scenario("General", vec![signal("Science", 1, 1.5)]);
+        let mut pipeline = SandboxPipeline::default();
+        assert!(pipeline.run(&s).is_err());
+    }
+
+    #[test]
+    fn pipeline_rejects_empty_signals() {
+        let s = scenario("General", vec![]);
+        let mut pipeline = SandboxPipeline::default();
+        assert!(pipeline.run(&s).is_err());
+    }
+
+    #[test]
+    fn pipeline_rejects_invalid_domain() {
+        let s = scenario("Bogus", vec![signal("Science", 1, 0.5)]);
+        let mut pipeline = SandboxPipeline::default();
+        assert!(pipeline.run(&s).is_err());
+    }
+
+    #[test]
+    fn pipeline_single_signal_commits() {
+        let s = scenario("General", vec![signal("Science", 1, 0.9)]);
+        let mut pipeline = SandboxPipeline::default();
+        let out = pipeline.run(&s).unwrap();
+        assert_eq!(out.final_value_code, 1);
+        assert_eq!(out.final_frame, "Science");
+    }
+
+    #[test]
+    fn pipeline_custom_domain_runs() {
+        let s = scenario(
+            "Custom(literature)",
+            vec![signal("Science", 1, 0.8), signal("Individual", -1, 0.2)],
+        );
+        let mut pipeline = SandboxPipeline::default();
+        let out = pipeline.run(&s).unwrap();
+        assert!(out.policy_action.contains("Negotiate"));
+    }
+
+    #[test]
+    fn pipeline_output_helpers_work() {
+        let s = scenario("General", vec![signal("Science", 1, 0.9)]);
+        let mut pipeline = SandboxPipeline::default();
+        let out = pipeline.run(&s).unwrap();
+        assert!(out.is_commit_true());
+        assert!(!out.is_commit_false());
+        assert!(!out.is_hold());
+    }
+
+    #[test]
+    fn pipeline_physical_hold_with_interrupts_forces_false() {
+        // Cross-frame conflict with no Science frame produces Hold + interrupts;
+        // SafeFallback forces False in the dangerous Physical domain.
+        let s = scenario(
+            "Physical",
+            vec![signal("Individual", 1, 0.9), signal("Consensus", -1, 0.2)],
+        );
+        let mut pipeline = SandboxPipeline::default();
+        let (out, diag) = pipeline.run_with_diagnostics(&s).unwrap();
+        assert_eq!(out.final_value_code, -1);
+        assert!(!out.interrupts.is_empty());
+        assert!(diag.safe_fallback_triggered);
+    }
+
+    #[test]
+    fn pipeline_with_registry_rejects_unregistered_frame() {
+        let mut reg = FrameRegistry::new();
+        reg.register(Frame::Science);
+        let mut pipeline = SandboxPipeline::with_registry(reg);
+        let s = ScenarioInput {
+            id: "test".into(),
+            description: "test".into(),
+            domain: "General".into(),
+            signals: vec![SignalInput {
+                frame: "Individual".into(),
+                value: 1,
+                phase: 0.5,
+                sensor: None,
+            }],
+            expected_behavior: "hold".into(),
+            environmental_context: None,
+        };
+        assert!(pipeline.run(&s).is_err());
+    }
+
+    #[test]
+    fn pipeline_with_registry_accepts_registered_frame() {
+        let mut reg = FrameRegistry::new();
+        reg.register(Frame::Science);
+        let mut pipeline = SandboxPipeline::with_registry(reg);
+        let s = ScenarioInput {
+            id: "test".into(),
+            description: "test".into(),
+            domain: "General".into(),
+            signals: vec![SignalInput {
+                frame: "Science".into(),
+                value: 1,
+                phase: 0.9,
+                sensor: None,
+            }],
+            expected_behavior: "hold".into(),
+            environmental_context: None,
+        };
+        let out = pipeline.run(&s).unwrap();
+        assert_eq!(out.final_value_code, 1);
+    }
+
+    #[test]
+    fn pipeline_default_has_no_registry() {
+        let mut pipeline = SandboxPipeline::default();
+        // Default pipeline has no registry, so any frame is accepted
+        let s = ScenarioInput {
+            id: "test".into(),
+            description: "test".into(),
+            domain: "General".into(),
+            signals: vec![SignalInput {
+                frame: "Consensus".into(),
+                value: -1,
+                phase: 0.3,
+                sensor: None,
+            }],
+            expected_behavior: "hold".into(),
+            environmental_context: None,
+        };
+        assert!(pipeline.run(&s).is_ok());
+    }
+
+    #[test]
+    fn pipeline_reflexive_guard_overrides_forced_collapse() {
+        // MedicalEthics preserves Individual even when it conflicts with Science,
+        // producing a forced False with unresolved cross-frame interrupts.
+        let s = scenario(
+            "MedicalEthics",
+            vec![signal("Science", 1, 0.9), signal("Individual", -1, 0.2)],
+        );
+        let mut pipeline = SandboxPipeline::default().with_reflexive(ReflexiveAuditor::new());
+        let (out, diag) = pipeline.run_with_diagnostics(&s).unwrap();
+        assert!(diag.reflexive_guard_triggered);
+        assert_eq!(out.final_value_code, 0);
+        assert!(out.reflexive_alert.is_some());
+    }
+
+    #[test]
+    fn pipeline_first_person_preserved_over_science() {
+        let s = scenario(
+            "General",
+            vec![signal("Science", -1, 0.4), signal("FirstPerson", 1, 0.8)],
+        );
+        let mut pipeline = SandboxPipeline::default();
+        let (out, _) = pipeline.run_with_diagnostics(&s).unwrap();
+        assert_eq!(out.final_value_code, 1);
+        assert!(out.policy_action.contains("Preserve"));
+        assert_eq!(out.final_frame, "FirstPerson");
+    }
+}

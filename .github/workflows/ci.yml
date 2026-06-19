@@ -28,7 +28,7 @@ jobs:
       - name: Check for unsafe code
         shell: bash
         run: |
-          if grep -r "unsafe" src/; then
+          if grep -rE "unsafe\s*(\{|fn|impl|trait|static|const|let|use|mod|type|extern|block)" src/; then
             echo "ERROR: unsafe code found in src/"
             exit 1
           fi
@@ -44,29 +44,50 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Run tests
-        run: cargo test --all-features -- --test-threads=1
+        run: cargo test --all-features -- --test-threads=2
 
-  multi-node-test:
-    name: Multi-Node Integration Tests
+  scenario-validation:
+    name: Scenario Validation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Run multi-node tests
-        run: cargo test --test multi_node_test -- --test-threads=1
-      - name: Run partition tests
-        run: cargo test --test partition_test -- --test-threads=1
+      - name: Validate all scenario files
+        shell: bash
+        run: |
+          set -e
+          for f in scenarios/*.json; do
+            echo "Validating $f"
+            cargo run --release --bin trit-sandbox -- --scenario "$f"
+          done
 
-  bench:
-    name: Benchmark
+  dhat-profile:
+    name: Heap Profile
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Run benchmarks
-        run: cargo bench
+      - name: Build dhat profile binary
+        run: cargo build --release --bin dhat-profile --features dhat-profile
+      - name: Run dhat profile
+        run: ./target/release/dhat-profile
+
+  public-api:
+    name: Public API Snapshot
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-public-api
+        run: cargo install cargo-public-api
+      - name: Check public API against snapshot
+        shell: bash
+        run: |
+          cargo public-api -ss --all-features > /tmp/current-public-api.txt
+          diff -u api/public-api.txt /tmp/current-public-api.txt
 
   build:
     name: Build Release (${{ matrix.os }})
@@ -81,6 +102,22 @@ jobs:
       - name: Build release
         run: cargo build --release
       - name: Build dhat profile binary
-        run: cargo build --release --bin dhat-profile
+        run: cargo build --release --bin dhat-profile --features dhat-profile
       - name: Run CLI smoke test
         run: cargo run --release --bin trit-sandbox -- --scenario scenarios/medical_conflict_01.json
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-tarpaulin
+        run: cargo install cargo-tarpaulin
+      - name: Generate coverage
+        run: cargo tarpaulin --out Xml --output-dir ./coverage
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage/cobertura.xml

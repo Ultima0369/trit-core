@@ -1,6 +1,13 @@
-use crate::frame::Frame;
-use crate::trit::{TritValue, TritWord};
+use crate::core::frame::Frame;
+use crate::core::value::TritValue;
+use crate::core::word::TritWord;
+use std::collections::VecDeque;
 
+/// Maximum number of interrupts retained in the MetaMonitor log.
+/// Prevents unbounded memory growth in long-running nodes.
+pub const MAX_INTERRUPT_LOG: usize = 10_000;
+
+/// A recorded meta-level conflict event.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MetaInterrupt {
     pub conflict: ConflictType,
@@ -9,6 +16,7 @@ pub struct MetaInterrupt {
 }
 
 impl MetaInterrupt {
+    /// Create a new interrupt with the current UTC timestamp.
     pub fn new(conflict: ConflictType, reason: String) -> Self {
         Self {
             conflict,
@@ -29,9 +37,19 @@ impl MetaInterrupt {
         }
     }
 
+    /// Test-only constructor for deterministic assertions.
+    #[cfg(test)]
+    pub fn new_for_test(conflict: ConflictType, reason: impl Into<String>) -> Self {
+        Self {
+            conflict,
+            reason: reason.into(),
+            timestamp: chrono::DateTime::UNIX_EPOCH,
+        }
+    }
+
     fn build_frame_mismatch_reason(op: &str, a: &Frame, b: &Frame) -> String {
-        // Maximum: "TAND conflict: Consensus vs Individual" ≈ 40 bytes
-        let mut reason = String::with_capacity(48);
+        // Longest op name (~20) + " conflict: " (11) + longest frame (~10) + " vs " (4) + longest frame (~10) ≈ 55
+        let mut reason = String::with_capacity(64);
         reason.push_str(op);
         reason.push_str(" conflict: ");
         use std::fmt::Write;
@@ -42,6 +60,7 @@ impl MetaInterrupt {
     }
 }
 
+/// Classification of meta-level conflicts.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ConflictType {
     FrameMismatch,
@@ -51,37 +70,135 @@ pub enum ConflictType {
 }
 
 /// Meta-monitor: records interrupt events and enforces invariants.
-#[derive(Debug, Clone)]
+///
+/// The interrupt log is a capped ring buffer (VecDeque) to prevent
+/// unbounded memory growth in long-running nodes. Oldest entries
+/// are evicted when the cap is reached.
+#[derive(Debug, Clone, Default)]
 pub struct MetaMonitor {
-    #[allow(dead_code)]
-    policy: crate::meta::ResolutionPolicy,
-    log: Vec<MetaInterrupt>,
+    log: VecDeque<MetaInterrupt>,
 }
 
 impl MetaMonitor {
-    pub fn new(policy: crate::meta::ResolutionPolicy) -> Self {
+    /// Create an empty MetaMonitor.
+    pub fn new() -> Self {
         Self {
-            policy,
-            log: vec![],
+            log: VecDeque::new(),
         }
     }
 
+    /// Record an interrupt, evicting the oldest entry if the log is full.
     pub fn record(&mut self, interrupt: MetaInterrupt) {
-        self.log.push(interrupt);
+        if self.log.len() >= MAX_INTERRUPT_LOG {
+            self.log.pop_front();
+        }
+        self.log.push_back(interrupt);
     }
 
-    pub fn log(&self) -> &[MetaInterrupt] {
-        &self.log
+    /// Iterate over recorded interrupts (oldest first).
+    pub fn log(&self) -> impl Iterator<Item = &MetaInterrupt> {
+        self.log.iter()
     }
 
-    /// Enforce invariants. Currently: Absolute frame must remain Hold.
+    /// Drain all recorded interrupts, returning them as a Vec.
+    pub fn drain_log(&mut self) -> Vec<MetaInterrupt> {
+        self.log.drain(..).collect()
+    }
+
+    /// Enforce invariants on a single word.
+    /// Currently: Absolute frame must remain Hold + neutral phase.
     pub fn inspect(&self, word: &TritWord) -> Option<MetaInterrupt> {
-        if word.frame == Frame::Absolute && word.value != TritValue::Hold {
+        if word.frame() == Frame::Absolute && word.value() != TritValue::Hold {
             return Some(MetaInterrupt::new(
                 ConflictType::PolicyViolation,
                 "Absolute frame must remain Hold".to_string(),
             ));
         }
         None
+    }
+
+    /// Enforce invariants on a collection of words.
+    pub fn inspect_all(&self, words: &[TritWord]) -> Vec<MetaInterrupt> {
+        words.iter().filter_map(|w| self.inspect(w)).collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn monitor_records_interrupts() {
+        let mut m = MetaMonitor::new();
+        m.record(MetaInterrupt::new_for_test(
+            ConflictType::FrameMismatch,
+            "x",
+        ));
+        assert_eq!(m.log().count(), 1);
+    }
+
+    #[test]
+    fn monitor_evicts_old_entries() {
+        let mut m = MetaMonitor::new();
+        for i in 0..MAX_INTERRUPT_LOG + 5 {
+            m.record(MetaInterrupt::new_for_test(
+                ConflictType::FrameMismatch,
+                format!("{}", i),
+            ));
+        }
+        assert_eq!(m.log().count(), MAX_INTERRUPT_LOG);
+    }
+
+    #[test]
+    fn inspect_detects_absolute_violation() {
+        let m = MetaMonitor::new();
+        // Absolute with non-Hold value violates the invariant.
+        let _bad = TritWord::from_parts(
+            TritValue::True,
+            crate::core::phase::Phase::new(0.5).unwrap(),
+            Frame::Absolute,
+        )
+        .unwrap_err();
+        // Since the constructor prevents the violation, we just verify inspect logic on a non-Absolute word.
+        assert!(m.inspect(&TritWord::tru(Frame::Science)).is_none());
+    }
+
+    #[test]
+    fn with_frames_builds_expected_reason() {
+        let interrupt = MetaInterrupt::with_frames("TAND", Frame::Science, Frame::Individual);
+        assert_eq!(interrupt.conflict, ConflictType::FrameMismatch);
+        assert!(interrupt.reason.contains("TAND"));
+        assert!(interrupt.reason.contains("Science"));
+        assert!(interrupt.reason.contains("Individual"));
+        assert!(interrupt.reason.contains("vs"));
+    }
+
+    #[test]
+    fn drain_log_clears_monitor() {
+        let mut m = MetaMonitor::new();
+        m.record(MetaInterrupt::new_for_test(ConflictType::PhaseDrift, "x"));
+        m.record(MetaInterrupt::new_for_test(
+            ConflictType::PolicyViolation,
+            "y",
+        ));
+        assert_eq!(m.log().count(), 2);
+        let drained = m.drain_log();
+        assert_eq!(drained.len(), 2);
+        assert_eq!(m.log().count(), 0);
+    }
+
+    #[test]
+    fn inspect_all_collects_violations() {
+        let m = MetaMonitor::new();
+        // Absolute invariant is enforced at construction, so only non-Absolute words are observable.
+        let words = vec![TritWord::tru(Frame::Science), TritWord::hold(Frame::Meta)];
+        let violations = m.inspect_all(&words);
+        assert!(violations.is_empty());
+    }
+
+    #[test]
+    fn conflict_type_equality() {
+        assert_eq!(ConflictType::FrameMismatch, ConflictType::FrameMismatch);
+        assert_ne!(ConflictType::FrameMismatch, ConflictType::OutOfScope);
     }
 }

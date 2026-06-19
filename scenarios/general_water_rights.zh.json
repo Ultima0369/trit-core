@@ -1,0 +1,11 @@
+{
+  "id": "general_water_rights",
+  "description": "某流域遭遇干旱。水文模型建议大幅削减用水；原住民水权法保障其份额；小农户的家庭生计依赖灌溉。单一域无权独断。",
+  "domain": "General",
+  "signals": [
+    { "frame": "Science", "value": -1, "phase": 0.25 },
+    { "frame": "Consensus", "value": 1, "phase": 0.65 },
+    { "frame": "Individual", "value": 1, "phase": 0.8 }
+  ],
+  "expected_behavior": "negotiate"
+}

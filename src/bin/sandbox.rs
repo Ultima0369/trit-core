@@ -1,10 +1,154 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use trit_core::frame::Frame;
-use trit_core::meta::{Domain, MetaInterrupt, MetaMonitor, ResolutionPolicy, SafeFallback};
-use trit_core::sandbox::{SandboxOutput, ScenarioInput};
-use trit_core::trit::algebra::TernaryAlgebra;
-use trit_core::trit::{TritValue, TritWord};
+use std::process::ExitCode;
+use tracing::{error, info, warn};
+use trit_core::sandbox::{
+    SandboxError, SandboxOutput, SandboxPipeline, ScenarioInput, ScenarioValidator,
+};
+use trit_core::tracing_init::{LogFormat, LogOptions};
+
+/// CLI argument parser for trit-sandbox.
+struct Args {
+    scenario: String,
+    verbose: bool,
+    quiet: bool,
+    trace: bool,
+    log_file: Option<String>,
+    log_format: LogFormat,
+    diagnostic: bool,
+    validate_only: bool,
+    dry_run: bool,
+    reflexive: bool,
+    hold_final: bool,
+    trace_phase: bool,
+    self_knowledge: bool,
+}
+
+impl Args {
+    fn parse() -> Result<Self, String> {
+        let mut scenario = None;
+        let mut verbose = false;
+        let mut quiet = false;
+        let mut trace = false;
+        let mut log_file = None;
+        let mut log_format = LogFormat::Json;
+        let mut diagnostic = false;
+        let mut validate_only = false;
+        let mut dry_run = false;
+        let mut reflexive = false;
+        let mut hold_final = false;
+        let mut trace_phase = false;
+        let mut self_knowledge = false;
+
+        let mut args = std::env::args().skip(1).peekable();
+        while let Some(arg) = args.next() {
+            match arg.as_str() {
+                "--scenario" => {
+                    scenario = Some(
+                        args.next()
+                            .ok_or("--scenario requires a value")?
+                            .to_string(),
+                    );
+                }
+                "-v" | "--verbose" => verbose = true,
+                "-q" | "--quiet" => quiet = true,
+                "--trace" => trace = true,
+                "--log-file" => {
+                    log_file = Some(
+                        args.next()
+                            .ok_or("--log-file requires a value")?
+                            .to_string(),
+                    );
+                }
+                "--log-format" => {
+                    let fmt = args
+                        .next()
+                        .ok_or("--log-format requires a value")?
+                        .to_string();
+                    log_format = fmt.parse::<LogFormat>()?;
+                }
+                "--diagnostic" => diagnostic = true,
+                "--validate-only" => validate_only = true,
+                "--dry-run" => dry_run = true,
+                "--reflexive" => reflexive = true,
+                "--hold-final" => hold_final = true,
+                "--trace-phase" => trace_phase = true,
+                "--self-knowledge" => self_knowledge = true,
+                "-h" | "--help" => {
+                    print_usage();
+                    std::process::exit(0);
+                }
+                other => return Err(format!("unknown argument: {}", other)),
+            }
+        }
+
+        let scenario = scenario.ok_or("missing required argument: --scenario <path.json>")?;
+
+        Ok(Self {
+            scenario,
+            verbose,
+            quiet,
+            trace,
+            log_file,
+            log_format,
+            diagnostic,
+            validate_only,
+            dry_run,
+            reflexive,
+            hold_final,
+            trace_phase,
+            self_knowledge,
+        })
+    }
+
+    fn log_filter(&self) -> &'static str {
+        if self.trace {
+            "trace"
+        } else if self.verbose {
+            "debug"
+        } else if self.quiet {
+            "warn"
+        } else {
+            "info"
+        }
+    }
+}
+
+fn print_usage() {
+    println!(
+        r#"trit-sandbox — run a Trit-Core scenario through the decision pipeline
+
+Usage:
+  trit-sandbox --scenario <path.json> [OPTIONS]
+
+Required:
+  --scenario <path.json>   Path to a scenario JSON file under the scenarios/ directory
+
+Logging options:
+  -v, --verbose            Enable debug-level logging
+  -q, --quiet              Only log warnings and errors
+      --trace              Enable trace-level logging (most verbose)
+      --log-file <path>    Write logs to a file instead of stderr
+      --log-format <fmt>   One of: json (default), pretty, compact, full
+
+Execution options:
+      --diagnostic         Emit a diagnostic report alongside the output
+      --validate-only      Validate the scenario and exit without running the pipeline
+      --dry-run            Build trits and run TAND, but skip arbitration and SafeFallback
+      --reflexive          Enable reflexive audit between arbitration and SafeFallback
+      --hold-final         Treat Hold as the final answer (do not auto-question)
+      --trace-phase        Output phase shift trajectory in diagnostics
+      --self-knowledge     Enable receiver-state inference from self-knowledge
+  -h, --help               Print this help message
+
+Environment:
+  TRIT_LOG                 Log filter (e.g., debug, info, warn)
+  TRIT_LOG_FILE            Path to write logs to a file
+  TRIT_LOG_FORMAT          json | pretty | compact | full
+  TRIT_LOG_JSON            0/false to disable JSON logging
+"#
+    );
+}
 
 /// Security: validate scenario file path to prevent path traversal (CWE-22).
 fn validate_scenario_path(raw_path: &str) -> Result<PathBuf, String> {
@@ -35,196 +179,142 @@ fn validate_scenario_path(raw_path: &str) -> Result<PathBuf, String> {
     }
 }
 
-/// Security: validate scenario content to prevent DoS and injection (CWE-502, CWE-129).
-const MAX_JSON_SIZE: usize = 64 * 1024;
-const MAX_SIGNALS: usize = 100;
-const MAX_STRING_LEN: usize = 1024;
+fn load_scenario(path: &Path) -> Result<ScenarioInput, SandboxError> {
+    use trit_core::sandbox::validate_scenario;
 
-fn sanitize_log_field(s: &str) -> String {
-    s.chars()
-        .map(|c| {
-            if c.is_control() && c != ' ' {
-                '\u{FFFD}'
-            } else {
-                c
+    info!(path = %path.display(), "loading scenario");
+    let raw = fs::read_to_string(path)
+        .map_err(|e| SandboxError::Io(format!("Failed to read '{}': {}", path.display(), e)))?;
+    if raw.len() > trit_core::sandbox::MAX_JSON_SIZE {
+        return Err(SandboxError::InvalidScenario(format!(
+            "File too large: {} bytes (max {})",
+            raw.len(),
+            trit_core::sandbox::MAX_JSON_SIZE
+        )));
+    }
+    let scenario: ScenarioInput = serde_json::from_str(&raw)
+        .map_err(|e| SandboxError::InvalidScenario(format!("Malformed JSON: {}", e)))?;
+    validate_scenario(&scenario)?;
+    Ok(scenario)
+}
+
+fn run_with_error_context(args: &Args) -> Result<SandboxOutput, SandboxError> {
+    let path = validate_scenario_path(&args.scenario).map_err(|reason| {
+        error!(reason, "scenario path validation failed");
+        SandboxError::Io(format!("Security error: {}", reason))
+    })?;
+
+    let scenario = load_scenario(&path)?;
+    info!(scenario_id = %scenario.id, domain = %scenario.domain, "scenario loaded");
+
+    if args.validate_only {
+        info!("--validate-only requested; skipping pipeline execution");
+        // Return a minimal output indicating validation success.
+        return Ok(SandboxOutput {
+            scenario_id: scenario.id.clone(),
+            final_value: "Hold".to_string(),
+            final_value_code: 0,
+            final_frame: "Meta".to_string(),
+            final_phase_raw: 0.5,
+            interrupts: vec!["validation-only mode".to_string()],
+            policy_action: "ValidateOnly".to_string(),
+            reflexive_alert: None,
+            attention_cmd: None,
+            receiver_estimate: None,
+            hold_state: None,
+        });
+    }
+
+    let mut pipeline = SandboxPipeline::default()
+        .with_dry_run(args.dry_run)
+        .with_hold_final(args.hold_final)
+        .with_trace_phase(args.trace_phase);
+
+    if args.reflexive {
+        pipeline = pipeline.with_reflexive(trit_core::reflexive::ReflexiveAuditor::new());
+    }
+    if args.self_knowledge {
+        pipeline = pipeline
+            .with_self_knowledge(trit_core::knowledge::SelfKnowledge::with_human_defaults());
+    }
+
+    let (output, diagnostics) = pipeline.run_with_diagnostics(&scenario)?;
+
+    if args.diagnostic {
+        eprintln!("\n--- Diagnostic Report ---");
+        eprintln!(
+            "{}",
+            serde_json::to_string_pretty(&diagnostics).map_err(|e| {
+                SandboxError::Io(format!("Failed to serialize diagnostics: {}", e))
+            })?
+        );
+        eprintln!("-------------------------\n");
+    }
+
+    // Optionally validate expected_behavior if present and non-empty.
+    // In dry-run mode arbitration is skipped, so the full-pipeline expectation
+    // is not applicable.
+    if !args.dry_run && !scenario.expected_behavior.is_empty() {
+        if let Err(e) = ScenarioValidator::validate(&output, &scenario.expected_behavior) {
+            warn!(
+                scenario_id = %scenario.id,
+                expected = %scenario.expected_behavior,
+                error = %e,
+                "expected behavior mismatch"
+            );
+            return Err(e);
+        }
+    }
+
+    Ok(output)
+}
+
+fn print_error_report(err: &SandboxError) {
+    eprintln!("\n=== Trit-Core Sandbox Error ===");
+    eprintln!("{}", err.report());
+    eprintln!("=================================\n");
+}
+
+fn main() -> ExitCode {
+    let args = match Args::parse() {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("Argument error: {}", e);
+            eprintln!("Run with --help for usage information.");
+            return ExitCode::from(2);
+        }
+    };
+
+    let log_opts = LogOptions::from_env()
+        .with_filter(args.log_filter())
+        .with_format(args.log_format);
+
+    let log_opts = if let Some(file) = &args.log_file {
+        log_opts.with_file(file)
+    } else {
+        log_opts
+    };
+
+    if let Err(e) = trit_core::tracing_init::init_with_opts(log_opts) {
+        eprintln!("[trit-core] warning: failed to initialize tracing: {}", e);
+    }
+
+    match run_with_error_context(&args) {
+        Ok(output) => {
+            match serde_json::to_string_pretty(&output) {
+                Ok(json) => println!("{}", json),
+                Err(e) => {
+                    error!(error = %e, "failed to serialize output");
+                    eprintln!("Internal error: failed to serialize output: {}", e);
+                    return ExitCode::from(1);
+                }
             }
-        })
-        .take(256)
-        .collect()
-}
-
-fn validate_scenario(scenario: &ScenarioInput) -> Result<(), String> {
-    if scenario.id.len() > MAX_STRING_LEN {
-        return Err(format!(
-            "id too long: {} chars (max {})",
-            scenario.id.len(),
-            MAX_STRING_LEN
-        ));
-    }
-    if scenario.description.len() > MAX_STRING_LEN * 4 {
-        return Err("description too long".to_string());
-    }
-    if scenario.signals.is_empty() {
-        return Err("At least one signal is required".to_string());
-    }
-    if scenario.signals.len() > MAX_SIGNALS {
-        return Err(format!(
-            "Too many signals: {} (max {})",
-            scenario.signals.len(),
-            MAX_SIGNALS
-        ));
-    }
-
-    match scenario.domain.as_str() {
-        "Physical" | "Engineering" | "MedicalEthics" | "ValueJudgment" | "General" => {}
-        d if d.starts_with("Custom(") => {} // Custom domain, e.g. "Custom(chemistry)"
-        d => return Err(format!("Unknown domain: '{}'", d)),
-    }
-
-    for (i, signal) in scenario.signals.iter().enumerate() {
-        if signal.phase.is_nan()
-            || signal.phase.is_infinite()
-            || !(0.0..=1.0).contains(&signal.phase)
-        {
-            return Err(format!(
-                "Signal {}: phase {} is invalid (must be finite in [0.0, 1.0])",
-                i, signal.phase
-            ));
-        }
-        if !matches!(signal.value, -1..=1) {
-            return Err(format!(
-                "Signal {}: value {} is invalid (must be 1, 0, or -1)",
-                i, signal.value
-            ));
-        }
-        match signal.frame.as_str() {
-            "Science" | "Individual" | "Consensus" | "Absolute" => {}
-            f => return Err(format!("Signal {}: unknown frame '{}'", i, f)),
-        }
-    }
-
-    Ok(())
-}
-
-fn main() {
-    trit_core::tracing_init::init();
-
-    let args: Vec<String> = std::env::args().collect();
-    if args.len() < 3 || args[1] != "--scenario" {
-        eprintln!("Usage: trit-sandbox --scenario <path.json>");
-        std::process::exit(1);
-    }
-
-    let path = match validate_scenario_path(&args[2]) {
-        Ok(p) => p,
-        Err(e) => {
-            eprintln!("Security error: {}", e);
-            std::process::exit(1);
-        }
-    };
-
-    let raw = match fs::read_to_string(&path) {
-        Ok(s) if s.len() <= MAX_JSON_SIZE => s,
-        Ok(s) => {
-            eprintln!("File too large: {} bytes (max {})", s.len(), MAX_JSON_SIZE);
-            std::process::exit(1);
+            ExitCode::SUCCESS
         }
         Err(e) => {
-            eprintln!("Failed to read '{}': {}", path.display(), e);
-            std::process::exit(1);
+            error!(error = %e, category = %e.category_name(), "pipeline failed");
+            print_error_report(&e);
+            ExitCode::from(1)
         }
-    };
-
-    let scenario: ScenarioInput = match serde_json::from_str(&raw) {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("Malformed JSON: {}", e);
-            std::process::exit(1);
-        }
-    };
-
-    if let Err(e) = validate_scenario(&scenario) {
-        eprintln!("Validation error: {}", e);
-        std::process::exit(1);
     }
-
-    let policy = match scenario.domain.as_str() {
-        "Physical" => ResolutionPolicy::new(Domain::Physical),
-        "Engineering" => ResolutionPolicy::new(Domain::Engineering),
-        "MedicalEthics" => ResolutionPolicy::new(Domain::MedicalEthics),
-        "ValueJudgment" => ResolutionPolicy::new(Domain::ValueJudgment),
-        d if d.starts_with("Custom(") => {
-            let name = d
-                .strip_prefix("Custom(")
-                .and_then(|s| s.strip_suffix(")"))
-                .unwrap_or("unknown")
-                .to_string();
-            ResolutionPolicy::new(Domain::Custom(name))
-        }
-        _ => ResolutionPolicy::new(Domain::General),
-    };
-
-    let mut monitor = MetaMonitor::new(policy.clone());
-
-    let trits: Vec<TritWord> = scenario
-        .signals
-        .iter()
-        .map(|s| {
-            let frame: Frame = s.frame.parse().unwrap_or(Frame::Meta);
-            let val = TritValue::from(s.value);
-            TritWord::new(val, s.phase, frame)
-        })
-        .collect();
-
-    // Aggregate via TAND cascade
-    let mut current = trits[0].clone();
-    let mut interrupts: Vec<MetaInterrupt> = vec![];
-
-    for next in &trits[1..] {
-        let (result, maybe_int) = TernaryAlgebra::t_and(&current, next);
-        if let Some(int) = maybe_int {
-            monitor.record(int.clone());
-            interrupts.push(int);
-        }
-        current = result;
-    }
-
-    // Policy arbitration if still in conflict
-    let policy_result = policy.arbitrate(&trits);
-    let arbitrated_word = match &policy_result {
-        trit_core::meta::ArbitrationResult::Commit(w) => w.clone(),
-        trit_core::meta::ArbitrationResult::Preserve(w) => w.clone(),
-        _ => current.clone(),
-    };
-
-    // SafeFallback: in dangerous domains (Physical, Engineering, registered
-    // custom domains), Hold + interrupts forces False per IEC 61508 principles.
-    let safe_fallback = SafeFallback::new();
-    let (final_word, fb_interrupt) =
-        safe_fallback.guard(&policy.domain, &arbitrated_word, interrupts.len());
-    if let Some(int) = fb_interrupt {
-        monitor.record(int.clone());
-        interrupts.push(int);
-    }
-
-    let output = SandboxOutput {
-        scenario_id: sanitize_log_field(&scenario.id),
-        final_value: format!("{:?}", final_word.value),
-        final_value_code: final_word.value.to_i8(),
-        final_frame: format!("{}", final_word.frame),
-        final_phase: final_word.phase.inner(),
-        interrupts: interrupts
-            .iter()
-            .map(|i| format!("{:?}: {}", i.conflict, sanitize_log_field(&i.reason)))
-            .collect(),
-        policy_action: format!("{:?}", policy_result),
-    };
-
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&output).unwrap_or_else(|e| {
-            eprintln!("Failed to serialize output: {}", e);
-            std::process::exit(1);
-        })
-    );
 }

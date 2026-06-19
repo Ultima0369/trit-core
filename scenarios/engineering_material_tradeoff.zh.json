@@ -1,0 +1,11 @@
+{
+  "id": "engineering_material_tradeoff",
+  "description": "成本优化材料刚好通过最低规格，但资深工程师建议为安全余量选用更优材料。",
+  "domain": "Engineering",
+  "signals": [
+    { "frame": "Consensus", "value": 1, "phase": 0.6 },
+    { "frame": "Individual", "value": -1, "phase": 0.75 },
+    { "frame": "Science", "value": -1, "phase": 0.55 }
+  ],
+  "expected_behavior": "commit_false"
+}

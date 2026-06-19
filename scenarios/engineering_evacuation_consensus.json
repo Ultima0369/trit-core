@@ -1,0 +1,11 @@
+{
+  "id": "engineering_evacuation_consensus",
+  "description": "Structural engineers recommend immediate evacuation of a building due to detected fatigue. Tenants vote to stay because moving is costly and disruptive. A single resident reports hearing cracks at night.",
+  "domain": "Engineering",
+  "signals": [
+    { "frame": "Science", "value": -1, "phase": 0.2 },
+    { "frame": "Consensus", "value": 1, "phase": 0.7 },
+    { "frame": "Individual", "value": -1, "phase": 0.3 }
+  ],
+  "expected_behavior": "commit_false"
+}

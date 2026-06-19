@@ -1,0 +1,10 @@
+{
+  "id": "value_algorithmic_displacement",
+  "description": "某城市考虑用人工智能分流系统取代人类社工。共识数据显示处理更快、成本更低；一线社工报告，脆弱群体因此失去了他们需要的人际认同。",
+  "domain": "ValueJudgment",
+  "signals": [
+    { "frame": "Consensus", "value": 1, "phase": 0.75 },
+    { "frame": "Individual", "value": -1, "phase": 0.35 }
+  ],
+  "expected_behavior": "hold"
+}

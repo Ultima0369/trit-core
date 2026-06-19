@@ -1,16 +1,20 @@
+use trit_core::core::frame::Frame;
+use trit_core::core::phase::{Commitment, Phase};
+use trit_core::core::value::TritValue;
+use trit_core::core::word::TritWord;
+use trit_core::core::TernaryAlgebra;
+use trit_core::meta::{ArbitrationResult, Domain, MetaMonitor, ResolutionPolicy};
+
 #[cfg(test)]
 mod trit_tests {
-    use trit_core::frame::Frame;
-    use trit_core::trit::algebra::TernaryAlgebra;
-    use trit_core::trit::phase::Commitment;
-    use trit_core::trit::{Phase, TritValue, TritWord};
+    use super::*;
 
     #[test]
     fn tand_same_frame_true_true() {
         let a = TritWord::tru(Frame::Science);
         let b = TritWord::tru(Frame::Science);
         let (res, int) = TernaryAlgebra::t_and(&a, &b);
-        assert_eq!(res.value, TritValue::True);
+        assert_eq!(res.value(), TritValue::True);
         assert!(int.is_none());
     }
 
@@ -19,30 +23,37 @@ mod trit_tests {
         let a = TritWord::tru(Frame::Science);
         let b = TritWord::fals(Frame::Individual);
         let (res, int) = TernaryAlgebra::t_and(&a, &b);
-        assert_eq!(res.value, TritValue::Hold);
+        assert_eq!(res.value(), TritValue::Hold);
+        assert_eq!(res.frame(), Frame::Meta);
         assert!(int.is_some());
     }
 
     #[test]
     fn tnot_flips_phase() {
-        let a = TritWord::new(TritValue::True, 0.8, Frame::Science);
+        let a = TritWord::new(TritValue::True, Phase::new(0.8).unwrap(), Frame::Science);
         let res = TernaryAlgebra::t_not(&a);
-        assert_eq!(res.value, TritValue::False);
-        assert!((res.phase.inner() - 0.2).abs() < f64::EPSILON);
+        assert_eq!(res.value(), TritValue::False);
+        assert!((res.phase().inner() - 0.2).abs() < f64::EPSILON);
     }
 
     #[test]
     fn phase_neutral_commitment() {
-        let p = Phase::new(0.5);
+        let p = Phase::new(0.5).unwrap();
         assert_eq!(p.commitment(), Commitment::Neutral);
+    }
+
+    #[test]
+    fn hot_path_panics_on_mismatched_frames() {
+        let a = TritWord::tru(Frame::Science);
+        let b = TritWord::tru(Frame::Individual);
+        let result = std::panic::catch_unwind(|| TernaryAlgebra::t_and_hot(&a, &b));
+        assert!(result.is_err());
     }
 }
 
 #[cfg(test)]
 mod meta_tests {
-    use trit_core::frame::Frame;
-    use trit_core::meta::{ArbitrationResult, Domain, ResolutionPolicy};
-    use trit_core::trit::TritWord;
+    use super::*;
 
     #[test]
     fn medical_ethics_preserves_individual() {
@@ -51,10 +62,10 @@ mod meta_tests {
             TritWord::tru(Frame::Science),
             TritWord::fals(Frame::Individual),
         ];
-        let result = policy.arbitrate(&inputs);
+        let result = policy.arbitrate(&inputs).unwrap();
         match result {
             ArbitrationResult::Preserve(w) => {
-                assert_eq!(w.frame, Frame::Individual);
+                assert_eq!(w.frame(), Frame::Individual);
             }
             _ => panic!("Expected Preserve(Individual), got {:?}", result),
         }
@@ -67,17 +78,20 @@ mod meta_tests {
             TritWord::tru(Frame::Science),
             TritWord::fals(Frame::Individual),
         ];
-        let result = policy.arbitrate(&inputs);
+        let result = policy.arbitrate(&inputs).unwrap();
         assert_eq!(result, ArbitrationResult::Hold);
+    }
+
+    #[test]
+    fn meta_monitor_can_record_and_drain() {
+        let mut monitor = MetaMonitor::new();
+        assert_eq!(monitor.drain_log().len(), 0);
     }
 }
 
 #[cfg(test)]
 mod scenario_tests {
-    use trit_core::frame::Frame;
-    use trit_core::meta::{ArbitrationResult, Domain, MetaMonitor, ResolutionPolicy};
-    use trit_core::trit::algebra::TernaryAlgebra;
-    use trit_core::trit::{TritValue, TritWord};
+    use super::*;
 
     /// Simulates the sandbox pipeline: TAND cascade + policy arbitration.
     fn run_pipeline(
@@ -86,13 +100,15 @@ mod scenario_tests {
     ) -> (TritValue, Vec<String>, ArbitrationResult) {
         let trits: Vec<TritWord> = signals
             .iter()
-            .map(|(frame, val, phase)| TritWord::new(TritValue::from(*val), *phase, frame.clone()))
+            .map(|(frame, val, phase)| {
+                TritWord::try_new(TritValue::from(*val), *phase, &format!("{}", frame)).unwrap()
+            })
             .collect();
 
         let policy = ResolutionPolicy::new(domain);
-        let mut monitor = MetaMonitor::new(policy.clone());
+        let mut monitor = MetaMonitor::new();
 
-        let mut current = trits[0].clone();
+        let mut current = trits[0];
         let mut interrupts: Vec<String> = vec![];
 
         for next in &trits[1..] {
@@ -104,13 +120,13 @@ mod scenario_tests {
             current = result;
         }
 
-        let policy_result = policy.arbitrate(&trits);
+        let policy_result = policy.arbitrate(&trits).unwrap();
         let final_word = match &policy_result {
-            ArbitrationResult::Commit(w) | ArbitrationResult::Preserve(w) => w.clone(),
-            _ => current.clone(),
+            ArbitrationResult::Commit(w) | ArbitrationResult::Preserve(w) => *w,
+            _ => current,
         };
 
-        (final_word.value, interrupts, policy_result)
+        (final_word.value(), interrupts, policy_result)
     }
 
     #[test]
@@ -119,7 +135,6 @@ mod scenario_tests {
             Domain::MedicalEthics,
             vec![(Frame::Science, 1, 0.8), (Frame::Individual, -1, 0.2)],
         );
-        // MedicalEthics: Individual priority → Preserve(Individual: False)
         assert_eq!(value, TritValue::False);
         assert!(!interrupts.is_empty());
         assert!(matches!(policy_action, ArbitrationResult::Preserve(_)));
@@ -157,7 +172,6 @@ mod scenario_tests {
                 (Frame::Science, -1, 0.3),
             ],
         );
-        // General domain, all same frame (Science) → Commit(first signal: True)
         assert_eq!(value, TritValue::True);
         assert!(interrupts.is_empty());
         assert!(matches!(policy_action, ArbitrationResult::Commit(_)));
@@ -176,7 +190,6 @@ mod scenario_tests {
 
     #[test]
     fn scenario_medical_autonomy_holds() {
-        // Terminal patient requests experimental treatment
         let (value, interrupts, policy_action) = run_pipeline(
             Domain::MedicalEthics,
             vec![(Frame::Science, -1, 0.25), (Frame::Individual, 1, 0.85)],
@@ -188,7 +201,6 @@ mod scenario_tests {
 
     #[test]
     fn scenario_medical_mandate_conflict() {
-        // Vaccine mandate with 3 signals of different frames
         let (value, interrupts, policy_action) = run_pipeline(
             Domain::MedicalEthics,
             vec![
@@ -197,7 +209,6 @@ mod scenario_tests {
                 (Frame::Individual, -1, 0.35),
             ],
         );
-        // MedicalEthics: Individual priority → Preserve(Individual: False)
         assert_eq!(value, TritValue::False);
         assert!(!interrupts.is_empty());
         assert!(matches!(policy_action, ArbitrationResult::Preserve(_)));
@@ -261,8 +272,6 @@ mod scenario_tests {
                 (Frame::Individual, 1, 0.9),
             ],
         );
-        // General domain, mixed frames → Negotiate
-        // But the pipeline falls through to TAND cascade result (Hold due to cross-frame)
         assert_eq!(value, TritValue::Hold);
         assert!(!interrupts.is_empty());
         assert_eq!(policy_action, ArbitrationResult::Negotiate);

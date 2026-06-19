@@ -11,7 +11,7 @@ Perform a deep consistency audit comparing actual source code against all docume
 ## Audit Methodology
 
 1. Read every public API surface in `src/`
-2. Cross-reference against `docs/api.md`, `CLAUDE.md`, `README.md`, `CHANGELOG.md`
+2. Cross-reference against `docs/reference/api.md`, `CLAUDE.md`, `README.md`, `CHANGELOG.md`
 3. Check test counts via `cargo test -- --list`
 4. Verify all documented behaviors match actual implementations
 5. Check cross-references between docs for staleness
@@ -74,10 +74,10 @@ Perform a deep consistency audit comparing actual source code against all docume
 1. `README.md` — test count, doc description, net/ description, dhat-profile binary
 2. `CHANGELOG.md` — test counts, M9 entry, shorten perf note
 3. `CLAUDE.md` — TritValue 4-state, Phase clamping, gate.rs, dhat_profile.rs
-4. `docs/api.md` — Phase, SafeFallback, CustomRule, RuleLoader, M7/M8 APIs, hot path, Commitment, Unknown
-5. `docs/concepts/ARCHITECTURE.md` — M4→M8, M7/M8 subsections
-6. `docs/development/MODULES.md` — remove NEW, add gate.rs, M7/M8 functions, remove line counts
-7. `docs/REVIEWER_GUIDE.md` — test count, M4→M9
+4. `docs/reference/api.md` — Phase, SafeFallback, CustomRule, RuleLoader, M7/M8 APIs, hot path, Commitment, Unknown
+5. `docs/explanation/ARCHITECTURE.md` — M4→M8, M7/M8 subsections
+6. `docs/reference/MODULES.md` — remove NEW, add gate.rs, M7/M8 functions, remove line counts
+7. `docs/how-to/REVIEWER_GUIDE.md` — test count, M4→M9
 
 ## Verification
 

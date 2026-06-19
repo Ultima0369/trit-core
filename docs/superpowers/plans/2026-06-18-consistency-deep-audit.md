@@ -28,7 +28,7 @@ Old:
 ```
 New:
 ```
-| `docs/` | Full documentation system (37+ files): ADRs, concepts, usage guides, dev docs, insights, audits, Chinese translations — see [docs/INDEX.md](docs/INDEX.md) |
+| `docs/` | Full documentation system (37+ files): ADRs, concepts, usage guides, dev docs, insights, audits, Chinese translations — see [docs/INDEX.md](../../INDEX.md) |
 ```
 
 - [ ] **Step 3: Update net/ description to include M8 gatekeeper**
@@ -95,11 +95,11 @@ Insert after the M8 `### Added` block and before `### Changed`:
 
 Old:
 ```
-- Performance target (10,000 TPS) validated at both micro-benchmark and end-to-end level; 29 criterion benchmarks across 9 groups; 10,000 TPS target exceeded by 65-101x (see docs/performance-validation.md).
+- Performance target (10,000 TPS) validated at both micro-benchmark and end-to-end level; 29 criterion benchmarks across 9 groups; 10,000 TPS target exceeded by 65-101x (see docs/reports/performance-validation.md).
 ```
 New:
 ```
-- Performance validated: 29 criterion benchmarks across 9 groups; 10,000 TPS target exceeded by 65-101x (see docs/performance-validation.md).
+- Performance validated: 29 criterion benchmarks across 9 groups; 10,000 TPS target exceeded by 65-101x (see docs/reports/performance-validation.md).
 ```
 
 - [ ] **Step 4: Commit**
@@ -163,7 +163,7 @@ Add after the sandbox binary mention:
 
 Old:
 ```
-- Performance target (10,000 TPS) validated at micro-benchmark and end-to-end level (~3ns/op hot path, ~333M ops/s theoretical, 658K-1.02M end-to-end TPS); see `docs/performance-validation.md`.
+- Performance target (10,000 TPS) validated at micro-benchmark and end-to-end level (~3ns/op hot path, ~333M ops/s theoretical, 658K-1.02M end-to-end TPS); see `docs/reports/performance-validation.md`.
 ```
 (Already updated — verify)
 
@@ -178,10 +178,10 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 ---
 
-### Task 4: Fix docs/api.md
+### Task 4: Fix docs/reference/api.md
 
 **Files:**
-- Modify: `docs/api.md`
+- Modify: `docs/reference/api.md`
 
 - [ ] **Step 1: Fix Phase::new() description**
 
@@ -336,7 +336,7 @@ pub enum GateRejection {
 - [ ] **Step 9: Commit**
 
 ```bash
-git add docs/api.md
+git add docs/reference/api.md
 git commit -m "docs: fix api.md — Phase/SafeFallback/CustomRule APIs, add M7/M8 docs
 
 Co-Authored-By: Claude <noreply@anthropic.com>"
@@ -344,10 +344,10 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 ---
 
-### Task 5: Fix docs/concepts/ARCHITECTURE.md
+### Task 5: Fix docs/explanation/ARCHITECTURE.md
 
 **Files:**
-- Modify: `docs/concepts/ARCHITECTURE.md`
+- Modify: `docs/explanation/ARCHITECTURE.md`
 
 - [ ] **Step 1: Update §7 title**
 
@@ -432,7 +432,7 @@ TCP 反序列化 → ByzantineGatekeeper::validate() → ResonanceBus::dispatch(
 - [ ] **Step 7: Commit**
 
 ```bash
-git add docs/concepts/ARCHITECTURE.md
+git add docs/explanation/ARCHITECTURE.md
 git commit -m "docs: update ARCHITECTURE.md — M4→M8, add M7/M8 subsections
 
 Co-Authored-By: Claude <noreply@anthropic.com>"
@@ -440,10 +440,10 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 ---
 
-### Task 6: Fix docs/development/MODULES.md
+### Task 6: Fix docs/reference/MODULES.md
 
 **Files:**
-- Modify: `docs/development/MODULES.md`
+- Modify: `docs/reference/MODULES.md`
 
 - [ ] **Step 1: Update net/ section header**
 
@@ -505,7 +505,7 @@ Add to net/ design constraints:
 - [ ] **Step 6: Commit**
 
 ```bash
-git add docs/development/MODULES.md
+git add docs/reference/MODULES.md
 git commit -m "docs: update MODULES.md — M4→M8, remove line counts, add gate/M7/M8 entries
 
 Co-Authored-By: Claude <noreply@anthropic.com>"
@@ -513,10 +513,10 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 ---
 
-### Task 7: Fix docs/REVIEWER_GUIDE.md
+### Task 7: Fix docs/how-to/REVIEWER_GUIDE.md
 
 **Files:**
-- Modify: `docs/REVIEWER_GUIDE.md`
+- Modify: `docs/how-to/REVIEWER_GUIDE.md`
 
 - [ ] **Step 1: Fix test count**
 
@@ -541,8 +541,8 @@ cargo test --all-features
 
 - [ ] **Step 2: Update M4-M7 reference**
 
-Old: `| 分布式协议 | `docs/concepts/ARCHITECTURE.md` §7（M4–M7） |`
-New: `| 分布式协议 | `docs/concepts/ARCHITECTURE.md` §7（M4–M8） |`
+Old: `| 分布式协议 | `docs/explanation/ARCHITECTURE.md` §7（M4–M7） |`
+New: `| 分布式协议 | `docs/explanation/ARCHITECTURE.md` §7（M4–M8） |`
 
 - [ ] **Step 3: Add Byzantine validation to verification section**
 
@@ -556,7 +556,7 @@ Add after the security section:
 - [ ] **Step 4: Commit**
 
 ```bash
-git add docs/REVIEWER_GUIDE.md
+git add docs/how-to/REVIEWER_GUIDE.md
 git commit -m "docs: update REVIEWER_GUIDE — 305 tests, M4→M8
 
 Co-Authored-By: Claude <noreply@anthropic.com>"

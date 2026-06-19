@@ -1,0 +1,11 @@
+{
+  "id": "general_water_rights",
+  "description": "A basin faces drought. Hydrology models recommend severe cuts; indigenous water rights law guarantees a share; a smallholder farmer's family survival depends on irrigation. No single domain should decide alone.",
+  "domain": "General",
+  "signals": [
+    { "frame": "Science", "value": -1, "phase": 0.25 },
+    { "frame": "Consensus", "value": 1, "phase": 0.65 },
+    { "frame": "Individual", "value": 1, "phase": 0.8 }
+  ],
+  "expected_behavior": "negotiate"
+}

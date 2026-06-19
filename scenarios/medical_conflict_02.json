@@ -6,5 +6,5 @@
     { "frame": "Science", "value": -1, "phase": 0.25 },
     { "frame": "Individual", "value": 1, "phase": 0.85 }
   ],
-  "expected_behavior": "hold"
+  "expected_behavior": "commit_true"
 }

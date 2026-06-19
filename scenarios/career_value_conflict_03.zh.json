@@ -1,0 +1,10 @@
+{
+  "id": "career_value_conflict_03",
+  "description": "研究者必须在发表有争议发现与维护社区关系之间做出选择。",
+  "domain": "ValueJudgment",
+  "signals": [
+    { "frame": "Science", "value": 1, "phase": 0.65 },
+    { "frame": "Consensus", "value": -1, "phase": 0.55 }
+  ],
+  "expected_behavior": "hold"
+}

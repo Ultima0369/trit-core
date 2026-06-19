@@ -4,20 +4,23 @@
 // allocation patterns on the cold path and end-to-end pipeline.
 //
 // Usage:
-//   cargo build --release --bin dhat-profile
-//   ./target/release/dhat-profile
+//   cargo build --release --bin dhat-profile --features dhat-profile
+//   cargo run --release --bin dhat-profile --features dhat-profile
 //   dhat-heap.json is written to the current directory.
 //
 // Analyze with:
 //   dhat-viewer dhat-heap.json    (if installed)
 //   Or upload to https://nnethercote.github.io/dh_view/dh_view.html
 
-use trit_core::frame::Frame;
+use std::error::Error;
+use trit_core::core::frame::Frame;
+use trit_core::core::phase::Phase;
+use trit_core::core::value::TritValue;
+use trit_core::core::word::TritWord;
+use trit_core::core::TernaryAlgebra;
 use trit_core::meta::{Domain, ResolutionPolicy, SafeFallback};
-use trit_core::trit::{TritValue, TritWord};
-use trit_core::TernaryAlgebra;
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>> {
     println!("Trit-Core dhat Heap Profiling");
     println!("==============================");
 
@@ -34,8 +37,8 @@ fn main() {
     println!("\n[1/5] Profiling hot path: TAND same-frame x 100,000...");
     let _hot_profiler = dhat::Profiler::new_heap();
     {
-        let a = TritWord::new(TritValue::True, 0.8, Frame::Science);
-        let b = TritWord::new(TritValue::False, 0.2, Frame::Science);
+        let a = TritWord::new(TritValue::True, Phase::new(0.8)?, Frame::Science);
+        let b = TritWord::new(TritValue::False, Phase::new(0.2)?, Frame::Science);
         for _ in 0..100_000 {
             let _ = TernaryAlgebra::t_and_hot(&a, &b);
         }
@@ -46,8 +49,8 @@ fn main() {
     println!("[2/5] Profiling hot path: TOR same-frame x 100,000...");
     let _tor_profiler = dhat::Profiler::new_heap();
     {
-        let a = TritWord::new(TritValue::True, 0.7, Frame::Science);
-        let b = TritWord::new(TritValue::Hold, 0.5, Frame::Science);
+        let a = TritWord::new(TritValue::True, Phase::new(0.7)?, Frame::Science);
+        let b = TritWord::new(TritValue::Hold, Phase::new(0.5)?, Frame::Science);
         for _ in 0..100_000 {
             let _ = TernaryAlgebra::t_or_hot(&a, &b);
         }
@@ -58,7 +61,7 @@ fn main() {
     println!("[3/5] Profiling hot path: TNOT x 100,000...");
     let _tnot_profiler = dhat::Profiler::new_heap();
     {
-        let a = TritWord::new(TritValue::True, 0.9, Frame::Science);
+        let a = TritWord::new(TritValue::True, Phase::new(0.9)?, Frame::Science);
         for _ in 0..100_000 {
             let _ = TernaryAlgebra::t_not(&a);
         }
@@ -69,8 +72,8 @@ fn main() {
     println!("[4/5] Profiling cold path: TAND cross-frame x 10,000...");
     let _cold_profiler = dhat::Profiler::new_heap();
     {
-        let a = TritWord::new(TritValue::True, 0.8, Frame::Science);
-        let b = TritWord::new(TritValue::False, 0.2, Frame::Individual);
+        let a = TritWord::new(TritValue::True, Phase::new(0.8)?, Frame::Science);
+        let b = TritWord::new(TritValue::False, Phase::new(0.2)?, Frame::Individual);
         let mut interrupt_count = 0u64;
         for _ in 0..10_000 {
             let (result, interrupt) = TernaryAlgebra::t_and(&a, &b);
@@ -88,13 +91,13 @@ fn main() {
     println!("[5/5] Profiling end-to-end pipeline: MedicalEthics x 1,000...");
     let _pipeline_profiler = dhat::Profiler::new_heap();
     {
-        let science = TritWord::new(TritValue::True, 0.85, Frame::Science);
-        let individual = TritWord::new(TritValue::False, 0.20, Frame::Individual);
+        let science = TritWord::new(TritValue::True, Phase::new(0.85)?, Frame::Science);
+        let individual = TritWord::new(TritValue::False, Phase::new(0.20)?, Frame::Individual);
 
         for _ in 0..1_000 {
             let (result, interrupt) = TernaryAlgebra::t_and(&science, &individual);
             let policy = ResolutionPolicy::new(Domain::MedicalEthics);
-            let arbitration = policy.arbitrate(&[science.clone(), individual.clone()]);
+            let arbitration = policy.arbitrate(&[science, individual])?;
             let sf = SafeFallback::new();
             let (final_result, _) = sf.guard(
                 &Domain::MedicalEthics,
@@ -112,4 +115,5 @@ fn main() {
     println!("dhat-heap.json written to current directory.");
     println!("View with: dhat-viewer dhat-heap.json");
     println!("Or upload to: https://nnethercote.github.io/dh_view/dh_view.html");
+    Ok(())
 }

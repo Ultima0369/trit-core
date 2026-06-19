@@ -1,6 +1,6 @@
 {
   "id": "general_negotiation_02",
-  "description": "Multi-domain budget allocation: finance, education, and health departments each propose different priorities with strong evidence.",
+  "description": "Cross-frame budget priorities: finance, education, and health each propose different priorities with strong evidence, requiring negotiation.",
   "domain": "General",
   "signals": [
     { "frame": "Science", "value": 1, "phase": 0.8 },

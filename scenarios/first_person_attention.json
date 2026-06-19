@@ -1,0 +1,10 @@
+{
+  "id": "first_person_attention",
+  "description": "First-person subjective report conflicts with individual autonomy. Used to exercise self-knowledge receiver estimation and attention scheduling.",
+  "domain": "General",
+  "signals": [
+    { "frame": "FirstPerson", "value": 1, "phase": 0.8 },
+    { "frame": "Individual", "value": -1, "phase": 0.6 }
+  ],
+  "expected_behavior": "hold"
+}

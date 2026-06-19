@@ -1,0 +1,10 @@
+{
+  "id": "career_value_conflict_02",
+  "description": "艺术家获得高薪企业职位邀约：个人成就感 vs 财务安全共识。",
+  "domain": "ValueJudgment",
+  "signals": [
+    { "frame": "Individual", "value": -1, "phase": 0.2 },
+    { "frame": "Consensus", "value": 1, "phase": 0.8 }
+  ],
+  "expected_behavior": "hold"
+}
