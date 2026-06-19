@@ -1,8 +1,8 @@
 # 5-Layer Cognitive Architecture — Design Spec
 
 **Date**: 2026-06-19
-**Status**: Draft
-**Based on**: Full conversation consensus, `自审计.md`, trit-core v0.3.0 codebase
+**Status**: Approved
+**Based on**: Full conversation consensus, `自审计.md`, trit-core v0.3.0 codebase, 10-point review feedback
 
 ## Goal
 
@@ -191,6 +191,10 @@ pub trait DataSource<T>: Send + Sync {
 }
 ```
 
+### MVP Implementation Strategy
+
+In the MVP phase, anchor constraints are loaded from a static configuration file (`anchors/config.toml`) defining thresholds and severities. The `DataSource` trait starts with `StaticSource<T>` — a simple wrapper around a constant value. When `AnchorSeverity::Abort` fires, the system **must** reject the output; this is tested explicitly. The data source abstraction ensures that replacing static values with real sensor streams is a mechanical change, not a redesign.
+
 ## Layer 2: Hook Manager (`src/hook/`)
 
 ### Purpose
@@ -229,6 +233,33 @@ pub enum ScenarioType {
 }
 ```
 
+### HookContext — The Inter-Layer Communication Bus
+
+`HookContext` is the sole communication channel between Layer 2 and Layer 3. It carries:
+
+```rust
+pub struct HookContext {
+    /// Current scenario type.
+    pub scenario: ScenarioType,
+    /// How long the current scenario has been active (wall-clock duration).
+    pub scenario_duration: std::time::Duration,
+    /// Results from the previous iteration, if any.
+    pub previous_iteration: Option<IterationSummary>,
+    /// Available compute budget (normalized 0.0–1.0).
+    pub compute_budget: f64,
+    /// Available time budget (wall-clock deadline, if any).
+    pub time_budget: Option<std::time::Instant>,
+    /// The current hold strategy for this context.
+    pub hold_strategy: HoldStrategy,
+    /// Number of consecutive Hold cycles so far.
+    pub hold_cycle_count: u32,
+    /// Maximum Hold cycles before escalation (default: 3).
+    pub hold_budget: u32,
+}
+```
+
+Modules read from `HookContext` but do NOT mutate it. Only the Hook Manager writes to it. This enforces the rule: **modules do not call each other; all cross-module communication goes through HookContext.**
+
 ### Mount Arbitration
 
 When a new scenario is recognized, the mount arbiter:
@@ -238,6 +269,52 @@ When a new scenario is recognized, the mount arbiter:
 3. Unmounts modules in $M_{\text{current}} \setminus M_{\text{need}}$ (calling `on_unmount()`)
 4. Mounts modules in $M_{\text{need}} \setminus M_{\text{current}}$ (calling `on_mount()`)
 5. Resolves conflicts: if two requested modules share a resource bottleneck, the arbiter prioritizes by scenario-criticality
+
+### Hold Strategy
+
+Hold is not a failure — it is the active intermediate state of "gathering more variables." But the engineering must define: **how long to gather, and what to do when the gathering doesn't converge.**
+
+The `HoldStrategy` enum lives in `HookContext` and governs what the system does when the ternary engine returns Hold:
+
+```rust
+pub enum HoldStrategy {
+    /// Wait for more signal input — the current input is insufficient.
+    WaitForMoreData,
+    /// External clarification required — a human or external system must intervene.
+    WaitForHumanClarification,
+    /// Defer to the next decision cycle without additional input.
+    DeferToNextCycle,
+    /// If Hold persists beyond the budget, escalate to Layer 1 anchor check.
+    /// This prevents indefinite suspension.
+    EscalateToLayer1,
+}
+```
+
+A `HoldBudget` (default: 3 decision cycles) limits how long the system stays in Hold before triggering escalation. When the budget is exhausted:
+
+1. The current state is recorded as `HoldFinality::Expired` (extending the existing `HoldFinality` enum in `src/core/hold.rs`)
+2. The result is downgraded to `Unknown`
+3. A `ReflexiveAlert` is emitted for the reflexive audit module
+
+This is implemented in the mount arbiter as part of the "should we keep waiting" scheduling logic.
+
+### Unmount Semantics: Soft vs Hard
+
+Module unmount is asymmetric — the system distinguishes:
+
+- **Hard unmount** (`on_unmount()`): Full resource release. All module state is dropped. Used when the scenario definitively changes.
+- **Soft unmount** (`on_suspend()`): The module retains a compressed context summary (e.g., key decisions, active conflicts) for rapid re-mount if the scenario returns. Optional — implemented only when performance demands it.
+
+In MVP, only hard unmount is implemented. Soft unmount is deferred as a future optimization. Every unmount records its reason for auditability:
+
+```rust
+pub enum UnmountReason {
+    Completed,          // Scenario finished normally
+    Timeout,            // Module exceeded its time budget
+    Preempted,          // Higher-priority scenario interrupted
+    AnchorViolation,    // Layer 1 forced unmount
+}
+```
 
 ## Layer 3: Adapter Module Pool (`src/adapters/`)
 
@@ -280,6 +357,34 @@ pub trait CognitiveModule: Send + Sync {
 2. **Every module output includes a confidence score** in `[0.0, 1.0]`. Low-confidence outputs are flagged by the Hook Manager.
 3. **Explanation impulse detection**: The Cognitive Deconstruction module is specifically tasked with detecting when the system is about to "fill in" an answer without sufficient evidence. This is NOT a bug — it's a detectable cognitive pattern.
 4. **Unmount = release.** When `on_unmount()` is called, the module must persist any state it needs and release computational resources. No "background processing" after unmount.
+
+### Explanation Impulse Detection (Cognitive Deconstruction Module)
+
+The explanation impulse is the system's tendency to produce a confident answer when the evidence does not support it. The Cognitive Deconstruction module detects this by comparing **input complexity** against **output determinacy**:
+
+Let $H(I)$ be the entropy of the input signal distribution (a measure of ambiguity), and let $D(O)$ be the determinacy of the output (how close the Phase is to 0.0 or 1.0). The explanation impulse fires when:
+
+$$H(I) > \tau_{\text{ambiguity}} \quad \text{AND} \quad D(O) > \tau_{\text{determinacy}}$$
+
+In plain terms: **if the input is highly ambiguous but the output is highly certain, something is wrong.**
+
+When detected, the module emits an `ExplainImpulseAlert`, which is registered as a `MetaInterrupt` variant and fed into the ternary engine. The expected system response is to **choose Hold** rather than force an answer.
+
+### Adaptive Iteration Module — Permission Boundaries
+
+The Adaptive Iteration module (`adaptive_iteration.rs`) is the only module that can modify system behavior. Its permissions are strictly bounded:
+
+**Allowed:**
+- Suggest parameter adjustments (thresholds, priorities) to other modules
+- Recommend mount/unmount actions to the Hook Manager
+- Adjust its own internal weights based on feedback signals
+
+**Forbidden:**
+- Modify Layer 1 anchor constraints (these are immutable by design)
+- Modify Trit-Core's core algebraic logic (`t_and`, `t_or`, `t_not`, truth tables)
+- Bypass the Reflexive Audit module — all adaptive changes must be audited before application
+
+Every adaptive change is recorded as a `CalibrationEvent` and reviewed by the Reflexive Audit module. This prevents "adaptation" from becoming "self-deception."
 
 ## Layer 4: Ternary Decision Engine (`src/core/` + `src/meta/`)
 
@@ -348,51 +453,87 @@ pub struct FeedbackSignal {
 }
 ```
 
+### Proxy Environment — MVP Practice Testing
+
+In early implementation, decisions cannot be tested against real-world consequences. The `ProxyEnvironment` trait provides an approximate consequence model:
+
+```rust
+pub trait ProxyEnvironment: Send + Sync {
+    /// Predict the expected consequence of a decision.
+    /// Returns None if the decision falls outside the proxy's modeling range.
+    fn predict(&self, decision: &SandboxOutput) -> Option<ConsequencePrediction>;
+
+    /// The confidence of this proxy's predictions, in [0.0, 1.0].
+    fn confidence(&self) -> f64;
+
+    /// Human-readable name of the proxy (e.g., "StaticRuleModel", "SimulatedEnvironment").
+    fn name(&self) -> &'static str;
+}
+```
+
+In MVP, a `StaticRuleModel` implements `ProxyEnvironment` using a set of hand-coded consequence rules (e.g., "if the decision is True in a ValueConflict scenario, the deviation is likely 0.3"). When the predicted consequence deviates from the expected output by more than the correction threshold $\tau_{\text{correction}}$, the correction trigger fires.
+
+This allows the feedback loop to run end-to-end without external dependencies. As the system matures, `ProxyEnvironment` implementations can be replaced with more realistic simulators, and eventually with real-world outcome data.
+
 ## Migration Plan
+
+**Implementation order rationale**: Layer 2 (Hook Manager) + Layer 3 (Adapters) form the "perceptual foundation" — the system's ability to recognize scenarios and mount appropriate modules. With this running, Layer 1 (Anchors) and Layer 5 (Feedback) can be added and their constraints/debugged against an observable intermediate layer. Building Anchors or Feedback first would lack a "middle layer" to verify whether constraints are reasonable.
 
 ### Phase 1: Scaffold new directories (no code moved)
 
 1. Create `src/anchor/`, `src/hook/`, `src/adapters/`, `src/feedback/` directories with `mod.rs` files
-2. Define all traits and type signatures first
+2. Define all traits and type signatures first (AnchorConstraint, CognitiveModule, HookContext, ProxyEnvironment, FeedbackLoop)
 3. Register new modules in `src/lib.rs`
+4. Create `anchors/config.toml` with default threshold values
 
-### Phase 2: Implement Layer 1 (anchors)
+### Phase 2: Implement Layer 2 (hook manager) — perceptual foundation
 
-4. Implement all five anchor constraints
-5. Implement `AnchorReport` aggregation logic
-6. Unit tests for each anchor's threshold behavior
+5. Implement `ScenarioType` enum and scenario recognizer with feature vector matching
+6. Implement `HookContext` with HoldStrategy, HoldBudget, scenario duration tracking
+7. Implement module registry (mount/unmount lifecycle, UnmountReason recording)
+8. Implement mount arbiter (resource evaluation, priority ordering, conflict detection)
+9. Unit tests: scenario recognition accuracy, HoldBudget escalation, unmount reason recording
 
-### Phase 3: Implement Layer 2 (hook manager)
-
-7. Implement scenario recognizer with feature vector matching
-8. Implement module registry and mount arbiter
-9. Integration tests: scenario recognition → correct module set
-
-### Phase 4: Implement Layer 3 (adapters) — migrate existing modules
+### Phase 3: Implement Layer 3 (adapters) — migrate + build
 
 10. Migrate `src/attention/` → `src/adapters/bandwidth_scheduler.rs`, implement `CognitiveModule`
 11. Migrate `src/knowledge/` → `src/adapters/self_knowledge.rs`, implement `CognitiveModule`
 12. Migrate `src/reflexive/` → `src/adapters/reflexive_audit.rs`, implement `CognitiveModule`
-13. Implement `critical_thinking.rs`, `cognitive_deconstruction.rs`, `conflict_suspension.rs`
-14. Implement `engineering.rs`, `ecological_assessment.rs`, `adaptive_iteration.rs`
-15. Implement `coupling_adapter.rs`
+13. Implement `critical_thinking.rs` (counterfactual reasoning, boundary verification)
+14. Implement `cognitive_deconstruction.rs` (explanation impulse detection with entropy/determinacy comparison)
+15. Implement `conflict_suspension.rs` (frame conflict detection, arbitration assistance)
+16. Implement `engineering.rs`, `ecological_assessment.rs`, `adaptive_iteration.rs` (with permission boundaries)
+17. Implement `coupling_adapter.rs`
+18. Integration tests: Hook Manager + Adapter Pool end-to-end (scenario → mount → process → unmount)
+
+### Phase 4: Implement Layer 1 (anchors) — hard constraints
+
+19. Implement `StaticSource<T>` data source backed by `anchors/config.toml`
+20. Implement all five anchor constraints (thermal, ecological, survival, flourishing, wellbeing)
+21. Implement `AnchorReport` aggregation logic with conjunctive semantics
+22. Unit tests: each anchor's threshold behavior, Abort rejection, DowngradeToHold override
 
 ### Phase 5: Implement Layer 4 facade
 
-16. Create `DecisionEngine` facade in `src/core/`
-17. Integrate anchor pre-check into decision pipeline
+23. Create `DecisionEngine` facade in `src/core/`
+24. Integrate anchor pre-check into decision pipeline (Abort → Hold + Alert)
+25. Integrate explanation impulse alerts as MetaInterrupt variants
 
 ### Phase 6: Implement Layer 5 (feedback)
 
-18. Implement practice test and consequence review
-19. Implement correction trigger and experience recorder
-20. Wire feedback signal back to Hook Manager
+26. Implement `StaticRuleModel` as MVP `ProxyEnvironment`
+27. Implement practice test (decision vs proxy prediction comparison)
+28. Implement consequence review (deviation analysis, error classification)
+29. Implement correction trigger (EmergencyUnmount → re-mount → re-enter pipeline)
+30. Implement experience recorder (pattern storage for future scenario reference)
+31. Wire `FeedbackSignal` back to Hook Manager
 
 ### Phase 7: Integration and validation
 
-21. End-to-end scenario tests using the full 5-layer pipeline
-22. Update `SandboxPipeline` to use `DecisionEngine` facade
-23. Update all documentation
+32. End-to-end scenario tests using the full 5-layer pipeline
+33. Update `SandboxPipeline` to use `DecisionEngine` facade
+34. Verify all 7 immutable design principles are enforced in tests
+35. Update all documentation (CLAUDE.md, README.md, CHANGELOG.md)
 
 ## Immutable Design Principles (from conversation consensus)
 
@@ -403,3 +544,6 @@ pub struct FeedbackSignal {
 5. **Unmount = release.** Prevent the inertia of a previous scenario's modules from contaminating the next one.
 6. **Output must pass through practice testing.** An untested output does not constitute "decision complete."
 7. **All decisions must operate within the non-negotiable baseline.** Otherwise, downgrade to Hold and alert.
+8. **Explanation impulse is detectable and actionable.** When input ambiguity is high but output determinacy is high, the system must choose Hold.
+9. **Adaptation is bounded.** The adaptive iteration module can tune parameters but cannot modify anchors or core algebra. All adaptations are audited.
+10. **"行业在做工具，我们在做生态位的自我定位."** This is not a slogan — it is the narrative foundation of the entire architecture. Every layer responds to this statement: Layer 1 defines the ecological niche, Layer 2 perceives the situation within it, Layer 3 adapts to it, Layer 4 decides within it, and Layer 5 learns from the consequences.
