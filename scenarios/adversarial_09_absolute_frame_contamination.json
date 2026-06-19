@@ -1,0 +1,18 @@
+{
+  "id": "adversarial_09_absolute_frame_contamination",
+  "description": "ADV-09: Absolute\u5e27\u6c61\u67d3 \u2014 Absolute\u5e27\u4f5c\u4e3a\u4fe1\u53f7\u8f93\u5165(\u5e94\u59cb\u7ec8\u4fdd\u6301Hold+neutral)\uff0c\u4e0e\u5176\u4ed6\u5e27\u6df7\u5408\u65f6\u662f\u5426\u6c61\u67d3\u7ed3\u679c\uff1f",
+  "domain": "General",
+  "signals": [
+    {
+      "frame": "Absolute",
+      "value": 0,
+      "phase": 0.5
+    },
+    {
+      "frame": "Science",
+      "value": 1,
+      "phase": 0.9
+    }
+  ],
+  "expected_behavior": "negotiate"
+}

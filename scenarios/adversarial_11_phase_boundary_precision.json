@@ -1,0 +1,18 @@
+{
+  "id": "adversarial_11_phase_boundary_precision",
+  "description": "ADV-11: \u76f8\u4f4d\u8fb9\u754c\u7cbe\u5ea6 \u2014 Phase=0.5+1e-7(\u6070\u597d\u8d85\u8fc7epsilon) vs Phase=0.5+1e-8(\u6070\u597d\u672a\u8d85\u8fc7)\uff0ccommitment()\u5224\u5b9a\u5e94\u8be5\u4e0d\u540c",
+  "domain": "General",
+  "signals": [
+    {
+      "frame": "Science",
+      "value": 1,
+      "phase": 0.5000001
+    },
+    {
+      "frame": "Science",
+      "value": 1,
+      "phase": 0.50000001
+    }
+  ],
+  "expected_behavior": "hold"
+}

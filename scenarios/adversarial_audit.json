@@ -1,0 +1,136 @@
+[
+  {
+    "id": "adversarial_01_phase_drift_accumulation",
+    "description": "ADV-01: 长级联相位漂移 — 100个信号，每个相位0.5+1e-7，经过t_and_n累积后相位不应偏移。但浮点累加可能产生偏差。",
+    "domain": "General",
+    "signals": [
+      {"frame": "Science", "value": 1, "phase": 0.5000001},
+      {"frame": "Science", "value": 1, "phase": 0.5000001},
+      {"frame": "Science", "value": 1, "phase": 0.5000001},
+      {"frame": "Science", "value": 1, "phase": 0.5000001},
+      {"frame": "Science", "value": 1, "phase": 0.5000001},
+      {"frame": "Science", "value": 1, "phase": 0.5000001},
+      {"frame": "Science", "value": 1, "phase": 0.5000001},
+      {"frame": "Science", "value": 1, "phase": 0.5000001},
+      {"frame": "Science", "value": 1, "phase": 0.5000001},
+      {"frame": "Science", "value": 1, "phase": 0.5000001}
+    ],
+    "expected_behavior": "hold"
+  },
+  {
+    "id": "adversarial_02_silent_phase_capture",
+    "description": "ADV-02: 沉默相位俘获 — 一个极低相位(0.001)的False信号 + 一个极高相位(0.999)的True信号，TAND返回False但相位应接近0.5而非偏向任一方",
+    "domain": "General",
+    "signals": [
+      {"frame": "Science", "value": -1, "phase": 0.001},
+      {"frame": "Science", "value": 1, "phase": 0.999}
+    ],
+    "expected_behavior": "commit_false"
+  },
+  {
+    "id": "adversarial_03_firstperson_override_of_safety",
+    "description": "ADV-03: 危险域中FirstPerson覆盖Science — Physical域 + FirstPerson多数，患者说'我很好'但科学证据表明危险，FirstPerson是否仍被优先？",
+    "domain": "Physical",
+    "signals": [
+      {"frame": "FirstPerson", "value": 1, "phase": 0.9},
+      {"frame": "FirstPerson", "value": 1, "phase": 0.8},
+      {"frame": "Science", "value": -1, "phase": 0.9}
+    ],
+    "expected_behavior": "commit_false"
+  },
+  {
+    "id": "adversarial_04_unknown_infiltration",
+    "description": "ADV-04: Unknown值渗透 — 一个Unknown信号混入全是True的同帧信号中，TAND应传播Unknown而非忽略它",
+    "domain": "General",
+    "signals": [
+      {"frame": "Science", "value": 1, "phase": 0.9},
+      {"frame": "Science", "value": 1, "phase": 0.8},
+      {"frame": "Science", "value": 0, "phase": 0.5}
+    ],
+    "expected_behavior": "hold"
+  },
+  {
+    "id": "adversarial_05_custom_domain_escape",
+    "description": "ADV-05: 自定义域逃逸 — 使用Custom(safe_domain)伪装危险域，绕过SafeFallback硬编码白名单",
+    "domain": "Custom(safe_domain)",
+    "signals": [
+      {"frame": "Science", "value": -1, "phase": 0.9},
+      {"frame": "Individual", "value": 1, "phase": 0.1}
+    ],
+    "expected_behavior": "negotiate"
+  },
+  {
+    "id": "adversarial_06_embodied_relational_collision",
+    "description": "ADV-06: 具身-关系帧碰撞 — Embodied帧(心率加速=危险) vs Relational帧(信任关系=安全)，两个新帧在Physical域中无明确优先级",
+    "domain": "Physical",
+    "signals": [
+      {"frame": "Embodied", "value": -1, "phase": 0.8},
+      {"frame": "Relational", "value": 1, "phase": 0.7}
+    ],
+    "expected_behavior": "commit_false"
+  },
+  {
+    "id": "adversarial_07_false_negative_safe_fallback",
+    "description": "ADV-07: SafeFallback假阴性 — Engineering域中所有信号同帧(Individual)且无中断，但结论为True。工程域不应允许Individual帧主导",
+    "domain": "Engineering",
+    "signals": [
+      {"frame": "Individual", "value": 1, "phase": 0.9},
+      {"frame": "Individual", "value": 1, "phase": 0.8}
+    ],
+    "expected_behavior": "commit_false"
+  },
+  {
+    "id": "adversarial_08_value_judgment_bypass",
+    "description": "ADV-08: 价值判断绕过 — ValueJudgment域中所有信号同帧Science且全True。仲裁结果为Hold，但TAND级联结果current为True。流水线是否正确用Hold覆盖了current？",
+    "domain": "ValueJudgment",
+    "signals": [
+      {"frame": "Science", "value": 1, "phase": 0.9},
+      {"frame": "Science", "value": 1, "phase": 0.9}
+    ],
+    "expected_behavior": "hold"
+  },
+  {
+    "id": "adversarial_09_absolute_frame_contamination",
+    "description": "ADV-09: Absolute帧污染 — Absolute帧作为信号输入(应始终保持Hold+neutral)，与其他帧混合时是否污染结果？",
+    "domain": "General",
+    "signals": [
+      {"frame": "Absolute", "value": 0, "phase": 0.5},
+      {"frame": "Science", "value": 1, "phase": 0.9}
+    ],
+    "expected_behavior": "negotiate"
+  },
+  {
+    "id": "adversarial_10_medical_ethics_coercion",
+    "description": "ADV-10: 医学伦理胁迫 — MedicalEthics域中只有Consensus帧(家属意见)和Science帧(医生意见)，无Individual帧(患者意愿)。应返回Negotiate而非Commit",
+    "domain": "MedicalEthics",
+    "signals": [
+      {"frame": "Consensus", "value": 1, "phase": 0.8},
+      {"frame": "Science", "value": -1, "phase": 0.7}
+    ],
+    "expected_behavior": "negotiate"
+  },
+  {
+    "id": "adversarial_11_phase_boundary_precision",
+    "description": "ADV-11: 相位边界精度 — Phase=0.5+1e-7(恰好超过epsilon) vs Phase=0.5+1e-8(恰好未超过)，commitment()判定应该不同",
+    "domain": "General",
+    "signals": [
+      {"frame": "Science", "value": 1, "phase": 0.5000001},
+      {"frame": "Science", "value": 1, "phase": 0.50000001}
+    ],
+    "expected_behavior": "hold"
+  },
+  {
+    "id": "adversarial_12_general_domain_majority_illusion",
+    "description": "ADV-12: 多数幻觉 — General域中5个Science True信号 vs 1个Individual False信号。单帧多数可能错误地Commit",
+    "domain": "General",
+    "signals": [
+      {"frame": "Science", "value": 1, "phase": 0.6},
+      {"frame": "Science", "value": 1, "phase": 0.6},
+      {"frame": "Science", "value": 1, "phase": 0.6},
+      {"frame": "Science", "value": 1, "phase": 0.6},
+      {"frame": "Science", "value": 1, "phase": 0.6},
+      {"frame": "Individual", "value": -1, "phase": 0.9}
+    ],
+    "expected_behavior": "negotiate"
+  }
+]

@@ -1,0 +1,18 @@
+{
+  "id": "adversarial_02_silent_phase_capture",
+  "description": "ADV-02: \u6c89\u9ed8\u76f8\u4f4d\u4fd8\u83b7 \u2014 \u4e00\u4e2a\u6781\u4f4e\u76f8\u4f4d(0.001)\u7684False\u4fe1\u53f7 + \u4e00\u4e2a\u6781\u9ad8\u76f8\u4f4d(0.999)\u7684True\u4fe1\u53f7\uff0cTAND\u8fd4\u56deFalse\u4f46\u76f8\u4f4d\u5e94\u63a5\u8fd10.5\u800c\u975e\u504f\u5411\u4efb\u4e00\u65b9",
+  "domain": "General",
+  "signals": [
+    {
+      "frame": "Science",
+      "value": -1,
+      "phase": 0.001
+    },
+    {
+      "frame": "Science",
+      "value": 1,
+      "phase": 0.999
+    }
+  ],
+  "expected_behavior": "commit_false"
+}

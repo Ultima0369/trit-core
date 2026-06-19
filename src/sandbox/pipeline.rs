@@ -305,8 +305,9 @@ impl SandboxPipeline {
 
         // Stage 8: SafeFallback
         let stage_start = Instant::now();
+        let force = matches!(&policy_result, ArbitrationResult::ForceCollapse);
         let final_word =
-            self.stage_safe_fallback(&policy, &arbitrated_word, interrupts, diagnostics);
+            self.stage_safe_fallback(&policy, &arbitrated_word, force, interrupts, diagnostics);
         diagnostics.record_stage("safe_fallback", stage_start);
 
         // If reflexive guard fired and output is still forced True/False, override to Hold
@@ -326,12 +327,32 @@ impl SandboxPipeline {
         current: &TritWord,
     ) -> TritWord {
         match policy_result {
-            ArbitrationResult::Commit(w) | ArbitrationResult::Preserve(w) => *w,
+            ArbitrationResult::Commit(w) => {
+                // If the TAND cascade detected a conflict that the policy
+                // missed (e.g., Unknown propagation producing Hold), the
+                // cascade result should override the policy's mechanical
+                // Commit. But only when the cascade result is Hold — meaning
+                // TAND detected something the arbitration didn't account for.
+                if current.value() == TritValue::Hold && w.value().is_computable() {
+                    TritWord::hold(Frame::Meta)
+                } else {
+                    *w
+                }
+            }
+            // Preserve is an explicit arbitration choice (e.g., FirstPerson
+            // over Science in MedicalEthics). Do not override it with the
+            // TAND cascade result — the policy intentionally chose this frame.
+            ArbitrationResult::Preserve(w) => *w,
             // A deliberate Hold result (e.g., ValueJudgment) must not be
             // overridden by the TAND cascade; otherwise a same-frame input
             // would accidentally commit to True/False.
             ArbitrationResult::Hold => TritWord::hold(Frame::Meta),
-            _ => *current,
+            // ForceCollapse: return Hold to trigger SafeFallback.guard().
+            // Using the TAND cascade result (*current) would bypass SafeFallback
+            // when the cascade produces True/False without interrupts — e.g.,
+            // Engineering domain with all-Individual True signals.
+            ArbitrationResult::ForceCollapse => TritWord::hold(Frame::Meta),
+            ArbitrationResult::Negotiate => *current,
         }
     }
 
@@ -374,16 +395,21 @@ impl SandboxPipeline {
         &self,
         policy: &ResolutionPolicy,
         arbitrated_word: &TritWord,
+        force: bool,
         mut interrupts: Vec<MetaInterrupt>,
         diagnostics: &mut SandboxDiagnostics,
     ) -> TritWord {
         trace!("running SafeFallback guard");
-        let (final_word, fb_interrupt) =
-            self.safe_fallback
-                .guard(&policy.domain, arbitrated_word, interrupts.len());
+        let (final_word, fb_interrupt) = self.safe_fallback.guard_with_force(
+            &policy.domain,
+            arbitrated_word,
+            interrupts.len(),
+            force,
+        );
         if let Some(int) = fb_interrupt {
             warn!(
                 domain = %policy.domain,
+                force,
                 "SafeFallback triggered: forcing False in dangerous domain"
             );
             diagnostics.mark_safe_fallback();

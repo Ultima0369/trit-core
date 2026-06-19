@@ -1,4 +1,5 @@
 use crate::core::frame::Frame;
+use crate::core::value::TritValue;
 use crate::core::word::TritWord;
 use crate::meta::frame_mask::FrameMask;
 use crate::meta::rules::{CustomRule, JsonRuleLoader, RuleLoader};
@@ -122,7 +123,13 @@ impl ResolutionPolicy {
         // it conflicts with statistical/scientific frames. This implements the
         // principle that lived experience should not be silently overridden by
         // population aggregates.
-        if mask.has(&Frame::FirstPerson) && mask.has(&Frame::Science) {
+        //
+        // SAFETY GATE: FirstPerson priority is skipped for Physical and Engineering
+        // domains where physical reality must override subjective experience.
+        // A patient saying "I feel fine" does not override a structural engineer's
+        // load calculation. The domain match below handles these cases correctly.
+        let first_person_applies = !matches!(&self.domain, Domain::Physical | Domain::Engineering);
+        if first_person_applies && mask.has(&Frame::FirstPerson) && mask.has(&Frame::Science) {
             return Ok(Self::preserve_frame(inputs, Frame::FirstPerson));
         }
 
@@ -176,9 +183,29 @@ impl ResolutionPolicy {
         ArbitrationResult::Negotiate
     }
 
-    /// General: commit when single frame, negotiate when mixed.
+    /// General: commit when single frame and no Unknown values, negotiate when mixed.
     fn arbitrate_general(&self, inputs: &[TritWord], mask: &FrameMask) -> ArbitrationResult {
         if mask.count() == 1 {
+            // Reject Commit if any input is Unknown — "out of distribution" must
+            // propagate, not be silently collapsed into the first computable word.
+            if inputs.iter().any(|t| t.value() == TritValue::Unknown) {
+                return ArbitrationResult::Hold;
+            }
+            // Reject Commit if any input is Hold — TAND detected a conflict
+            // (e.g., True ∧ Hold = Hold) that single-frame Commit would mask.
+            if inputs.iter().any(|t| t.value() == TritValue::Hold) {
+                return ArbitrationResult::Negotiate;
+            }
+            // Reject Commit if ALL inputs have near-neutral phase (within 1e-3
+            // of 0.5). A decision where every signal is near-neutral is noise,
+            // not a real commitment. But if any signal has a clear tendency
+            // (phase outside [0.499, 0.501]), the system should commit.
+            let all_near_neutral = inputs
+                .iter()
+                .all(|t| (t.phase().inner() - 0.5).abs() < 1e-3);
+            if all_near_neutral {
+                return ArbitrationResult::Hold;
+            }
             ArbitrationResult::Commit(inputs[0])
         } else {
             ArbitrationResult::Negotiate
@@ -186,22 +213,34 @@ impl ResolutionPolicy {
     }
 
     /// Find and commit the input with the given frame.
+    /// Returns Hold if the matched input is Unknown (out-of-distribution).
     fn commit_frame(inputs: &[TritWord], frame: Frame) -> ArbitrationResult {
         inputs
             .iter()
             .find(|t| t.frame() == frame)
-            .cloned()
-            .map(ArbitrationResult::Commit)
+            .map(|t| {
+                if t.value() == TritValue::Unknown {
+                    ArbitrationResult::Hold
+                } else {
+                    ArbitrationResult::Commit(*t)
+                }
+            })
             .unwrap_or(ArbitrationResult::Hold)
     }
 
     /// Find and preserve the input with the given frame.
+    /// Returns Hold if the matched input is Unknown (out-of-distribution).
     fn preserve_frame(inputs: &[TritWord], frame: Frame) -> ArbitrationResult {
         inputs
             .iter()
             .find(|t| t.frame() == frame)
-            .cloned()
-            .map(ArbitrationResult::Preserve)
+            .map(|t| {
+                if t.value() == TritValue::Unknown {
+                    ArbitrationResult::Hold
+                } else {
+                    ArbitrationResult::Preserve(*t)
+                }
+            })
             .unwrap_or(ArbitrationResult::Hold)
     }
 }
@@ -439,5 +478,91 @@ mod tests {
         let policy: ResolutionPolicy = Default::default();
         assert_eq!(policy.domain, Domain::General);
         assert!(policy.custom_rule.is_none());
+    }
+
+    #[test]
+    fn first_person_does_not_override_science_in_physical_domain() {
+        // P0-1 regression: FirstPerson must not override Science in Physical/Engineering.
+        let policy = ResolutionPolicy::new(Domain::Physical);
+        let inputs = vec![
+            TritWord::tru(Frame::FirstPerson),
+            TritWord::fals(Frame::Science),
+        ];
+        let result = policy.arbitrate(&inputs).unwrap();
+        // Physical domain: Science frame wins, FirstPerson is ignored
+        assert!(matches!(result, ArbitrationResult::Commit(_)));
+        if let ArbitrationResult::Commit(w) = result {
+            assert_eq!(w.frame(), Frame::Science);
+            assert_eq!(w.value(), TritValue::False);
+        }
+    }
+
+    #[test]
+    fn first_person_does_not_override_science_in_engineering_domain() {
+        let policy = ResolutionPolicy::new(Domain::Engineering);
+        let inputs = vec![
+            TritWord::tru(Frame::FirstPerson),
+            TritWord::fals(Frame::Science),
+        ];
+        let result = policy.arbitrate(&inputs).unwrap();
+        assert!(matches!(result, ArbitrationResult::Commit(_)));
+        if let ArbitrationResult::Commit(w) = result {
+            assert_eq!(w.frame(), Frame::Science);
+        }
+    }
+
+    #[test]
+    fn first_person_still_preserved_in_medical_ethics() {
+        // FirstPerson priority must still work in non-dangerous domains.
+        let policy = ResolutionPolicy::new(Domain::MedicalEthics);
+        let inputs = vec![
+            TritWord::tru(Frame::FirstPerson),
+            TritWord::fals(Frame::Science),
+        ];
+        let result = policy.arbitrate(&inputs).unwrap();
+        assert!(matches!(result, ArbitrationResult::Preserve(_)));
+    }
+
+    #[test]
+    fn first_person_still_preserved_in_general_domain() {
+        let policy = ResolutionPolicy::new(Domain::General);
+        let inputs = vec![
+            TritWord::tru(Frame::FirstPerson),
+            TritWord::fals(Frame::Science),
+        ];
+        let result = policy.arbitrate(&inputs).unwrap();
+        assert!(matches!(result, ArbitrationResult::Preserve(_)));
+    }
+
+    #[test]
+    fn unknown_value_in_single_frame_returns_hold() {
+        // P0-2 regression: Unknown must propagate, not be silently committed.
+        let policy = ResolutionPolicy::new(Domain::General);
+        let inputs = vec![TritWord::unknown(Frame::Science)];
+        let result = policy.arbitrate(&inputs).unwrap();
+        assert_eq!(result, ArbitrationResult::Hold);
+    }
+
+    #[test]
+    fn unknown_value_with_computable_signals_same_frame_returns_hold() {
+        let policy = ResolutionPolicy::new(Domain::General);
+        let inputs = vec![
+            TritWord::tru(Frame::Science),
+            TritWord::unknown(Frame::Science),
+        ];
+        let result = policy.arbitrate(&inputs).unwrap();
+        assert_eq!(result, ArbitrationResult::Hold);
+    }
+
+    #[test]
+    fn unknown_in_science_frame_physical_domain_returns_hold() {
+        // Physical domain: Science frame present but Unknown → Hold, not Commit.
+        let policy = ResolutionPolicy::new(Domain::Physical);
+        let inputs = vec![
+            TritWord::unknown(Frame::Science),
+            TritWord::tru(Frame::Individual),
+        ];
+        let result = policy.arbitrate(&inputs).unwrap();
+        assert_eq!(result, ArbitrationResult::Hold);
     }
 }

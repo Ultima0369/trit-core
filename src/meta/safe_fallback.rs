@@ -86,33 +86,54 @@ impl SafeFallback {
     ///
     /// `Unknown` always triggers SafeFallback in dangerous domains
     /// (the system cannot compute — "I don't know" must default to
-    /// "don't do it"). `Hold` triggers only when interrupts are present
-    /// (deliberate suspension + conflict = safety risk).
+    /// "don't do it"). `Hold` triggers when interrupts are present
+    /// (deliberate suspension + conflict = safety risk) OR when
+    /// `force` is true (arbitration explicitly requested ForceCollapse:
+    /// the domain lacks a Science frame and must default to safe state).
     pub fn guard(
         &self,
         domain: &Domain,
         result: &TritWord,
         interrupt_count: usize,
     ) -> (TritWord, Option<MetaInterrupt>) {
+        self.guard_with_force(domain, result, interrupt_count, false)
+    }
+
+    /// Apply safe fallback with an optional force flag.
+    ///
+    /// When `force` is true, Hold in a dangerous domain always triggers
+    /// SafeFallback regardless of interrupt count. This is used when
+    /// arbitration returns `ForceCollapse` — the domain lacks a Science
+    /// frame and must default to the safe state even without conflicts.
+    pub fn guard_with_force(
+        &self,
+        domain: &Domain,
+        result: &TritWord,
+        interrupt_count: usize,
+        force: bool,
+    ) -> (TritWord, Option<MetaInterrupt>) {
         if !self.is_dangerous(domain) {
             return (*result, None);
         }
 
         let should_fallback = result.value() == TritValue::Unknown
-            || (result.value() == TritValue::Hold && interrupt_count > 0);
+            || (result.value() == TritValue::Hold && (interrupt_count > 0 || force));
 
         if should_fallback {
             let domain_name = domain_label(domain);
             let interrupt = MetaInterrupt::new(
                 ConflictType::OutOfScope,
                 format!(
-                    "SafeFallback: forcing False in dangerous domain '{}' — {} interrupts detected",
-                    domain_name, interrupt_count
+                    "SafeFallback: forcing False in dangerous domain '{}' — {} interrupts detected{}",
+                    domain_name,
+                    interrupt_count,
+                    if force { ", ForceCollapse triggered" } else { "" }
                 ),
             );
             warn!(
                 domain = domain_name,
                 interrupt_count = interrupt_count,
+                force,
                 "SafeFallback triggered"
             );
             (

@@ -1,0 +1,23 @@
+{
+  "id": "adversarial_03_firstperson_override_of_safety",
+  "description": "ADV-03: \u5371\u9669\u57df\u4e2dFirstPerson\u8986\u76d6Science \u2014 Physical\u57df + FirstPerson\u591a\u6570\uff0c\u60a3\u8005\u8bf4'\u6211\u5f88\u597d'\u4f46\u79d1\u5b66\u8bc1\u636e\u8868\u660e\u5371\u9669\uff0cFirstPerson\u662f\u5426\u4ecd\u88ab\u4f18\u5148\uff1f",
+  "domain": "Physical",
+  "signals": [
+    {
+      "frame": "FirstPerson",
+      "value": 1,
+      "phase": 0.9
+    },
+    {
+      "frame": "FirstPerson",
+      "value": 1,
+      "phase": 0.8
+    },
+    {
+      "frame": "Science",
+      "value": -1,
+      "phase": 0.9
+    }
+  ],
+  "expected_behavior": "commit_false"
+}

@@ -1,0 +1,23 @@
+{
+  "id": "adversarial_04_unknown_infiltration",
+  "description": "ADV-04: Unknown\u503c\u6e17\u900f \u2014 \u4e00\u4e2aUnknown\u4fe1\u53f7\u6df7\u5165\u5168\u662fTrue\u7684\u540c\u5e27\u4fe1\u53f7\u4e2d\uff0cTAND\u5e94\u4f20\u64adUnknown\u800c\u975e\u5ffd\u7565\u5b83",
+  "domain": "General",
+  "signals": [
+    {
+      "frame": "Science",
+      "value": 1,
+      "phase": 0.9
+    },
+    {
+      "frame": "Science",
+      "value": 1,
+      "phase": 0.8
+    },
+    {
+      "frame": "Science",
+      "value": 0,
+      "phase": 0.5
+    }
+  ],
+  "expected_behavior": "hold"
+}
