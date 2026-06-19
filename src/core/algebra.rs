@@ -534,7 +534,7 @@ mod tests {
         let b = TritWord::new(TritValue::True, Phase::new(0.6).unwrap(), Frame::Science);
         let (res, _) = TernaryAlgebra::t_and(&a, &b);
         // (0.8 + 0.6) / 2 = 0.7, not near any anchor.
-        assert!((res.phase().inner() - 0.7).abs() < f64::EPSILON);
+        assert_float_eq!(res.phase().inner(), 0.7);
     }
 
     // --- t_and_n batch tests ---

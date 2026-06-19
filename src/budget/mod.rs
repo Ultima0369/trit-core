@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 /// Ordered from cheapest to most expensive. Higher levels enable more
 /// optional stages (attention scheduling, self-knowledge inference,
 /// phase tracing, reflexive verification).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Deserialize, Serialize)]
 #[repr(u8)]
 pub enum DepthLevel {
     /// TAND + arbitrate only. No extensions.
@@ -25,6 +25,7 @@ pub enum DepthLevel {
     /// + SafeFallback. No attention/self_knowledge/phase_trace.
     Reduced = 2,
     /// + attention, self_knowledge, phase_trace. Standard operation.
+    #[default]
     Standard = 3,
     /// + reflexive verify. Deeper introspection.
     Deep = 4,
@@ -42,12 +43,6 @@ impl DepthLevel {
     /// Returns true if reflexive verification should run.
     pub fn has_reflexive_verify(self) -> bool {
         self >= DepthLevel::Deep
-    }
-}
-
-impl Default for DepthLevel {
-    fn default() -> Self {
-        DepthLevel::Standard
     }
 }
 

@@ -279,24 +279,24 @@ mod tests {
 
     #[test]
     fn bandwidth_from_depth_maps_correctly() {
-        assert!((bandwidth_from_depth(DepthLevel::Minimal) - 0.2).abs() < f64::EPSILON);
-        assert!((bandwidth_from_depth(DepthLevel::Reduced) - 0.4).abs() < f64::EPSILON);
-        assert!((bandwidth_from_depth(DepthLevel::Standard) - 0.6).abs() < f64::EPSILON);
-        assert!((bandwidth_from_depth(DepthLevel::Deep) - 0.8).abs() < f64::EPSILON);
-        assert!((bandwidth_from_depth(DepthLevel::Exhaustive) - 1.0).abs() < f64::EPSILON);
+        assert_float_eq!(bandwidth_from_depth(DepthLevel::Minimal), 0.2);
+        assert_float_eq!(bandwidth_from_depth(DepthLevel::Reduced), 0.4);
+        assert_float_eq!(bandwidth_from_depth(DepthLevel::Standard), 0.6);
+        assert_float_eq!(bandwidth_from_depth(DepthLevel::Deep), 0.8);
+        assert_float_eq!(bandwidth_from_depth(DepthLevel::Exhaustive), 1.0);
     }
 
     #[test]
     fn from_depth_uses_correct_bandwidth() {
         let scheduler = AttentionScheduler::from_depth(DepthLevel::Deep);
-        assert!((scheduler.bandwidth - 0.8).abs() < f64::EPSILON);
+        assert_float_eq!(scheduler.bandwidth, 0.8);
     }
 
     #[test]
     fn from_budget_uses_correct_bandwidth() {
         let budget = ComputeBudget::new(DepthLevel::Reduced, 0.6, 0.5, 4);
         let scheduler = AttentionScheduler::from_budget(&budget);
-        assert!((scheduler.bandwidth - 0.4).abs() < f64::EPSILON);
+        assert_float_eq!(scheduler.bandwidth, 0.4);
     }
 
     // ── depth gating ──────────────────────────────────────────────
@@ -429,7 +429,7 @@ mod tests {
         let mut scheduler = AttentionScheduler::new(0.5);
         let budget = ComputeBudget::new(DepthLevel::Deep, 0.1, 0.2, 8);
         let _ = scheduler.suggest_with_budget(&budget, &[]);
-        assert!((scheduler.bandwidth - 0.8).abs() < f64::EPSILON);
+        assert_float_eq!(scheduler.bandwidth, 0.8);
     }
 
     #[test]
@@ -437,6 +437,6 @@ mod tests {
         let mut scheduler = AttentionScheduler::new(0.5);
         let budget = ComputeBudget::new(DepthLevel::Exhaustive, 0.0, 0.0, 16);
         scheduler.update_bandwidth(&budget);
-        assert!((scheduler.bandwidth - 1.0).abs() < f64::EPSILON);
+        assert_float_eq!(scheduler.bandwidth, 1.0);
     }
 }

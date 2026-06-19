@@ -325,14 +325,14 @@ mod tests {
     #[test]
     fn confidence_ceiling_zero_calibrations() {
         let knowledge = SelfKnowledge::new();
-        assert!((knowledge.confidence_ceiling() - 0.6).abs() < f64::EPSILON);
+        assert_float_eq!(knowledge.confidence_ceiling(), 0.6);
     }
 
     #[test]
     fn confidence_ceiling_grows_with_calibrations() {
         let mut knowledge = SelfKnowledge::new();
         // 0 → 0.6
-        assert!((knowledge.confidence_ceiling() - 0.6).abs() < f64::EPSILON);
+        assert_float_eq!(knowledge.confidence_ceiling(), 0.6);
 
         // 1 calibration → 0.7
         knowledge.calibrate(
@@ -345,7 +345,7 @@ mod tests {
             0.05,
             "test".to_string(),
         );
-        assert!((knowledge.confidence_ceiling() - 0.7).abs() < f64::EPSILON);
+        assert_float_eq!(knowledge.confidence_ceiling(), 0.7);
 
         // 10 calibrations → 0.8
         for i in 0..9 {
@@ -360,7 +360,7 @@ mod tests {
                 "bulk".to_string(),
             );
         }
-        assert!((knowledge.confidence_ceiling() - 0.8).abs() < f64::EPSILON);
+        assert_float_eq!(knowledge.confidence_ceiling(), 0.8);
     }
 
     #[test]
@@ -378,7 +378,7 @@ mod tests {
                 "bulk".to_string(),
             );
         }
-        assert!((knowledge.confidence_ceiling() - 0.95).abs() < f64::EPSILON);
+        assert_float_eq!(knowledge.confidence_ceiling(), 0.95);
     }
 
     // ── calibrate_from_result ─────────────────────────────────────
@@ -408,7 +408,7 @@ mod tests {
             .iter()
             .find(|p| p.frame == Frame::Science && p.context == "calibrated")
             .unwrap();
-        assert!((pattern.phase - 0.55).abs() < f64::EPSILON);
+        assert_float_eq!(pattern.phase, 0.55);
     }
 
     #[test]
@@ -436,7 +436,7 @@ mod tests {
             .iter()
             .find(|p| p.frame == Frame::Individual && p.context == "calibrated")
             .unwrap();
-        assert!((pattern.phase - 0.45).abs() < f64::EPSILON);
+        assert_float_eq!(pattern.phase, 0.45);
     }
 
     #[test]
@@ -480,7 +480,7 @@ mod tests {
             .iter()
             .find(|p| p.frame == Frame::Science && p.context == "calibrated")
             .unwrap();
-        assert!((pattern.phase - 1.0).abs() < f64::EPSILON);
+        assert_float_eq!(pattern.phase, 1.0);
     }
 
     #[test]
@@ -488,7 +488,7 @@ mod tests {
         let mut knowledge = SelfKnowledge::with_human_defaults();
         // 0 calibrations → ceiling 0.6
         let est0 = knowledge.infer_receiver_state(&TritWord::tru(Frame::FirstPerson));
-        assert!((est0.confidence - 0.6).abs() < f64::EPSILON);
+        assert_float_eq!(est0.confidence, 0.6);
 
         // Add 10 calibrations → ceiling 0.8
         for i in 0..10 {
@@ -504,6 +504,6 @@ mod tests {
             );
         }
         let est10 = knowledge.infer_receiver_state(&TritWord::tru(Frame::FirstPerson));
-        assert!((est10.confidence - 0.8).abs() < f64::EPSILON);
+        assert_float_eq!(est10.confidence, 0.8);
     }
 }

@@ -191,28 +191,28 @@ mod tests {
     fn quantize_snaps_near_neutral() {
         let phase = p(0.5000000001);
         let q = phase.quantize(1e-6);
-        assert!((q.inner() - 0.5).abs() < f64::EPSILON);
+        assert_float_eq!(q.inner(), 0.5);
     }
 
     #[test]
     fn quantize_snaps_near_zero() {
         let phase = p(0.0000000001);
         let q = phase.quantize(1e-6);
-        assert!((q.inner() - 0.0).abs() < f64::EPSILON);
+        assert_float_eq!(q.inner(), 0.0);
     }
 
     #[test]
     fn quantize_snaps_near_one() {
         let phase = p(0.9999999999);
         let q = phase.quantize(1e-6);
-        assert!((q.inner() - 1.0).abs() < f64::EPSILON);
+        assert_float_eq!(q.inner(), 1.0);
     }
 
     #[test]
     fn quantize_preserves_normal_value() {
         let phase = p(0.73);
         let q = phase.quantize(1e-6);
-        assert!((q.inner() - 0.73).abs() < f64::EPSILON);
+        assert_float_eq!(q.inner(), 0.73);
     }
 
     #[test]
@@ -220,7 +220,7 @@ mod tests {
         // 0.50000001 is closer to 0.5 than 1.0 but we anchor 0.5 first
         let phase = p(0.50000001);
         let q = phase.quantize(1e-3);
-        assert!((q.inner() - 0.5).abs() < f64::EPSILON);
+        assert_float_eq!(q.inner(), 0.5);
     }
 
     #[test]
@@ -229,7 +229,7 @@ mod tests {
         let b = p(0.7);
         let m = Phase::mean(a, b);
         // 0.3 + 0.7 = 1.0 / 2 = 0.5 exactly → should be 0.5
-        assert!((m.inner() - 0.5).abs() < f64::EPSILON);
+        assert_float_eq!(m.inner(), 0.5);
     }
 
     #[test]
@@ -237,7 +237,7 @@ mod tests {
         let phase = p(0.5);
         let c = phase.complement();
         // 1.0 - 0.5 = 0.5 → should be 0.5
-        assert!((c.inner() - 0.5).abs() < f64::EPSILON);
+        assert_float_eq!(c.inner(), 0.5);
     }
 
     #[test]
@@ -270,7 +270,7 @@ mod tests {
     fn commitment_consistent_with_quantize() {
         // A value quantized to neutral must also be commitment-neutral
         let phase = p(0.5000001).quantize(1e-6);
-        assert!((phase.inner() - 0.5).abs() < f64::EPSILON);
+        assert_float_eq!(phase.inner(), 0.5);
         assert_eq!(phase.commitment(), Commitment::Neutral);
     }
 
@@ -291,10 +291,10 @@ mod tests {
     fn quantize_rejects_invalid_epsilon() {
         let phase = p(0.5000001);
         // Negative, zero, or non-finite epsilon should leave the phase unchanged.
-        assert!((phase.quantize(-1e-6).inner() - 0.5000001).abs() < f64::EPSILON);
-        assert!((phase.quantize(0.0).inner() - 0.5000001).abs() < f64::EPSILON);
-        assert!((phase.quantize(f64::NAN).inner() - 0.5000001).abs() < f64::EPSILON);
-        assert!((phase.quantize(f64::INFINITY).inner() - 0.5000001).abs() < f64::EPSILON);
+        assert_float_eq!(phase.quantize(-1e-6).inner(), 0.5000001);
+        assert_float_eq!(phase.quantize(0.0).inner(), 0.5000001);
+        assert_float_eq!(phase.quantize(f64::NAN).inner(), 0.5000001);
+        assert_float_eq!(phase.quantize(f64::INFINITY).inner(), 0.5000001);
     }
 
     #[test]
@@ -302,14 +302,14 @@ mod tests {
         let a = Phase::full_false();
         let b = Phase::full_true();
         let m = Phase::mean(a, b);
-        assert!((m.inner() - 0.5).abs() < f64::EPSILON);
+        assert_float_eq!(m.inner(), 0.5);
     }
 
     #[test]
     fn complement_of_extremes() {
-        assert!((Phase::full_true().complement().inner() - 0.0).abs() < f64::EPSILON);
-        assert!((Phase::full_false().complement().inner() - 1.0).abs() < f64::EPSILON);
-        assert!((Phase::neutral().complement().inner() - 0.5).abs() < f64::EPSILON);
+        assert_float_eq!(Phase::full_true().complement().inner(), 0.0);
+        assert_float_eq!(Phase::full_false().complement().inner(), 1.0);
+        assert_float_eq!(Phase::neutral().complement().inner(), 0.5);
     }
 
     #[test]

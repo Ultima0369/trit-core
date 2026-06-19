@@ -70,19 +70,17 @@ fn main() {
                     .and_then(|v| v.get("policy_action").and_then(|c| c.as_str()));
 
                 let expected = &scenario.expected_behavior;
-                let mut matched = false;
-
-                if !success {
-                    matched = false;
+                let matched = if !success {
+                    false
                 } else {
-                    matched = match expected.as_str() {
+                    match expected.as_str() {
                         "hold" => actual == Some(0),
                         "commit_true" => actual == Some(1),
                         "commit_false" => actual == Some(-1),
                         "negotiate" => policy.map(|p| p.contains("Negotiate")).unwrap_or(false),
                         _ => false,
-                    };
-                }
+                    }
+                };
 
                 if matched {
                     passed += 1;

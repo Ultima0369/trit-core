@@ -150,8 +150,8 @@ mod tests {
         }"#;
         let output: SandboxOutput = serde_json::from_str(json).unwrap();
         assert_eq!(output.final_value_code, 1);
-        assert!((output.final_phase_raw - 0.8).abs() < f64::EPSILON);
-        assert!((output.final_phase().inner() - 0.8).abs() < f64::EPSILON);
+        assert_float_eq!(output.final_phase_raw, 0.8);
+        assert_float_eq!(output.final_phase().inner(), 0.8);
     }
 
     #[test]

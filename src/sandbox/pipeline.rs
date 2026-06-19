@@ -1220,7 +1220,7 @@ mod tests {
         assert!(diag.anchor_report.is_some());
         let report = diag.anchor_report.unwrap();
         assert!(report.has_abort());
-        assert!(report.violations.len() >= 1);
+        assert!(!report.violations.is_empty());
     }
 
     // ── pipeline integration: budget, clock, calibration ─────────

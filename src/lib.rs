@@ -21,15 +21,16 @@
 //! # Modules
 //!
 //! - [`anchor`] — steady-state constraints with veto power (Layer 1).
-//! - [`hook`] — scenario perception and module scheduling (Layer 2).
-//! - [`adapters`] — dynamic cognitive module pool (Layer 3).
 //! - [`core`] — ternary algebra and data types: `TritValue`, `Phase`, `Frame`,
 //!   `TritWord`, `TernaryAlgebra`.
 //! - [`meta`] — policy engine: `Domain`, `ResolutionPolicy`, `ArbitrationResult`,
 //!   `MetaInterrupt`, `SafeFallback`, custom rules.
-//! - [`feedback`] — output testing and corrective feedback loop (Layer 5).
 //! - [`sandbox`] — scenario I/O, validation, pipeline, and expected-behavior
 //!   verification.
+//! - [`attention`] — cognitive attention scheduler with depth-gated bandwidth.
+//! - [`knowledge`] — self-knowledge model with calibration feedback loop.
+//! - [`budget`] — hardware-aware compute budget and depth-level gating.
+//! - [`calibration`] — decision history recording for feedback-driven learning.
 //! - [`clock`] — phase oscillator and time-scale management.
 //! - [`baseline`] — binary baseline comparator for validation.
 //! - [`tracing_init`] — structured logging initialization.
@@ -55,7 +56,35 @@
 
 #![forbid(unsafe_code)]
 
-pub mod adapters;
+/// Assert that two `f64` values are equal within `f64::EPSILON`.
+///
+/// Replaces the 43-instance pattern `assert!((actual - expected).abs() < f64::EPSILON)`
+/// with a single readable macro. Accepts an optional custom message.
+///
+/// # Examples
+///
+/// ```ignore
+/// assert_float_eq!(result.phase(), 0.55);
+/// assert_float_eq!(clock.omega, 10.0, "physical clock should have ω=10.0");
+/// ```
+#[macro_export]
+macro_rules! assert_float_eq {
+    ($actual:expr, $expected:expr) => {
+        assert!(
+            ($actual - $expected).abs() < f64::EPSILON,
+            "assertion failed: `(left == right)`\n  left: `{}`\n right: `{}`",
+            $actual,
+            $expected
+        )
+    };
+    ($actual:expr, $expected:expr, $($arg:tt)+) => {
+        assert!(
+            ($actual - $expected).abs() < f64::EPSILON,
+            $($arg)+
+        )
+    };
+}
+
 pub mod anchor;
 pub mod attention;
 pub mod baseline;
@@ -63,8 +92,6 @@ pub mod budget;
 pub mod calibration;
 pub mod clock;
 pub mod core;
-pub mod feedback;
-pub mod hook;
 pub mod knowledge;
 pub mod meta;
 pub mod reflexive;

@@ -105,7 +105,7 @@ mod tests {
     #[test]
     fn phase_now_should_return_sine_of_current_angle() {
         let clock = HarmonicClock::new(1.0, std::f64::consts::FRAC_PI_2);
-        assert!((clock.phase_now() - 1.0).abs() < f64::EPSILON);
+        assert_float_eq!(clock.phase_now(), 1.0);
     }
 
     #[test]
@@ -146,13 +146,13 @@ mod tests {
     #[test]
     fn physical_clock_starts_at_zero_phase() {
         let clock = HarmonicClock::physical();
-        assert!(clock.phase_now().abs() < f64::EPSILON);
+        assert_float_eq!(clock.phase_now(), 0.0);
     }
 
     #[test]
     fn deliberative_clock_starts_at_zero_phase() {
         let clock = HarmonicClock::deliberative();
-        assert!(clock.phase_now().abs() < f64::EPSILON);
+        assert_float_eq!(clock.phase_now(), 0.0);
     }
 
     #[test]
@@ -208,7 +208,7 @@ mod tests {
         let mut clock = HarmonicClock::new(1.0, 0.0);
         clock.tick(0.5);
         clock.tick(0.3);
-        assert!((clock.elapsed_time() - 0.8).abs() < f64::EPSILON);
+        assert_float_eq!(clock.elapsed_time(), 0.8);
     }
 
     #[test]
