@@ -150,6 +150,7 @@ impl DecisionEngine {
             ArbitrationResult::Hold => TritWord::hold(Frame::Meta),
             ArbitrationResult::ForceCollapse => TritWord::hold(Frame::Meta),
             ArbitrationResult::Negotiate => *current,
+            ArbitrationResult::DryRun => *current,
         }
     }
 

@@ -174,8 +174,6 @@ pub use crate::feedback::FeedbackSignal;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::Frame;
-    use crate::core::Phase;
 
     /// A minimal test module that implements CognitiveModule.
     struct TestModule {

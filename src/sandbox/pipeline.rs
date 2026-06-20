@@ -15,6 +15,7 @@ use crate::core::hold::{HoldState, HolderConfig};
 use crate::core::phase::Phase;
 use crate::core::value::TritValue;
 use crate::core::word::TritWord;
+use crate::core::TernaryAlgebra;
 use crate::feedback::FeedbackLoop;
 use crate::meta::SafeFallback;
 use crate::meta::{ArbitrationResult, Domain};
@@ -351,13 +352,14 @@ impl SandboxPipeline {
         trits: &[TritWord],
     ) -> Result<crate::core::decision_engine::DecisionResult, SandboxError> {
         if self.dry_run {
+            // In dry-run mode we still run the TAND cascade so that callers can
+            // see the raw ternary conflict (e.g. cross-frame → Hold), but we skip
+            // domain arbitration, reflexive guard, and SafeFallback.
+            let (current, interrupts) = TernaryAlgebra::t_and_n(trits);
             return Ok(crate::core::decision_engine::DecisionResult {
-                final_word: trits
-                    .first()
-                    .copied()
-                    .unwrap_or_else(|| TritWord::hold(Frame::Meta)),
-                policy_action: ArbitrationResult::Negotiate,
-                interrupts: Vec::new(),
+                final_word: current,
+                policy_action: ArbitrationResult::DryRun,
+                interrupts,
                 reflexive_alert: None,
                 safe_fallback_triggered: false,
             });

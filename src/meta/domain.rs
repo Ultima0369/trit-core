@@ -267,6 +267,8 @@ pub enum ArbitrationResult {
     Hold,
     /// Attempt multi-round negotiation (General domain with mixed frames).
     Negotiate,
+    /// Dry-run mode: arbitration was skipped on purpose.
+    DryRun,
 }
 
 impl std::fmt::Display for ArbitrationResult {
@@ -293,6 +295,7 @@ impl std::fmt::Display for ArbitrationResult {
             ArbitrationResult::ForceCollapse => write!(f, "ForceCollapse"),
             ArbitrationResult::Hold => write!(f, "Hold"),
             ArbitrationResult::Negotiate => write!(f, "Negotiate"),
+            ArbitrationResult::DryRun => write!(f, "DryRun"),
         }
     }
 }

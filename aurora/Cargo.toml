@@ -1,0 +1,35 @@
+[package]
+name = "aurora"
+version = "0.1.0"
+edition = "2021"
+authors = ["Ultima0369"]
+description = "Aurora: a local-first cognitive sovereignty tool built on Trit-Core"
+license = "MIT"
+repository = "https://github.com/trit-core/trit-core"
+readme = "INDEX.md"
+
+[dependencies]
+truncore = { path = "..", package = "trit-core" }
+anyhow = "1.0"
+clap = { version = "4.5", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+
+# NOTE: plotters and rusqlite are intentionally omitted from the M0 skeleton.
+# They will be added in Stage 3 (HTML rendering) and Stage 5 (mail ingestion)
+# respectively, once the core pipeline is proven.
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+proptest = "1.5"
+
+[[bin]]
+name = "aurora"
+path = "src/main.rs"
+
+[[bench]]
+name = "aurora_bench"
+harness = false

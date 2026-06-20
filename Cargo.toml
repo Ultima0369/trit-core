@@ -52,3 +52,7 @@ codegen-units = 16
 
 [profile.bench]
 opt-level = 3
+
+[workspace]
+members = [".", "aurora"]
+resolver = "2"
