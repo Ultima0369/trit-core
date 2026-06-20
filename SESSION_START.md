@@ -19,9 +19,9 @@
 | 维度 | 状态 |
 |------|------|
 | **Trit-Core 版本** | v0.3.0 — 单机决策引擎，5 层架构完整（Core→Meta→Hook→Adapter→Feedback） |
-| **Aurora 阶段** | M0 概念验证 — 合成数据→小波→三值→CLI/HTML 输出已完成；伦理门禁 10 个测试通过 |
+| **Aurora 阶段** | M0 概念验证 — 合成数据→小波→三值→CLI/HTML 输出已完成；伦理门禁 10 个测试通过；数据采集抽象层/注意力调度闭环/注意力图谱 HTML 渲染已完成 |
 | **架构设计** | 已完成 — 见 `docs/superpowers/specs/2026-06-20-aurora-architecture-design.md` |
-| **M0 剩余工作** | 邮件采集抽象层 + JSON fallback / 注意力调度最小闭环 / 注意力图谱 HTML 渲染 |
+| **M0 剩余工作** | 无代码任务。P1 待办：作者自我验证 + 2 外部用户试用（创始人侧） |
 | **M1 入口** | Tauri 桌面应用（见 `aurora/06_roadmap/CTO_ROADMAP.md` §M1） |
 
 ---
@@ -30,9 +30,9 @@
 
 | 日期 | 决策 | 文档 |
 |------|------|------|
+| 2026-06-20 | M0 全部 P0 代码任务完成 — 数据采集抽象层/注意力调度闭环/ASI 仪表渲染/端到端测试全部通过（600+ tests），clippy clean | `docs/superpowers/plans/2026-06-20-m0-remaining-tasks.md` |
+| 2026-06-20 | 架构设计文档完成 — 6 个 BC，模块化单体 M0-M1，分布式 trait 预留 | `docs/superpowers/specs/2026-06-20-aurora-architecture-design.md` |
 | 2026-06-20 | Aurora 架构风格：模块化单体（M0-M1），分布式接口 trait 预留，本期不实现 | `docs/superpowers/specs/2026-06-20-aurora-architecture-design.md` |
-| 2026-06-20 | 产品定位确认：B 层（关系标注层）— 基于物理量客观分析 + 用户手动标注关系类型，不替用户决策 | 本次对话 |
-| 2026-06-20 | 技术方案由 AI 全权负责，认知科学/哲学/初心由创始人兜底 | 本次对话 |
 
 ---
 

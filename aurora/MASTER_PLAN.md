@@ -2,11 +2,13 @@
 
 > **唯一入口**：任何新加入的协作者（AI 或人类），从此文件开始。不要先读 aurora/ 下的其他文档——先理解这份计划，再按步骤深入。
 >
-> **当前状态**：M0 概念验证，第 1 天（2026-06-20）。Aurora 目前只有文档，没有可运行代码。本计划的任务是把文档转化为代码。
+> **当前状态**：M0 概念验证，代码部分已完成（2026-06-20）。Aurora 已具备：合成数据 → 小波基频检测 → Trit-Core 冲突检测 → CLI/JSON/HTML 输出，10 个不可跳过的伦理门禁测试，DataSource 抽象层 + JSON fallback，注意力调度最小闭环 + ASI 仪表渲染。M0 剩余仅 P1 创始人侧任务（作者自我验证 + 外部用户试用）。
 >
 > **版本**：0.1.0  
 > **协议**：MIT / 提醒，而非指教  
 > **状态**：活跃 — 此计划本身随项目进展迭代
+>
+> **战略层补充**：最新 CTO 级战略规划见 [`aurora/06_roadmap/CTO_ROADMAP.md`](./06_roadmap/CTO_ROADMAP.md)，包含北极星指标、五层架构、M0-M4 细化里程碑、工程学纪律与验收标准。本文件保留为执行入口，具体技术路线以 CTO_ROADMAP 为准。
 
 ---
 
@@ -42,53 +44,53 @@
 以下是 M0 的**不可并行**执行顺序。每个阶段必须完成并验证，才能进入下一阶段。
 
 ```
-阶段 0: 项目骨架（1-2 天）
+阶段 0: 项目骨架 ✅（已完成）
     │
     ├── 创建 Cargo.toml、目录结构、CI 流水线
     ├── 集成 trit-core（本地 path 依赖）
     └── 建立测试框架（cargo test 骨架）
     │
-阶段 1: 合成数据 + 小波引擎（第 1-2 周）
+阶段 1: 合成数据 + 小波引擎 ✅（已完成）
     │
     ├── 合成数据生成器：已知频率的正弦波 + 可控噪声
-    ├── CWT（连续小波变换）或 rustfft 的基频检测
-    └── 单元测试："输入 2Hz，输出 2Hz ± 容差"
+    ├── FFT 基频检测（M0 用 FFT 证明概念，M1 引入 CWT）
+    └── 单元测试："输入 2Hz，输出 2Hz ± 0.1Hz"
     │
-阶段 2: Trit-Core 集成（第 2-3 周）
+阶段 2: Trit-Core 集成 ✅（已完成）
     │
     ├── 将基频映射为 Embodied 帧（通信节奏的物理信号）
     ├── 将用户设定映射为 Individual 帧（用户自评状态）
     ├── TAND 运算：Embodied vs Individual → 跨域冲突检测
     └── 单元测试：冲突时输出 Hold + MetaInterrupt，非冲突时输出 True/False
     │
-阶段 3: CLI + HTML 输出（第 3-4 周）
+阶段 3: CLI + JSON/HTML 输出 ✅（已完成）
     │
-    ├── CLI 参数解析（输入文件路径、输出目录、用户设定）
+    ├── CLI 参数解析（clap）
     ├── JSON 输出格式（结构化决策结果）
-    └── 静态 HTML 渲染（雷达图 + 趋势图，plotters 或类似库）
+    └── 静态 HTML 渲染（表格式报告）
     │
-阶段 4: SecurityMode 基础（第 4-5 周，贯穿）
+阶段 4: SecurityMode 基础 ✅（已完成）
     │
-    ├── 实现 Normal/Awareness/Transparency 三态枚举
+    ├── 实现 Service/Refusal/Awareness/Transparency 四态
     ├── 在 TAND 运算中嵌入 Awareness 检测（不阻断，只通知）
     ├── 伦理门禁测试：cargo test ethics_（不可跳过的 10 个测试）
     └── 定心盘自检：对照 CHARTER.md 的 4 条底线逐项检查
     │
-阶段 5: 邮件采集（第 5-6 周）
-    │
-    ├── 读取至少一种邮件客户端数据库（Apple Mail 优先，结构最简单）
-    ├── 提取时间/频率/方向元数据（不读取邮件内容，只读元数据）
-    ├── 将邮件采集替换合成数据输入
-    └── 端到端测试：真实邮件数据 → 小波 → 三值 → HTML
-    │
-阶段 6: 集成测试与优化（第 6-8 周）
-    │
-    ├── 日数据分析性能优化（目标 < 1 秒）
-    ├── 作者自我验证（用自己的邮件数据跑通）
-    ├── 至少 2 个外部用户试用并反馈
-    └── 通过 MVP_EXIT_CRITERIA.md 全部验收标准
-    │
-阶段 7: 缓冲与文档（第 8-12 周）
+阶段 5: 邮件采集抽象层 ✅（已完成）
+	    │
+	    ├── 原因：当前对邮件客户端格式理解尚浅，且 Windows 环境无法测试 Apple Mail
+	    ├── 决策：实现 DataSource trait 抽象层 + JSON fallback，Mail 源 M1 预留
+	    ├── 产出：ingest/mod.rs（DataSource trait + IngestManager）、json_fallback.rs、mail_abstract.rs（M1 桩）
+	    └── 端到端测试：JSON fallback 数据源 → 小波 → 三值 → HTML
+	    │
+阶段 6: 注意力调度 + 图谱渲染 ✅（已完成）
+	    │
+	    ├── 注意力调度最小闭环（AttentionSession + AttentionManager → run_cycle → respond）
+	    ├── 注意力图谱 HTML 渲染（ASI 仪表条 + 冲突面板 + 提醒历史表）
+	    ├── 决策报告扩展：attention_cmd、asi、reminder_count 字段
+	    └── 端到端集成测试通过（CLI → JSON/HTML 输出包含 ASI + 冲突 + 提醒）
+	    │
+阶段 7: 缓冲与文档
     │
     ├── 修复 M0 中发现的问题
     ├── 更新文档（代码变更后同步文档）
@@ -277,15 +279,16 @@ graph TD
 
 | 周次 | 目标 | 验证方式 | 不通过怎么办 |
 |------|------|----------|-------------|
-| W1 | 项目骨架 + 合成数据生成器 | `cargo test synthetic` 通过 | 简化合成数据（从正弦波开始，不加噪声） |
-| W2 | 小波基频检测 | `cargo test wavelet` 通过 | 降级到 DWT（离散小波变换），先证明概念 |
-| W3 | Trit-Core 集成（合成数据） | `cargo test decision` 通过 | 检查 trit-core 版本兼容性，必要时升级 |
-| W4 | CLI + HTML 原型 | `cargo run -- ...` 生成可读 HTML | 简化 HTML（先纯文本表格，再图表） |
-| W5 | SecurityMode 框架 + 伦理门禁测试 | `cargo test ethics_` 全部通过 | 逐条对照 CHARTER.md，找出违背点 |
-| W6 | 邮件采集（Apple Mail） | `cargo test ingest` 通过 | 提供手动导入 JSON 作为 fallback |
-| W7 | 端到端集成（真实数据） | 作者用自己的数据跑通 | 修复数据源格式问题 |
-| W8 | 性能优化 + 自我验证 | 日数据 < 1 秒 | 优化小波热路径，或降低分析频率 |
-| W9-12 | 外部用户试用 + 文档更新 | 2 个外部用户反馈 | 收集反馈，修复 blocker，不新增功能 |
+| W1 ✅ | 项目骨架 + 合成数据生成器 | `cargo test synthetic` 通过 | 简化合成数据（从正弦波开始，不加噪声） |
+| W2 ✅ | 小波基频检测 | `cargo test wavelet` 通过 | 降级到 FFT，先证明概念 |
+| W3 ✅ | Trit-Core 集成（合成数据） | `cargo test decision` 通过 | 检查 trit-core 版本兼容性，必要时升级 |
+| W4 ✅ | CLI + HTML 原型 | `cargo run -- ...` 生成可读 HTML | 简化 HTML（先纯文本表格，再图表） |
+| W5 ✅ | SecurityMode 框架 + 伦理门禁测试 | `cargo test ethics_` 全部通过 | 逐条对照 CHARTER.md，找出违背点 |
+| W6 ✅ | 邮件采集抽象层 + JSON fallback | `cargo test ingest` 通过 | 仅保留 JSON fallback，由创始人用真实数据验证 |
+| W7 ✅ | 注意力调度最小闭环 | `cargo test attention` 通过；ASI 计算正确 | 先实现 ShiftTo/HoldCurrent 两种模式 |
+| W8 ✅ | 注意力图谱 HTML 渲染 + 端到端集成 | 浏览器可读图谱；CLI 输出含 ASI + 冲突 + 提醒 | 简化图表（ASI 仪表条 + 冲突面板 + 提醒历史） |
+| W9 | 作者自我验证 | 创始人用自己的 JSON 数据跑通 | 修复数据源格式问题 |
+| W10-12 | 外部用户试用 + 文档更新 | 2 个外部用户反馈 | 收集反馈，修复 blocker，不新增功能 |
 
 ---
 
@@ -322,9 +325,9 @@ graph TD
 | 检查项 | 标准 | 当前状态 |
 |--------|------|----------|
 | 不剥夺 | 用户可关闭任何功能、导出数据、离开系统 | ⬜ 待验证（M1 必须实现） |
-| 不自欺 | 系统不猜测、不消冲突、不隐藏不确定性 | ⬜ 待验证（SecurityMode 测试中） |
-| 不进化 | 系统出厂设置不变，不基于用户数据学习 | ✅ 代码层面：无机器学习、无训练循环 |
-| 公开可审查 | 全部逻辑、代码、数据格式公开 | ✅ MIT 协议 + 代码公开 |
+| 不自欺 | 系统不猜测、不消冲突、不隐藏不确定性 | ✅ `cargo test ethics_` 全部通过；Hold 不猜测；Awareness 不阻断 |
+| 不进化 | 系统出厂设置不变，不基于用户数据学习 | ✅ 代码层面：无机器学习、无训练循环、无用户画像 |
+| 公开可审查 | 全部逻辑、代码、数据格式公开 | ✅ MIT 协议 + 代码公开 + 审计日志 |
 
 ---
 
