@@ -1,8 +1,10 @@
-//! End-to-end Aurora pipeline: signal → frequency → decision.
+//! End-to-end Aurora pipeline: signal → frequency → decision → attention.
 
+use crate::attention::AttentionManager;
 use crate::decision::{detect_conflict, embodied_from_frequency, individual_from_user_state};
 use crate::wavelet::{sine_wave, WaveletEngine};
 use serde::Deserialize;
+use truncore::adapters::AttentionCmd;
 use truncore::core::TritWord;
 use truncore::meta::MetaInterrupt;
 
@@ -24,13 +26,23 @@ pub struct DecisionReport {
     pub individual: TritWord,
     pub result: TritWord,
     pub interrupt: Option<MetaInterrupt>,
+    /// Attention scheduler command (None if Continue).
+    pub attention_cmd: Option<AttentionCmd>,
+    /// Current ASI score.
+    pub asi: f64,
+    /// Number of reminders in this session.
+    pub reminder_count: usize,
 }
 
 /// Run the full M0 pipeline on a synthetic signal specification.
+///
+/// Now includes attention scheduling: after the decision, the attention
+/// manager runs one cycle and records any reminders.
 pub fn run_pipeline(
     spec: &SignalSpec,
     frequency_threshold: f64,
     user_feels_normal: bool,
+    attention: &mut AttentionManager,
 ) -> Result<DecisionReport, Box<dyn std::error::Error>> {
     let signal = sine_wave(
         spec.freq,
@@ -45,6 +57,9 @@ pub fn run_pipeline(
     let individual = individual_from_user_state(user_feels_normal);
     let (result, interrupt) = detect_conflict(&embodied, &individual);
 
+    // Run attention scheduler on the decision signals
+    let attention_cmd = attention.run_cycle(&[embodied, individual, result]);
+
     Ok(DecisionReport {
         input_freq: spec.freq,
         detected_freq: wavelet_result.fundamental_freq,
@@ -52,5 +67,8 @@ pub fn run_pipeline(
         individual,
         result,
         interrupt,
+        attention_cmd,
+        asi: attention.session().asi(),
+        reminder_count: attention.session().reminder_count(),
     })
 }

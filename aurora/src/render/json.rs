@@ -14,6 +14,10 @@ pub struct JsonReport {
     pub result_value: String,
     pub result_frame: String,
     pub conflict_detected: bool,
+    pub conflict_type: Option<String>,
+    pub conflict_reason: Option<String>,
+    pub asi: f64,
+    pub reminder_count: usize,
 }
 
 impl From<&DecisionReport> for JsonReport {
@@ -28,6 +32,10 @@ impl From<&DecisionReport> for JsonReport {
             result_value: format!("{:?}", r.result.value()),
             result_frame: r.result.frame().to_string(),
             conflict_detected: r.interrupt.is_some(),
+            conflict_type: r.interrupt.as_ref().map(|i| format!("{:?}", i.conflict)),
+            conflict_reason: r.interrupt.as_ref().map(|i| i.reason.clone()),
+            asi: r.asi,
+            reminder_count: r.reminder_count,
         }
     }
 }

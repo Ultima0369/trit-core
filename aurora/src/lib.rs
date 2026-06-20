@@ -17,6 +17,9 @@ pub mod wavelet;
 /// Data ingestion layer (M0: JSON fallback, M1: mail).
 pub mod ingest;
 
+/// Attention guidance layer (M0: minimal closed loop with ASI).
+pub mod attention;
+
 /// Decision layer: map signals and user state to Trit-Core trits.
 pub mod decision;
 

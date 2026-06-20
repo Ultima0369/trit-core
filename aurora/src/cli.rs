@@ -22,4 +22,8 @@ pub struct Args {
     /// Whether the user self-reports feeling normal.
     #[arg(long)]
     pub user_feels_normal: bool,
+
+    /// Path to JSON contacts file for relationship-aware analysis (optional).
+    #[arg(long)]
+    pub data_source: Option<PathBuf>,
 }
