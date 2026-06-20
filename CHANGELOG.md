@@ -29,6 +29,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `scenario_json` — fuzzes `ScenarioInput` JSON deserialization for panics.
   - `tritword_construct` — fuzzes `TritWord::new` and `Phase::new` for panics.
 - Full CI pipeline (`.github/workflows/ci.yml`): fmt, clippy, test (ubuntu + windows), coverage (tarpaulin → Codecov), cargo-deny, cargo-machete.
+- **Layer 4 DecisionEngine facade** (`src/core/decision_engine.rs`): extracted core ternary decision logic.
+  - `DecisionEngine` struct with `decide()` method: TAND cascade → arbitration → reflexive guard → SafeFallback.
+  - `DecisionResult` type: bundles final_word, policy_action, interrupts, reflexive_alert, safe_fallback_triggered.
+  - `ConflictType::ExplainImpulse` variant for cognitive deconstruction detection.
+  - `SandboxPipeline` delegates to `DecisionEngine` for the decision step (net -188 lines in pipeline.rs).
+  - Reflexive guard now catches both `FrameMismatch` and `ExplainImpulse` interrupts.
 
 ### Changed
 - **BREAKING**: `src/attention/`, `src/knowledge/`, `src/reflexive/` modules migrated to `src/adapters/` with `CognitiveModule` wrappers.
