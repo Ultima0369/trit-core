@@ -10,3 +10,6 @@
 pub const fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
+
+/// Wavelet analysis and synthetic signal generation.
+pub mod wavelet;

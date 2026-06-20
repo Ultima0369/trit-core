@@ -17,6 +17,9 @@ serde_json = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+rustfft = "6.2"
+num-complex = "0.4"
+thiserror = "1.0"
 
 # NOTE: plotters and rusqlite are intentionally omitted from the M0 skeleton.
 # They will be added in Stage 3 (HTML rendering) and Stage 5 (mail ingestion)
