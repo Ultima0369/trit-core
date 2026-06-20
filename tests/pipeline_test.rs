@@ -485,3 +485,67 @@ fn clock_phase_trough_respects_recalibrate() {
     let result = modulate_attention_with_clock_phase(AttentionCmd::Recalibrate, 0.05);
     assert_eq!(result, AttentionCmd::Recalibrate);
 }
+
+// ── Feedback loop (Layer 5) ────────────────────────────────────────
+
+use trit_core::feedback::proxy_env::StaticRuleModel;
+use trit_core::feedback::FeedbackLoop;
+
+#[test]
+fn pipeline_with_feedback_runs_cycle() {
+    let s = scenario("General", vec![signal("Science", 1, 0.9)]);
+    let proxy = Box::new(StaticRuleModel::new());
+    let feedback = FeedbackLoop::new(proxy);
+    let mut pipeline = SandboxPipeline::default().with_feedback(feedback);
+    let (out, diag) = pipeline.run_with_diagnostics(&s).unwrap();
+    assert_eq!(out.final_value_code, 1);
+    // Feedback stage should have been recorded
+    assert!(diag.stage_timings_ns.contains_key("feedback_loop"));
+}
+
+#[test]
+fn pipeline_without_feedback_still_works() {
+    let s = scenario("General", vec![signal("Science", 1, 0.9)]);
+    let mut pipeline = SandboxPipeline::default();
+    let (out, diag) = pipeline.run_with_diagnostics(&s).unwrap();
+    assert_eq!(out.final_value_code, 1);
+    // Without feedback configured, stage should still be recorded (as no-op)
+    assert!(diag.stage_timings_ns.contains_key("feedback_loop"));
+}
+
+#[test]
+fn pipeline_feedback_medical_ethics_preserves_individual() {
+    let s = scenario(
+        "MedicalEthics",
+        vec![signal("Science", 1, 0.8), signal("Individual", -1, 0.2)],
+    );
+    let proxy = Box::new(StaticRuleModel::new());
+    let feedback = FeedbackLoop::new(proxy);
+    let mut pipeline = SandboxPipeline::default().with_feedback(feedback);
+    let (out, diag) = pipeline.run_with_diagnostics(&s).unwrap();
+    assert_eq!(out.final_value_code, -1);
+    assert!(diag.stage_timings_ns.contains_key("feedback_loop"));
+}
+
+#[test]
+fn pipeline_feedback_disabled_does_nothing() {
+    let s = scenario("General", vec![signal("Science", 1, 0.9)]);
+    let proxy = Box::new(StaticRuleModel::new());
+    let feedback = FeedbackLoop::new(proxy).with_enabled(false);
+    let mut pipeline = SandboxPipeline::default().with_feedback(feedback);
+    let (out, _diag) = pipeline.run_with_diagnostics(&s).unwrap();
+    assert_eq!(out.final_value_code, 1);
+}
+
+#[test]
+fn pipeline_feedback_value_judgment_holds() {
+    let s = scenario(
+        "ValueJudgment",
+        vec![signal("Individual", -1, 0.3), signal("Consensus", 1, 0.7)],
+    );
+    let proxy = Box::new(StaticRuleModel::new());
+    let feedback = FeedbackLoop::new(proxy);
+    let mut pipeline = SandboxPipeline::default().with_feedback(feedback);
+    let (out, _diag) = pipeline.run_with_diagnostics(&s).unwrap();
+    assert_eq!(out.final_value_code, 0);
+}
