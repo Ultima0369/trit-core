@@ -8,7 +8,7 @@ use crate::adapters::{CognitiveModule, ModuleInput, ModuleOutput};
 use crate::core::TritValue;
 use crate::hook::module_registry::{ModuleId, ModuleState};
 use crate::hook::HookContext;
-use crate::meta::{ConflictType, MetaInterrupt};
+use crate::meta::{ConflictType, MetaInterrupt, PolicyViolation};
 
 /// Cognitive module for critical thinking and boundary verification.
 pub struct CriticalThinking {
@@ -82,8 +82,8 @@ impl CognitiveModule for CriticalThinking {
         let mut interrupts = Vec::new();
 
         if contradictions > 0 {
-            interrupts.push(MetaInterrupt::new(
-                ConflictType::PolicyViolation,
+            interrupts.push(MetaInterrupt::policy_violation(
+                PolicyViolation::ForcedCollapse,
                 format!(
                     "critical: {} contradictory signal pair(s) detected across {} frame(s)",
                     contradictions, distinct_frames

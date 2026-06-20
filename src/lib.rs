@@ -93,6 +93,7 @@ pub mod feedback;
 pub mod hook;
 pub mod meta;
 pub mod sandbox;
+pub mod security;
 pub mod tracing_init;
 
 pub use adapters::{

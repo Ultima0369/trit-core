@@ -76,7 +76,13 @@ impl SafeFallback {
         }
         match domain {
             Domain::Physical | Domain::Engineering => true,
-            Domain::MedicalEthics | Domain::ValueJudgment | Domain::General => false,
+            Domain::MedicalEthics
+            | Domain::ValueJudgment
+            | Domain::General
+            | Domain::Organizational
+            | Domain::Relational
+            | Domain::Cognitive
+            | Domain::Environmental => false,
             Domain::Custom(name) => self.dangerous_custom_domains.iter().any(|d| d == name),
         }
     }
@@ -160,6 +166,10 @@ fn domain_label(domain: &Domain) -> &str {
         Domain::MedicalEthics => "MedicalEthics",
         Domain::ValueJudgment => "ValueJudgment",
         Domain::General => "General",
+        Domain::Organizational => "Organizational",
+        Domain::Relational => "Relational",
+        Domain::Cognitive => "Cognitive",
+        Domain::Environmental => "Environmental",
         Domain::Custom(name) => name.as_str(),
     }
 }

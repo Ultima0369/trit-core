@@ -10,7 +10,7 @@ use crate::core::frame::Frame;
 use crate::core::phase::{Phase, PhaseError};
 use crate::core::value::TritValue;
 use crate::core::word::TritWord;
-use crate::meta::MetaInterrupt;
+use crate::meta::{MetaInterrupt, PolicyViolation};
 use tracing::{debug, trace, warn};
 
 /// Harmonic Ternary Algebra (HTA): the core logic engine.
@@ -136,6 +136,28 @@ impl TernaryAlgebra {
 
         let phase = Phase::mean(a.phase(), b.phase());
         TritWord::new(val, phase, a.frame())
+    }
+
+    /// Awareness check: detect Meta frame used as external input.
+    ///
+    /// Returns a `PolicyViolation` interrupt but does **not** block computation.
+    /// This implements the SecurityMode Awareness principle: the system notices
+    /// when a first-principle boundary is touched and reports it, while still
+    /// letting the user decide what to do.
+    pub fn awareness_check(a: &TritWord, b: &TritWord) -> Option<MetaInterrupt> {
+        if a.frame() == Frame::Meta && a.value() != TritValue::Hold {
+            return Some(MetaInterrupt::policy_violation(
+                PolicyViolation::FrameContamination,
+                "Meta frame used as external input".to_string(),
+            ));
+        }
+        if b.frame() == Frame::Meta && b.value() != TritValue::Hold {
+            return Some(MetaInterrupt::policy_violation(
+                PolicyViolation::FrameContamination,
+                "Meta frame used as external input".to_string(),
+            ));
+        }
+        None
     }
 
     /// TNOT: phase-flipped negation.

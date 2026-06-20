@@ -16,7 +16,7 @@ use crate::core::word::TritWord;
 use crate::core::TritValue;
 use crate::hook::module_registry::{ModuleId, ModuleState};
 use crate::hook::HookContext;
-use crate::meta::{ConflictType, MetaInterrupt};
+use crate::meta::{MetaInterrupt, PolicyViolation};
 
 // ── Load profile ────────────────────────────────────────────────────
 
@@ -304,8 +304,8 @@ impl CognitiveModule for BandwidthScheduler {
                 ModuleOutput::new(TritValue::Hold, 0.5, trace)
             }
             AttentionCmd::Recalibrate => {
-                let interrupt = MetaInterrupt::new(
-                    ConflictType::PolicyViolation,
+                let interrupt = MetaInterrupt::policy_violation(
+                    PolicyViolation::Other("attention recalibrate".to_string()),
                     "attention scheduler escalated to recalibrate after consecutive holds"
                         .to_string(),
                 );

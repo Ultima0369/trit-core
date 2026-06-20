@@ -16,7 +16,7 @@ use crate::core::word::TritWord;
 use crate::core::TritValue;
 use crate::hook::module_registry::{ModuleId, ModuleState};
 use crate::hook::HookContext;
-use crate::meta::{ConflictType, MetaInterrupt};
+use crate::meta::{ConflictType, MetaInterrupt, PolicyViolation};
 
 // ── Attention event ─────────────────────────────────────────────────
 
@@ -263,8 +263,8 @@ impl CognitiveModule for ReflexiveAuditModule {
                 ref reason,
                 ref recommendation,
             } => {
-                let interrupt = MetaInterrupt::new(
-                    ConflictType::PolicyViolation,
+                let interrupt = MetaInterrupt::policy_violation(
+                    PolicyViolation::ForcedCollapse,
                     format!(
                         "forced collapse: {}. recommendation: {}",
                         reason, recommendation
@@ -278,8 +278,8 @@ impl CognitiveModule for ReflexiveAuditModule {
                 .with_interrupts(vec![interrupt])
             }
             AuditReport::ExplanationImpulse { ref reason } => {
-                let interrupt = MetaInterrupt::new(
-                    ConflictType::PolicyViolation,
+                let interrupt = MetaInterrupt::policy_violation(
+                    PolicyViolation::Other("explanation impulse".to_string()),
                     format!("explanation impulse: {}", reason),
                 );
                 ModuleOutput::new(

@@ -24,6 +24,14 @@ pub enum Domain {
     General,
     /// Externally loaded domain rules.
     Custom(String),
+    /// Organizational decision: multi-frame negotiation across roles and processes.
+    Organizational,
+    /// Relational decision: prioritize the relational frame when present.
+    Relational,
+    /// Cognitive decision: prioritize embodied signals over abstractions.
+    Cognitive,
+    /// Environmental adaptation: prioritize geo-ecological frame when present.
+    Environmental,
 }
 
 /// Error type for policy arbitration failures.
@@ -52,6 +60,10 @@ impl FromStr for Domain {
             "MedicalEthics" => Ok(Domain::MedicalEthics),
             "ValueJudgment" => Ok(Domain::ValueJudgment),
             "General" => Ok(Domain::General),
+            "Organizational" => Ok(Domain::Organizational),
+            "Relational" => Ok(Domain::Relational),
+            "Cognitive" => Ok(Domain::Cognitive),
+            "Environmental" => Ok(Domain::Environmental),
             d if d.starts_with("Custom(") => {
                 let name = d
                     .strip_prefix("Custom(")
@@ -78,6 +90,10 @@ impl std::fmt::Display for Domain {
             Domain::ValueJudgment => write!(f, "ValueJudgment"),
             Domain::General => write!(f, "General"),
             Domain::Custom(name) => write!(f, "Custom({})", name),
+            Domain::Organizational => write!(f, "Organizational"),
+            Domain::Relational => write!(f, "Relational"),
+            Domain::Cognitive => write!(f, "Cognitive"),
+            Domain::Environmental => write!(f, "Environmental"),
         }
     }
 }
@@ -141,6 +157,10 @@ impl ResolutionPolicy {
             Domain::ValueJudgment => ArbitrationResult::Hold,
             Domain::Custom(name) => self.arbitrate_custom(name, inputs, &mask),
             Domain::General => self.arbitrate_general(inputs, &mask),
+            Domain::Organizational => self.arbitrate_organizational(inputs, &mask),
+            Domain::Relational => self.arbitrate_relational(inputs, &mask),
+            Domain::Cognitive => self.arbitrate_cognitive(inputs, &mask),
+            Domain::Environmental => self.arbitrate_environmental(inputs, &mask),
         };
         info!(?result, "arbitration completed");
         Ok(result)
@@ -163,6 +183,42 @@ impl ResolutionPolicy {
     fn arbitrate_medical_ethics(&self, inputs: &[TritWord], mask: &FrameMask) -> ArbitrationResult {
         if mask.has(&Frame::Individual) {
             Self::preserve_frame(inputs, Frame::Individual)
+        } else {
+            ArbitrationResult::Negotiate
+        }
+    }
+
+    /// Organizational: negotiate when mixed frames, otherwise commit the single frame.
+    fn arbitrate_organizational(&self, inputs: &[TritWord], mask: &FrameMask) -> ArbitrationResult {
+        if mask.count() > 1 {
+            ArbitrationResult::Negotiate
+        } else {
+            ArbitrationResult::Commit(inputs[0])
+        }
+    }
+
+    /// Relational: preserve the Relational frame when present.
+    fn arbitrate_relational(&self, inputs: &[TritWord], mask: &FrameMask) -> ArbitrationResult {
+        if mask.has(&Frame::Relational) {
+            Self::preserve_frame(inputs, Frame::Relational)
+        } else {
+            ArbitrationResult::Negotiate
+        }
+    }
+
+    /// Cognitive: preserve the Embodied frame when present.
+    fn arbitrate_cognitive(&self, inputs: &[TritWord], mask: &FrameMask) -> ArbitrationResult {
+        if mask.has(&Frame::Embodied) {
+            Self::preserve_frame(inputs, Frame::Embodied)
+        } else {
+            ArbitrationResult::Negotiate
+        }
+    }
+
+    /// Environmental: preserve the GeoEco frame when present.
+    fn arbitrate_environmental(&self, inputs: &[TritWord], mask: &FrameMask) -> ArbitrationResult {
+        if mask.has(&Frame::GeoEco) {
+            Self::preserve_frame(inputs, Frame::GeoEco)
         } else {
             ArbitrationResult::Negotiate
         }

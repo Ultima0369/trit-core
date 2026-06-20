@@ -8,7 +8,7 @@ use crate::adapters::{CognitiveModule, ModuleInput, ModuleOutput};
 use crate::core::{Frame, TritValue};
 use crate::hook::module_registry::{ModuleId, ModuleState};
 use crate::hook::HookContext;
-use crate::meta::{ConflictType, MetaInterrupt};
+use crate::meta::{MetaInterrupt, PolicyViolation};
 
 /// Cognitive module for ecological consequence assessment.
 pub struct EcologicalAssessment {
@@ -107,8 +107,8 @@ impl CognitiveModule for EcologicalAssessment {
 
         // Build interrupts from concerns.
         for concern in &concerns {
-            interrupts.push(MetaInterrupt::new(
-                ConflictType::PolicyViolation,
+            interrupts.push(MetaInterrupt::policy_violation(
+                PolicyViolation::SurvivalBoundaryOverride,
                 format!("ecological: {}", concern),
             ));
         }

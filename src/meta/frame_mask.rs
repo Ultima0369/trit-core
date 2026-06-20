@@ -3,30 +3,38 @@ use crate::core::word::TritWord;
 
 /// Frame presence bitmask for O(1) frame lookups during arbitration.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct FrameMask(u8);
+pub(crate) struct FrameMask(u16);
 
 impl FrameMask {
-    const SCIENCE: u8 = 1 << 0;
-    const INDIVIDUAL: u8 = 1 << 1;
-    const CONSENSUS: u8 = 1 << 2;
-    const ABSOLUTE: u8 = 1 << 3;
-    const META: u8 = 1 << 4;
-    const FIRST_PERSON: u8 = 1 << 5;
-    const EMBODIED: u8 = 1 << 6;
-    const RELATIONAL: u8 = 1 << 7;
+    const SCIENCE: u16 = 1 << 0;
+    const INDIVIDUAL: u16 = 1 << 1;
+    const CONSENSUS: u16 = 1 << 2;
+    const ABSOLUTE: u16 = 1 << 3;
+    const META: u16 = 1 << 4;
+    const FIRST_PERSON: u16 = 1 << 5;
+    const EMBODIED: u16 = 1 << 6;
+    const RELATIONAL: u16 = 1 << 7;
+    const GEO_ECO: u16 = 1 << 8;
+    const DEVELOPMENTAL: u16 = 1 << 9;
+    const ROLE: u16 = 1 << 10;
+    const ENVIRONMENTAL: u16 = 1 << 11;
 
     /// Bitmask with all frame bits set. Update this when adding new Frame variants.
-    const ALL_FRAMES: u8 = Self::SCIENCE
+    const ALL_FRAMES: u16 = Self::SCIENCE
         | Self::INDIVIDUAL
         | Self::CONSENSUS
         | Self::ABSOLUTE
         | Self::META
         | Self::FIRST_PERSON
         | Self::EMBODIED
-        | Self::RELATIONAL;
+        | Self::RELATIONAL
+        | Self::GEO_ECO
+        | Self::DEVELOPMENTAL
+        | Self::ROLE
+        | Self::ENVIRONMENTAL;
 
     pub(crate) fn from_inputs(inputs: &[TritWord]) -> Self {
-        let mut mask = 0u8;
+        let mut mask = 0u16;
         for t in inputs {
             mask |= match t.frame() {
                 Frame::Science => Self::SCIENCE,
@@ -37,6 +45,10 @@ impl FrameMask {
                 Frame::FirstPerson => Self::FIRST_PERSON,
                 Frame::Embodied => Self::EMBODIED,
                 Frame::Relational => Self::RELATIONAL,
+                Frame::GeoEco => Self::GEO_ECO,
+                Frame::Developmental => Self::DEVELOPMENTAL,
+                Frame::Role => Self::ROLE,
+                Frame::Environmental => Self::ENVIRONMENTAL,
             };
             if mask == Self::ALL_FRAMES {
                 break; // all frames seen, early exit
@@ -55,6 +67,10 @@ impl FrameMask {
             Frame::FirstPerson => Self::FIRST_PERSON,
             Frame::Embodied => Self::EMBODIED,
             Frame::Relational => Self::RELATIONAL,
+            Frame::GeoEco => Self::GEO_ECO,
+            Frame::Developmental => Self::DEVELOPMENTAL,
+            Frame::Role => Self::ROLE,
+            Frame::Environmental => Self::ENVIRONMENTAL,
         };
         (self.0 & bit) != 0
     }

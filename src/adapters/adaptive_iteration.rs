@@ -14,7 +14,7 @@ use crate::adapters::{CognitiveModule, ModuleInput, ModuleOutput};
 use crate::core::TritValue;
 use crate::hook::module_registry::{ModuleId, ModuleState};
 use crate::hook::HookContext;
-use crate::meta::{ConflictType, MetaInterrupt};
+use crate::meta::{MetaInterrupt, PolicyViolation};
 
 /// Maximum number of consecutive same-result decisions before flagging entrainment.
 const ENTRAINMENT_THRESHOLD: usize = 3;
@@ -124,8 +124,8 @@ impl CognitiveModule for AdaptiveIteration {
 
         // Build interrupts.
         for concern in &concerns {
-            interrupts.push(MetaInterrupt::new(
-                ConflictType::PolicyViolation,
+            interrupts.push(MetaInterrupt::policy_violation(
+                PolicyViolation::Other("adaptive escalation".to_string()),
                 format!("adaptive: {}", concern),
             ));
         }

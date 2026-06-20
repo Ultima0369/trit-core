@@ -30,6 +30,14 @@ pub enum Frame {
     Embodied,
     /// Relationship-state-driven judgment (e.g. trust, reciprocity, role).
     Relational,
+    /// Geographic and ecological context (e.g. location, climate, biome).
+    GeoEco,
+    /// Developmental trajectory (e.g. life stage, skill level, growth path).
+    Developmental,
+    /// Social or professional role context.
+    Role,
+    /// Environmental state (e.g. noise, light, weather, social density).
+    Environmental,
 }
 
 impl std::fmt::Display for Frame {
@@ -43,6 +51,10 @@ impl std::fmt::Display for Frame {
             Frame::FirstPerson => write!(f, "FirstPerson"),
             Frame::Embodied => write!(f, "Embodied"),
             Frame::Relational => write!(f, "Relational"),
+            Frame::GeoEco => write!(f, "GeoEco"),
+            Frame::Developmental => write!(f, "Developmental"),
+            Frame::Role => write!(f, "Role"),
+            Frame::Environmental => write!(f, "Environmental"),
         }
     }
 }
@@ -60,6 +72,10 @@ impl FromStr for Frame {
             "FirstPerson" => Ok(Frame::FirstPerson),
             "Embodied" => Ok(Frame::Embodied),
             "Relational" => Ok(Frame::Relational),
+            "GeoEco" => Ok(Frame::GeoEco),
+            "Developmental" => Ok(Frame::Developmental),
+            "Role" => Ok(Frame::Role),
+            "Environmental" => Ok(Frame::Environmental),
             unknown => Err(FrameError::Unknown(unknown.to_string())),
         }
     }

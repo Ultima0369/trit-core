@@ -47,6 +47,15 @@ impl MetaInterrupt {
         }
     }
 
+    /// Create a PolicyViolation interrupt with the current UTC timestamp.
+    pub fn policy_violation(violation: PolicyViolation, reason: String) -> Self {
+        Self {
+            conflict: ConflictType::PolicyViolation(violation),
+            reason,
+            timestamp: chrono::Utc::now(),
+        }
+    }
+
     fn build_frame_mismatch_reason(op: &str, a: &Frame, b: &Frame) -> String {
         // Longest op name (~20) + " conflict: " (11) + longest frame (~10) + " vs " (4) + longest frame (~10) ≈ 55
         let mut reason = String::with_capacity(64);
@@ -66,12 +75,31 @@ pub enum ConflictType {
     FrameMismatch,
     OutOfScope,
     PhaseDrift,
-    PolicyViolation,
+    /// Policy violation detected by the system. This is an ethical notice,
+    /// not a technical error. Computation continues; the user decides.
+    PolicyViolation(PolicyViolation),
     /// Cognitive deconstruction detected an explanation impulse:
     /// input entropy is high but output determinacy is high —
     /// the system is about to produce a confident answer without
     /// sufficient evidence.
     ExplainImpulse,
+}
+
+/// Specific kinds of policy violation that can be reported to the user.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PolicyViolation {
+    /// External request to force a True/False output instead of Hold.
+    ForcedCollapse,
+    /// Unregistered or tampered Frame mapped to Meta.
+    FrameContamination,
+    /// Meta-monitor log or state was tampered with externally.
+    MetaMonitorTampered,
+    /// Survival boundary was overridden or ignored.
+    SurvivalBoundaryOverride,
+    /// Input pattern deviates from historical baseline (>3σ).
+    DataAnomaly,
+    /// Other policy violation, with a descriptive label.
+    Other(String),
 }
 
 /// Meta-monitor: records interrupt events and enforces invariants.
@@ -114,8 +142,8 @@ impl MetaMonitor {
     /// Currently: Absolute frame must remain Hold + neutral phase.
     pub fn inspect(&self, word: &TritWord) -> Option<MetaInterrupt> {
         if word.frame() == Frame::Absolute && word.value() != TritValue::Hold {
-            return Some(MetaInterrupt::new(
-                ConflictType::PolicyViolation,
+            return Some(MetaInterrupt::policy_violation(
+                PolicyViolation::FrameContamination,
                 "Absolute frame must remain Hold".to_string(),
             ));
         }
@@ -183,7 +211,7 @@ mod tests {
         let mut m = MetaMonitor::new();
         m.record(MetaInterrupt::new_for_test(ConflictType::PhaseDrift, "x"));
         m.record(MetaInterrupt::new_for_test(
-            ConflictType::PolicyViolation,
+            ConflictType::PolicyViolation(PolicyViolation::ForcedCollapse),
             "y",
         ));
         assert_eq!(m.log().count(), 2);

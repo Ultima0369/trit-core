@@ -15,7 +15,7 @@ mod safe_fallback;
 
 // Re-export public API
 pub use domain::{ArbitrationResult, Domain, DomainParseError, PolicyError, ResolutionPolicy};
-pub use interrupt::{ConflictType, MetaInterrupt, MetaMonitor, MAX_INTERRUPT_LOG};
+pub use interrupt::{ConflictType, MetaInterrupt, MetaMonitor, PolicyViolation, MAX_INTERRUPT_LOG};
 pub use rules::{CustomRule, FallbackBehavior, JsonRuleLoader, RuleError, RuleLoader};
 pub use safe_fallback::SafeFallback;
 
