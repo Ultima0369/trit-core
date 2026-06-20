@@ -14,6 +14,9 @@ pub const fn version() -> &'static str {
 /// Wavelet analysis and synthetic signal generation.
 pub mod wavelet;
 
+/// Data ingestion layer (M0: JSON fallback, M1: mail).
+pub mod ingest;
+
 /// Decision layer: map signals and user state to Trit-Core trits.
 pub mod decision;
 
