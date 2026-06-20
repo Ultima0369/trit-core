@@ -56,6 +56,9 @@ pub struct SandboxDiagnostics {
     /// 0.0 = trough, 0.5 = neutral, 1.0 = peak. Serialized as a plain `f64`
     /// for direct use in downstream telemetry dashboards.
     pub clock_phase: f64,
+    /// Optional feedback signal from Layer 5 practice testing.
+    #[serde(skip)]
+    pub feedback_signal: Option<crate::feedback::FeedbackSignal>,
 }
 
 impl SandboxDiagnostics {
@@ -136,6 +139,11 @@ impl SandboxDiagnostics {
     /// Record the clock phase.
     pub fn record_clock_phase(&mut self, phase: f64) {
         self.clock_phase = phase;
+    }
+
+    /// Record a feedback signal from Layer 5.
+    pub fn record_feedback_signal(&mut self, signal: crate::feedback::FeedbackSignal) {
+        self.feedback_signal = Some(signal);
     }
 
     /// Total elapsed time in microseconds.

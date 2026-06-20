@@ -15,6 +15,7 @@ use crate::core::hold::{HoldState, HolderConfig};
 use crate::core::phase::Phase;
 use crate::core::value::TritValue;
 use crate::core::word::TritWord;
+use crate::feedback::FeedbackLoop;
 use crate::meta::SafeFallback;
 use crate::meta::{ArbitrationResult, Domain};
 use crate::sandbox::diagnostic::SandboxDiagnostics;
@@ -48,6 +49,8 @@ pub struct SandboxPipeline {
     pub(crate) clock: HarmonicClock,
     /// Calibration log for feedback-driven learning.
     pub(crate) calibration_log: CalibrationLog,
+    /// Feedback loop for practice testing (Layer 5).
+    pub(crate) feedback: Option<FeedbackLoop>,
 }
 
 impl std::fmt::Debug for SandboxPipeline {
@@ -95,6 +98,7 @@ impl SandboxPipeline {
             budget: ComputeBudget::conservative(),
             clock: HarmonicClock::deliberative(),
             calibration_log: CalibrationLog::default(),
+            feedback: None,
         }
     }
 
@@ -180,6 +184,12 @@ impl SandboxPipeline {
         self
     }
 
+    /// Attach a feedback loop for practice testing (Layer 5).
+    pub fn with_feedback(mut self, feedback: FeedbackLoop) -> Self {
+        self.feedback = Some(feedback);
+        self
+    }
+
     /// Run the full pipeline on a scenario.
     ///
     /// # Errors
@@ -262,6 +272,9 @@ impl SandboxPipeline {
 
         // Stage 13: calibrate — record entry + update SelfKnowledge patterns
         self.stage_calibrate(scenario, &final_word, &mut diagnostics);
+
+        // Stage 14: feedback loop (Layer 5)
+        self.stage_feedback_loop(scenario, &output, &mut diagnostics);
 
         diagnostics.finish();
         info!(
@@ -532,6 +545,49 @@ impl SandboxPipeline {
             calibration_entries = self.calibration_log.len(),
             "calibration recorded"
         );
+    }
+
+    /// Stage 14: feedback loop — practice test the decision against a proxy
+    /// environment (Layer 5).
+    ///
+    /// Runs after calibration. If a feedback loop is configured, it predicts
+    /// the expected consequence, compares against the actual decision, and
+    /// emits a FeedbackSignal if correction is needed.
+    fn stage_feedback_loop(
+        &mut self,
+        _scenario: &ScenarioInput,
+        output: &SandboxOutput,
+        diagnostics: &mut SandboxDiagnostics,
+    ) {
+        let stage_start = Instant::now();
+        if let Some(ref mut feedback) = self.feedback {
+            let signal = feedback.run_cycle(output);
+            if let Some(ref sig) = signal {
+                info!(
+                    deviation_delta = sig.deviation_delta,
+                    recommended_scenario = ?sig.recommended_scenario,
+                    "feedback loop: correction triggered"
+                );
+                diagnostics.record_feedback_signal(sig.clone());
+
+                // Calibrate self-knowledge with the feedback signal
+                if let Some(ref mut knowledge) = self.self_knowledge {
+                    let frame: crate::core::frame::Frame = output
+                        .final_frame
+                        .parse()
+                        .unwrap_or(crate::core::frame::Frame::Meta);
+                    knowledge.calibrate_from_result(
+                        frame,
+                        crate::core::value::TritValue::from(output.final_value_code),
+                        output.final_phase_raw,
+                        diagnostics.interrupt_count,
+                    );
+                }
+            } else {
+                debug!("feedback loop: decision matched proxy prediction");
+            }
+        }
+        diagnostics.record_stage("feedback_loop", stage_start);
     }
 
     /// Stage 12: build the final SandboxOutput.
