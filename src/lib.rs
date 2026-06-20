@@ -119,6 +119,7 @@ pub use anchor::{
 };
 pub use core::{
     algebra::TernaryAlgebra,
+    decision_engine::{DecisionEngine, DecisionResult},
     frame::{Frame, FrameError, FrameRegistry},
     hold::{HoldFinality, HoldState, HolderConfig},
     phase::{Commitment, Phase, PhaseError},

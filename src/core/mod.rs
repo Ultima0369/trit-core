@@ -8,6 +8,7 @@
 //! - [`TernaryAlgebra`]: `t_and`, `t_or`, `t_not`, and hot-path variants.
 
 pub mod algebra;
+pub mod decision_engine;
 pub mod frame;
 pub mod hold;
 pub mod phase;
@@ -16,6 +17,7 @@ pub mod value;
 pub mod word;
 
 pub use algebra::TernaryAlgebra;
+pub use decision_engine::{DecisionEngine, DecisionResult};
 pub use frame::{Frame, FrameError, FrameRegistry};
 pub use hold::{HoldFinality, HoldState, HolderConfig};
 pub use phase::{Commitment, Phase, PhaseError};
