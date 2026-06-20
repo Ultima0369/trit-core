@@ -41,7 +41,6 @@ impl ConsequenceReview {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::value::TritValue;
 
     #[test]
     fn matched_is_mild() {

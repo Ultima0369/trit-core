@@ -413,19 +413,26 @@ impl CognitiveModule for SelfKnowledgeModule {
 
     fn calibrate(&mut self, feedback: &FeedbackSignal) -> f64 {
         // Use feedback to calibrate patterns.
-        if feedback.was_validated {
+        let is_matched = matches!(
+            feedback.test_result,
+            crate::feedback::PracticeTestResult::Matched { .. }
+        );
+
+        let deviation = feedback.deviation_delta;
+
+        if is_matched && deviation < 0.01 {
             // Positive feedback: strengthen the most recent pattern.
             if let Some(last_pattern) = self.inner.own_response_patterns.last().cloned() {
                 self.inner
-                    .calibrate(last_pattern, 0.03, feedback.description.clone());
+                    .calibrate(last_pattern, 0.03, feedback.source_decision_id.clone());
             }
             0.03
-        } else if let Some(deviation) = feedback.deviation {
+        } else if deviation > 0.0 {
             // Negative feedback: weaken proportionally to deviation.
             let delta = -(deviation * 0.05).min(0.1);
             if let Some(last_pattern) = self.inner.own_response_patterns.last().cloned() {
                 self.inner
-                    .calibrate(last_pattern, delta, feedback.description.clone());
+                    .calibrate(last_pattern, delta, feedback.source_decision_id.clone());
             }
             delta.abs()
         } else {
@@ -673,9 +680,11 @@ mod tests {
         let initial_count = module.inner.calibration_count();
 
         let fb = FeedbackSignal {
-            description: "validated decision".into(),
-            was_validated: true,
-            deviation: None,
+            test_result: crate::feedback::PracticeTestResult::Matched { confidence: 0.9 },
+            source_decision_id: "validated".into(),
+            deviation_delta: 0.0,
+            recommended_scenario: None,
+            anchor_violations: vec![],
         };
         let delta = module.calibrate(&fb);
         assert!(delta > 0.0);
@@ -688,9 +697,18 @@ mod tests {
         let initial_count = module.inner.calibration_count();
 
         let fb = FeedbackSignal {
-            description: "deviated decision".into(),
-            was_validated: false,
-            deviation: Some(0.5),
+            test_result: crate::feedback::PracticeTestResult::Deviated {
+                delta: 0.5,
+                correction: crate::feedback::CorrectionHint {
+                    suggested_value: None,
+                    suggested_phase: None,
+                    reason: "test".into(),
+                },
+            },
+            source_decision_id: "deviated".into(),
+            deviation_delta: 0.5,
+            recommended_scenario: None,
+            anchor_violations: vec![],
         };
         let delta = module.calibrate(&fb);
         assert!(delta > 0.0);

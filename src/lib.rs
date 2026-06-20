@@ -89,6 +89,7 @@ pub mod budget;
 pub mod calibration;
 pub mod clock;
 pub mod core;
+pub mod feedback;
 pub mod hook;
 pub mod meta;
 pub mod sandbox;
@@ -129,6 +130,11 @@ pub use core::{
     },
     value::TritValue,
     word::{Trit, TritWord, WordError},
+};
+pub use feedback::{
+    ConsequencePrediction, CorrectionHint, CorrectionSeverity, FeedbackLoop,
+    PracticeTestResult,
+    proxy_env::{ProxyEnvironment, StaticRuleModel},
 };
 pub use hook::{
     context_cache::ContextCache,

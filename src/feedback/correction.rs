@@ -18,7 +18,7 @@ impl CorrectionTrigger {
     /// acceptable as-is.
     pub fn evaluate(
         result: &PracticeTestResult,
-        severity: CorrectionSeverity,
+        _severity: CorrectionSeverity,
         source_decision_id: &str,
         correction_threshold: f64,
         reentry_threshold: f64,
@@ -141,7 +141,8 @@ mod tests {
             0.5,
         );
         assert!(signal.is_some());
-        assert_float_eq!(signal.unwrap().deviation_delta, 1.0);
+        let s = signal.unwrap();
+        assert_float_eq!(s.deviation_delta, 1.0);
     }
 
     #[test]

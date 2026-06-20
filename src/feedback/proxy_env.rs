@@ -114,8 +114,8 @@ impl ProxyEnvironment for StaticRuleModel {
             });
         }
 
-        // Rule: Science frame with high phase → expect True
-        if Self::has_science_frame(decision) && decision.final_phase_raw > 0.8 {
+        // Rule: Science frame True with high phase → expect True
+        if Self::has_science_frame(decision) && decision.final_phase_raw > 0.8 && value == TritValue::True {
             return Some(ConsequencePrediction {
                 expected_value: TritValue::True,
                 expected_phase: decision.final_phase_raw,

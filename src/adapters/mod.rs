@@ -163,26 +163,13 @@ pub trait CognitiveModule: Send + Sync {
     }
 }
 
-// ── Feedback signal (forward reference for Layer 5) ─────────────────
+// ── Feedback signal (from Layer 5) ─────────────────────────────────
 
 /// Feedback signal from Layer 5's practice testing.
 ///
-/// This is a forward-reference type — the full definition lives in
-/// `src/feedback/` (Layer 5, not yet implemented). It is defined here
-/// so that [`CognitiveModule::calibrate`] can reference it without
-/// creating a circular dependency.
-///
-/// In MVP, this is a placeholder. Real feedback signals will carry
-/// practice test results, deviation deltas, and correction hints.
-#[derive(Debug, Clone)]
-pub struct FeedbackSignal {
-    /// Human-readable description of the feedback.
-    pub description: String,
-    /// Whether the decision was validated.
-    pub was_validated: bool,
-    /// Deviation magnitude, if measured.
-    pub deviation: Option<f64>,
-}
+/// Re-exported from [`crate::feedback::FeedbackSignal`]. This replaces
+/// the v0.3.0 placeholder with the real Layer 5 type.
+pub use crate::feedback::FeedbackSignal;
 
 #[cfg(test)]
 mod tests {
@@ -275,9 +262,11 @@ mod tests {
     fn default_calibrate_returns_zero() {
         let mut m = TestModule { mounted: false };
         let fb = FeedbackSignal {
-            description: "test".into(),
-            was_validated: true,
-            deviation: None,
+            test_result: crate::feedback::PracticeTestResult::Matched { confidence: 0.9 },
+            source_decision_id: "test".into(),
+            deviation_delta: 0.0,
+            recommended_scenario: None,
+            anchor_violations: vec![],
         };
         assert_float_eq!(m.calibrate(&fb), 0.0);
     }
