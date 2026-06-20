@@ -1,0 +1,6 @@
+{
+    "freq": 2.0,
+    "sample_rate": 100.0,
+    "duration_secs": 10.0,
+    "noise_std": 0.0
+}

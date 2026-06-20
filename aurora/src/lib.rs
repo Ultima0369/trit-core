@@ -16,3 +16,12 @@ pub mod wavelet;
 
 /// Decision layer: map signals and user state to Trit-Core trits.
 pub mod decision;
+
+/// Command-line argument definitions.
+pub mod cli;
+
+/// End-to-end pipeline orchestration.
+pub mod pipeline;
+
+/// Output renderers (JSON, HTML).
+pub mod render;
