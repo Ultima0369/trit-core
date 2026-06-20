@@ -8,6 +8,7 @@ dhat-heap.json
 # IDE
 .vscode/
 .idea/
+.obsidian/
 # OS
 Thumbs.db
 .DS_Store
