@@ -67,6 +67,11 @@ pub enum ConflictType {
     OutOfScope,
     PhaseDrift,
     PolicyViolation,
+    /// Cognitive deconstruction detected an explanation impulse:
+    /// input entropy is high but output determinacy is high —
+    /// the system is about to produce a confident answer without
+    /// sufficient evidence.
+    ExplainImpulse,
 }
 
 /// Meta-monitor: records interrupt events and enforces invariants.
@@ -200,5 +205,7 @@ mod tests {
     fn conflict_type_equality() {
         assert_eq!(ConflictType::FrameMismatch, ConflictType::FrameMismatch);
         assert_ne!(ConflictType::FrameMismatch, ConflictType::OutOfScope);
+        assert_eq!(ConflictType::ExplainImpulse, ConflictType::ExplainImpulse);
+        assert_ne!(ConflictType::ExplainImpulse, ConflictType::FrameMismatch);
     }
 }
