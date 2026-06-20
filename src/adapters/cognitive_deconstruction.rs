@@ -131,7 +131,7 @@ impl CognitiveModule for CognitiveDeconstruction {
         if impulse_detected {
             self.impulse_count += 1;
             let interrupt = MetaInterrupt::new(
-                ConflictType::PolicyViolation,
+                ConflictType::ExplainImpulse,
                 format!(
                     "explanation impulse: input entropy H(I)={:.3} > {} (ambiguous) AND output determinacy D(O)={:.3} > {} (certain) — system may be fabricating certainty",
                     h_i, AMBIGUITY_THRESHOLD, d_o, DETERMINACY_THRESHOLD,
