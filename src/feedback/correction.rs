@@ -112,19 +112,11 @@ mod tests {
                 reason: "test".into(),
             },
         };
-        let signal = CorrectionTrigger::evaluate(
-            &result,
-            CorrectionSeverity::Severe,
-            "test",
-            0.3,
-            0.5,
-        );
+        let signal =
+            CorrectionTrigger::evaluate(&result, CorrectionSeverity::Severe, "test", 0.3, 0.5);
         assert!(signal.is_some());
         let s = signal.unwrap();
-        assert_eq!(
-            s.recommended_scenario,
-            Some(ScenarioType::ReflexiveAudit)
-        );
+        assert_eq!(s.recommended_scenario, Some(ScenarioType::ReflexiveAudit));
     }
 
     #[test]
@@ -133,13 +125,8 @@ mod tests {
             reason: "critical failure".into(),
             severity: CorrectionSeverity::Severe,
         };
-        let signal = CorrectionTrigger::evaluate(
-            &result,
-            CorrectionSeverity::Severe,
-            "test",
-            0.3,
-            0.5,
-        );
+        let signal =
+            CorrectionTrigger::evaluate(&result, CorrectionSeverity::Severe, "test", 0.3, 0.5);
         assert!(signal.is_some());
         let s = signal.unwrap();
         assert_float_eq!(s.deviation_delta, 1.0);
@@ -156,13 +143,8 @@ mod tests {
             },
         };
         // With correction_threshold=0.5, delta=0.4 should NOT trigger
-        let signal = CorrectionTrigger::evaluate(
-            &result,
-            CorrectionSeverity::Moderate,
-            "test",
-            0.5,
-            0.7,
-        );
+        let signal =
+            CorrectionTrigger::evaluate(&result, CorrectionSeverity::Moderate, "test", 0.5, 0.7);
         assert!(signal.is_none());
     }
 }

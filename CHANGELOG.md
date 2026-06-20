@@ -35,6 +35,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `ConflictType::ExplainImpulse` variant for cognitive deconstruction detection.
   - `SandboxPipeline` delegates to `DecisionEngine` for the decision step (net -188 lines in pipeline.rs).
   - Reflexive guard now catches both `FrameMismatch` and `ExplainImpulse` interrupts.
+- **Layer 5 Feedback Loop** (`src/feedback/`): closes the 5-layer cognitive architecture.
+  - `ProxyEnvironment` trait + `StaticRuleModel` MVP for consequence prediction.
+  - `PracticeTest` comparator with weighted deviation formula (Δ = 0.6·δ_v + 0.4·δ_p).
+  - `ConsequenceReview` severity classifier (Mild/Moderate/Severe).
+  - `CorrectionTrigger` with threshold-based feedback signal emission.
+  - `ExperienceRecorder` ring buffer for pattern storage (match rate, average delta).
+  - `FeedbackLoop` facade wired into `SandboxPipeline` as opt-in `stage_feedback_loop()`.
+  - Replaced placeholder `FeedbackSignal` with real Layer 5 type.
 
 ### Changed
 - **BREAKING**: `src/attention/`, `src/knowledge/`, `src/reflexive/` modules migrated to `src/adapters/` with `CognitiveModule` wrappers.

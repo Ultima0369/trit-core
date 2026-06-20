@@ -45,7 +45,10 @@ mod tests {
     #[test]
     fn matched_is_mild() {
         let result = PracticeTestResult::Matched { confidence: 0.9 };
-        assert_eq!(ConsequenceReview::classify(&result), CorrectionSeverity::Mild);
+        assert_eq!(
+            ConsequenceReview::classify(&result),
+            CorrectionSeverity::Mild
+        );
     }
 
     #[test]
@@ -58,7 +61,10 @@ mod tests {
                 reason: "test".into(),
             },
         };
-        assert_eq!(ConsequenceReview::classify(&result), CorrectionSeverity::Mild);
+        assert_eq!(
+            ConsequenceReview::classify(&result),
+            CorrectionSeverity::Mild
+        );
     }
 
     #[test]

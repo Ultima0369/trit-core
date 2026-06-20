@@ -96,9 +96,8 @@ impl ProxyEnvironment for StaticRuleModel {
                 expected_value: TritValue::Hold,
                 expected_phase: 0.5,
                 confidence: self.confidence,
-                reasoning:
-                    "Cross-frame computable decision — expected Hold due to frame conflict"
-                        .into(),
+                reasoning: "Cross-frame computable decision — expected Hold due to frame conflict"
+                    .into(),
             });
         }
 
@@ -109,13 +108,15 @@ impl ProxyEnvironment for StaticRuleModel {
                 expected_phase: decision.final_phase_raw,
                 confidence: self.confidence,
                 reasoning:
-                    "Individual frame preserved — decision aligns with first-person priority"
-                        .into(),
+                    "Individual frame preserved — decision aligns with first-person priority".into(),
             });
         }
 
         // Rule: Science frame True with high phase → expect True
-        if Self::has_science_frame(decision) && decision.final_phase_raw > 0.8 && value == TritValue::True {
+        if Self::has_science_frame(decision)
+            && decision.final_phase_raw > 0.8
+            && value == TritValue::True
+        {
             return Some(ConsequencePrediction {
                 expected_value: TritValue::True,
                 expected_phase: decision.final_phase_raw,

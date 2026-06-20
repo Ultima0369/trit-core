@@ -132,9 +132,8 @@ pub use core::{
     word::{Trit, TritWord, WordError},
 };
 pub use feedback::{
-    ConsequencePrediction, CorrectionHint, CorrectionSeverity, FeedbackLoop,
-    PracticeTestResult,
     proxy_env::{ProxyEnvironment, StaticRuleModel},
+    ConsequencePrediction, CorrectionHint, CorrectionSeverity, FeedbackLoop, PracticeTestResult,
 };
 pub use hook::{
     context_cache::ContextCache,
