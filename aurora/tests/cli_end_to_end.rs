@@ -28,6 +28,10 @@ fn cli_generates_html_report() {
     let html = std::fs::read_to_string(&output).expect("failed to read HTML output");
     assert!(html.contains("Aurora Decision Report"));
     assert!(html.contains("Detected frequency"));
+    // New M0 assertions:
+    assert!(html.contains("Attention Sovereignty Index"), "HTML should contain ASI section");
+    assert!(html.contains("Conflict Panel"), "HTML should contain conflict panel");
+    assert!(html.contains("Reminder History"), "HTML should contain reminder history");
     std::fs::remove_file(&output).ok();
 }
 
@@ -51,4 +55,6 @@ fn cli_prints_json_without_output_flag() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("detected_frequency_hz"));
     assert!(stdout.contains("conflict_detected"));
+    assert!(stdout.contains("asi"), "JSON should contain ASI field");
+    assert!(stdout.contains("reminder_count"), "JSON should contain reminder_count");
 }

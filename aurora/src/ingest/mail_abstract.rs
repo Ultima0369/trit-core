@@ -12,6 +12,7 @@ use serde::de::DeserializeOwned;
 /// M1 will add platform-specific implementations behind this facade.
 /// For now, `is_available()` always returns `false`.
 pub struct MailSource {
+    #[allow(dead_code)]
     platform: String,
 }
 

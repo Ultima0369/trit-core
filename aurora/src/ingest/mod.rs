@@ -56,8 +56,10 @@ pub struct IngestManager {
     inner: SourceKind,
 }
 
+#[allow(dead_code)]
 enum SourceKind {
     Json(json_fallback::JsonFallbackSource),
+    #[allow(dead_code)]
     Mail(mail_abstract::MailSource),
 }
 

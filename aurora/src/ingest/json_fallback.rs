@@ -16,6 +16,7 @@ use std::path::{Path, PathBuf};
 /// The file is read once at construction time and held in memory.
 /// For M0, this is acceptable; M1 will add incremental updates.
 pub struct JsonFallbackSource {
+    #[allow(dead_code)]
     path: PathBuf,
     raw_json: String,
     contact_count: usize,
