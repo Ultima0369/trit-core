@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+> **⚡ 新会话启动**：先读 `SESSION_START.md`（30 秒了解当前进度和上次决策），再回到本文件看技术约束。
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
