@@ -6,7 +6,7 @@
 **审计范围**：完整代码库（`src/`、`tests/`、`benches/`、CI/CD、依赖、文档）  
 **审计方法**：静态代码审查、工具链验证、架构与风险面分析  
 
-> **历史版本说明**：本报告审计的是 Trit-Core v0.1.0。v0.2.0 已移除网络层并重构核心模块（如 `TritWord` 字段私有、`Phase::new` 返回 `Result`、移除 `src/net/`）。当前状态请参考 `audit_log/08_reflexive_audit.md` 与最新源码。
+> **历史版本说明**：本报告审计的是 Trit-Core v0.1.0。v0.2.0 已移除网络层并重构核心模块（如 `TritWord` 字段私有、`Phase::new` 返回 `Result`、移除 `src/net/`）。当前状态请参考 `audit_log/08_reflexive_audit.md` 与最新源码。**本报告中部分问题已在后续版本中修正。**
 
 ---
 

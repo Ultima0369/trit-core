@@ -1,5 +1,7 @@
 # Trit-Core 深度技术审计报告
 
+> **历史版本说明**：本报告审计的是 Trit-Core v0.1.0（commit 未标注，约 6,463 行 Rust）。v0.2.0 已移除网络层、重构核心模块（`TritWord` 字段私有、`Phase::new` 返回 `Result`）。v0.3.0 进一步引入结构化可观测性、沙盒诊断和 `t_and_n` 批量运算。当前状态请参考 `audit_log/08_reflexive_audit.md`、aurora/08_reports/ 与最新源码。**本报告中部分问题已在后续版本中修正。**
+
 **审计视角**: Google 资深项目 CTO  
 **审计日期**: 2026-06-18  
 **项目版本**: 0.1.0  

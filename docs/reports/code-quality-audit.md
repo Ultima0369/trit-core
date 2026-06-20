@@ -4,7 +4,7 @@
 **审计版本**: v0.1.0 (commit: c8e9155)
 **审计方法**: SonarQube 规则映射 + SOLID 原则检查 + 圈复杂度分析 + 人工设计审查
 
-> **历史版本说明**：本报告审计的是 Trit-Core v0.1.0。v0.2.0 已重构多项问题（如 `TritWord` 字段私有、移除网络层、消除关键路径 `.unwrap()`）。当前代码质量状态请参考 `audit_log/08_reflexive_audit.md`。
+> **历史版本说明**：本报告审计的是 Trit-Core v0.1.0。v0.2.0 已重构多项问题（如 `TritWord` 字段私有、移除网络层、消除关键路径 `.unwrap()`）。当前代码质量状态请参考 `audit_log/08_reflexive_audit.md`。**本报告中部分问题已在后续版本中修正。**
 
 ---
 

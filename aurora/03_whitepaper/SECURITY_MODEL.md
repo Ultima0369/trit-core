@@ -1,6 +1,6 @@
 # Aurora 安全模型
 
-**版本**: 0.1.0
+**版本**: 0.2.0
 **日期**: 2026-06-20
 **状态**: 活跃
 **分类**: 03_whitepaper — 技术白皮书
@@ -42,10 +42,12 @@
 
 ### 2.2 数据加密
 
-- **静态加密**：SQLite 数据库使用 AES-256-GCM 加密
-- **密钥管理**：密钥由用户持有，系统不存储明文密钥
+- **静态加密**：SQLite 数据库使用 SQLCipher 加密（AES-256-CBC + HMAC-SHA256）[^1]
+- **密钥管理**：密钥从用户密码通过 Argon2id 派生，系统不存储明文密钥
 - **内存保护**：敏感数据在内存中使用后立即清零（`zeroize` crate）
 - **导出加密**：导出数据时可选加密，密码由用户设置
+
+[^1]: SQLite 原生不支持加密。使用 SQLCipher（`rusqlite` 的 `bundled-sqlcipher` 特性），加密方案为 AES-256-CBC + HMAC-SHA256。不是 AES-256-GCM。这是关键事实，不是可选项。
 
 ### 2.3 输入验证
 
@@ -53,12 +55,14 @@
 - 路径遍历防护（CWE-22）
 - JSON 反序列化炸弹防护（大小限制 64KB）
 - 非法 Phase 值拒绝（`Phase::new` 返回 `Err`）
+- 非法 Frame 值拒绝（`Frame::from_str` 返回 `Err`，不默认映射到 `Meta`）
 
 ### 2.4 审计与不可篡改
 
 - 审计日志使用哈希链（Hash Chain）
 - 每行包含：前一行的 hash + 当前内容 + 当前 hash
 - 篡改检测：验证哈希链完整性
+- 追加写入：审计日志只追加，不修改、不删除
 
 ```
 Row 1: data="init" | hash=SHA256(data)
@@ -66,28 +70,36 @@ Row 2: data="op1" | prev_hash=Row1.hash | hash=SHA256(prev_hash + data)
 Row 3: data="op2" | prev_hash=Row2.hash | hash=SHA256(prev_hash + data)
 ```
 
+### 2.5 SecurityMode 不阻断
+
+- **Awareness 状态**：检测到策略违反时，系统返回通知，但**不阻断任何运算**。用户收到通知后自行决定。
+- **Transparency 状态**：系统主动公开所有内部状态，但**不阻止用户操作**。
+- **无 SafeMode/Lockdown**：系统中不存在"安全模式"或"锁定模式"，不剥夺用户操作权。
+
 ---
 
 ## 三、缓解措施
 
 | 风险 | 缓解措施 | 状态 |
 |------|----------|------|
-| 数据泄露（设备被盗） | AES-256-GCM 加密，密钥用户持有 | 已实现 |
+| 数据泄露（设备被盗） | SQLCipher 加密（AES-256-CBC + HMAC-SHA256），密钥用户持有 | 已实现 |
 | 恶意输入 | 输入验证、大小限制、类型检查 | 已实现 |
 | 日志篡改 | 哈希链追加写入 | 已实现 |
 | 内存泄露 | Rust 内存安全、zeroize | 已实现 |
 | 依赖漏洞 | cargo-audit、定期更新 | 持续 |
 | 社会工程 | 产品教育、明确权限 | 持续 |
+| 元监控篡改 | MetaMonitor 只读，不可外部修改 | 已实现 |
+| 强制坍缩攻击 | Awareness 检测，不阻断运算，只通知 | 已实现 |
 
 ---
 
 ## 四、安全审计计划
 
-- **M0**：代码审查（self-audit）
-- **M1**：第三方安全审计（渗透测试）
+- **M0**：代码审查（self-audit，使用 `04_engineering/TECH_REVIEW_CHECKLIST.md`）
+- **M1**：第三方安全审计（渗透测试，重点：SQLCipher 配置、密钥派生、输入验证）
 - **M2**：安全认证（ISO 27001 或 SOC 2 准备）
 - **M3**：企业级安全审计（客户要求）
 
 ---
 
-*本文档为 Aurora 的安全模型。完整安全审计报告见 08_reports/SECURITY_AUDIT_TEMPLATE.md。不是指教，是提醒。*
+*本文档为 Aurora 的安全模型。v0.2.0 修正了加密方案（SQLCipher 替代 AES-256-GCM），增加了 SecurityMode 不阻断原则，增加了 Awareness 检测说明。完整安全审计报告见 08_reports/SECURITY_AUDIT_TEMPLATE.md。不是指教，是提醒。*

@@ -1,6 +1,6 @@
 # Aurora 工程规格：系统设计
 
-**版本**：0.1.0
+**版本**：0.2.0
 **日期**：2026-06-20
 **状态**：活跃
 **分类**：04_engineering — 工程规格
@@ -41,7 +41,7 @@
 | 层级 | 技术 | 选择理由 |
 |------|------|----------|
 | 语言 | Rust | 性能、安全、零 unsafe（Trit-Core 已有） |
-| 数据库 | SQLite | 本地嵌入、零配置、文件即数据库 |
+| 数据库 | SQLite + SQLCipher | 本地嵌入、零配置、文件即数据库、AES-256-CBC 加密 |
 | 桌面 UI | Tauri | Rust 后端 + Web 前端，本地优先 |
 | 前端 | HTML/CSS/JS + Web Components | 轻量、跨平台、不依赖 heavy framework |
 | 小波分析 | 自研 Rust + 可选 Python 桥接 | 性能 vs 开发速度的平衡 |
@@ -95,13 +95,18 @@ pub trait DataSource {
     fn disconnect(&mut self);
 }
 
+/// RawSignal 定义（唯一、统一）
+/// 注意：此结构体在 core 模块中只定义一次，数据模型层直接复用
 pub struct RawSignal {
-    pub timestamp: DateTime<Utc>,
-    pub source_type: SourceType,  // Communication / Calendar / Location / Physiological / Environmental
+    pub id: Uuid,                    // 信号唯一标识
+    pub timestamp: DateTime<Utc>,   // 时间戳
+    pub source_type: SourceType,    // Communication / Calendar / Location / Physiological / Environmental
     pub metadata: HashMap<String, String>,  // 频率、时长、方向等元数据
     pub content_hash: Option<String>,  // 内容哈希（不存储内容本身）
 }
 ```
+
+**关键修正**：`RawSignal` 在系统中只定义一次。数据采集模块输出 `RawSignal`，数据模型层直接复用此结构体，不重新定义。字段统一为：`id`、`timestamp`、`source_type`、`metadata`、`content_hash`。
 
 #### 小波分析模块（`aurora_core::wavelet`）
 
@@ -136,38 +141,79 @@ pub struct FrameModel {
 
 impl FrameModel {
     pub fn weights(&self) -> FrameWeights;
-    pub fn shock_level(&self, old_env: &Environment, new_env: &Environment) -> ShockLevel;
+    pub fn shock_level(&self, old_env: &Environment, new_env: &Environment) -> ShockResult;
     pub fn role_boundary(&self) -> RoleBoundaryMetrics;
+    pub fn update_environment(&mut self, new_env: EnvironmentalState);
+    pub fn update_role(&mut self, new_role: RoleState);
 }
 ```
 
 #### Trit-Core 扩展模块（`aurora_core::trit`）
 
+**关键修正**：不定义 wrapper（`AuroraFrame`/`AuroraDomain`），直接在 Trit-Core 的 `Frame`/`Domain` enum 中扩展。
+
 ```rust
-// 扩展 Trit-Core 的 Frame
-pub enum AuroraFrame {
-    Core(Frame),          // Trit-Core 原有 Frame
-    GeoEco,
-    Developmental,
-    Role,
-    Environmental,
-}
+// 在 Trit-Core 的 Frame enum 中直接新增变体（向后兼容）
+// 文件: trit-core/src/core/frame.rs
+// 
+// pub enum Frame {
+//     Science,
+//     Individual,
+//     Consensus,
+//     Absolute,
+//     Meta,          // 系统内部帧，不可作为外部输入
+//     FirstPerson,
+//     Embodied,
+//     Relational,
+//     // Aurora 扩展 — 直接作为独立变体
+//     GeoEco,          // 地理生态参考系
+//     Developmental,   // 成长轨迹参考系
+//     Role,            // 角色参考系
+//     Environmental,   // 环境状态参考系
+// }
+//
+// 在 Trit-Core 的 Domain enum 中直接新增变体
+// pub enum Domain {
+//     Physical,
+//     Engineering,
+//     MedicalEthics,
+//     ValueJudgment,
+//     General,
+//     Custom(String),
+//     // Aurora 扩展
+//     Organizational,
+//     Relational,
+//     Cognitive,
+//     Environmental,
+// }
 
-// 扩展 Trit-Core 的 Domain
-pub enum AuroraDomain {
-    Core(Domain),         // Trit-Core 原有 Domain
-    Organizational,
-    Relational,
-    Cognitive,
-    Environmental,
-}
-
-// 扩展 MetaInterrupt
+// Aurora 的扩展中断类型
 pub enum AuroraInterruptType {
     Core(ConflictType),   // Trit-Core 原有中断类型
     EnvironmentalPhaseShock,
     RoleContamination,
     SpectralReconfiguration,
+    DataAnomaly,          // 输入模式与历史基线偏离 > 3σ
+    PolicyViolation(PolicyViolation), // 策略违反通知
+}
+
+// SecurityMode 扩展
+pub enum AuroraSecurityMode {
+    Normal,
+    Awareness { trigger: PolicyViolation, timestamp: DateTime<Utc> },
+    Transparency { since: DateTime<Utc>, violation_count: u32 },
+}
+
+impl AuroraSecurityMode {
+    /// 所有状态允许运算。系统不阻止用户操作。
+    pub fn allows_computation(&self) -> bool {
+        true  // 不阻断原则
+    }
+    
+    /// 是否应通知用户
+    pub fn should_notify(&self) -> bool {
+        matches!(self, Self::Awareness { .. } | Self::Transparency { .. })
+    }
 }
 ```
 
@@ -186,17 +232,11 @@ pub struct User {
     pub alert_settings: AlertSettings, // 告警设置
 }
 
-// 原始信号
-pub struct RawSignal {
-    pub id: Uuid,
-    pub user_id: Uuid,
-    pub timestamp: DateTime<Utc>,
-    pub source_type: SourceType,
-    pub metadata: HashMap<String, String>,
-}
+// 原始信号（复用 data 模块的 RawSignal，不重复定义）
+pub use aurora_core::data::RawSignal;
 
 // 小波特征
-pub struct WaveletFeature {
+pub struct WaveletFeatureRecord {
     pub id: Uuid,
     pub user_id: Uuid,
     pub timestamp: DateTime<Utc>,
@@ -204,7 +244,7 @@ pub struct WaveletFeature {
     pub value: f64,
     pub confidence: f64,
     pub phase: Phase,                 // 归一化到 [0,1]
-    pub frame: AuroraFrame,
+    pub frame: Frame,                 // 直接使用 Trit-Core 的 Frame（含扩展变体）
 }
 
 // Trit 决策
@@ -212,11 +252,12 @@ pub struct TritDecision {
     pub id: Uuid,
     pub user_id: Uuid,
     pub timestamp: DateTime<Utc>,
-    pub domain: AuroraDomain,
-    pub result: TritValue,              // True / Hold / False / Unknown
+    pub domain: Domain,               // 直接使用 Trit-Core 的 Domain（含扩展变体）
+    pub result: TritValue,            // True / Hold / False / Unknown
     pub phase: Phase,
     pub interrupts: Vec<MetaInterrupt>,
-    pub audit_log: String,              // 不可篡改的审计日志
+    pub audit_log: String,            // 不可篡改的审计日志
+    pub user_override: bool,          // 用户是否覆盖了系统的 Hold
 }
 
 // 告警
@@ -229,6 +270,7 @@ pub struct Alert {
     pub message: String,
     pub meta_interrupt: Option<MetaInterrupt>,
     pub resolved: bool,
+    pub user_acknowledged: bool,      // 用户是否已确认
 }
 ```
 
@@ -250,6 +292,7 @@ CREATE TABLE raw_signals (
     timestamp TEXT NOT NULL,
     source_type TEXT NOT NULL,
     metadata TEXT NOT NULL,  -- JSON
+    content_hash TEXT,       -- 可选，内容哈希
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
 CREATE INDEX idx_signals_user_time ON raw_signals(user_id, timestamp);
@@ -263,7 +306,7 @@ CREATE TABLE wavelet_features (
     value REAL NOT NULL,
     confidence REAL NOT NULL,
     phase REAL NOT NULL,
-    frame TEXT NOT NULL,
+    frame TEXT NOT NULL,      -- Frame 变体名称（含扩展变体）
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
 CREATE INDEX idx_features_user_time ON wavelet_features(user_id, timestamp);
@@ -273,11 +316,12 @@ CREATE TABLE trit_decisions (
     id BLOB PRIMARY KEY,
     user_id BLOB NOT NULL,
     timestamp TEXT NOT NULL,
-    domain TEXT NOT NULL,
-    result TEXT NOT NULL,
+    domain TEXT NOT NULL,     -- Domain 变体名称（含扩展变体）
+    result TEXT NOT NULL,     -- True / Hold / False / Unknown
     phase REAL NOT NULL,
     interrupts TEXT NOT NULL,  -- JSON
     audit_log TEXT NOT NULL,
+    user_override INTEGER NOT NULL DEFAULT 0,  -- 用户是否覆盖
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
 CREATE INDEX idx_decisions_user_time ON trit_decisions(user_id, timestamp);
@@ -292,6 +336,7 @@ CREATE TABLE alerts (
     message TEXT NOT NULL,
     meta_interrupt TEXT,  -- JSON
     resolved INTEGER NOT NULL DEFAULT 0,
+    user_acknowledged INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
 CREATE INDEX idx_alerts_user_resolved ON alerts(user_id, resolved);
@@ -302,7 +347,8 @@ CREATE TABLE audit_logs (
     timestamp TEXT NOT NULL,
     operation TEXT NOT NULL,
     details TEXT NOT NULL,
-    hash TEXT NOT NULL  -- 前一行的 hash + 当前行内容的 SHA-256
+    prev_hash TEXT NOT NULL,  -- 前一行的 hash
+    hash TEXT NOT NULL        -- 前一行的 hash + 当前行内容的 SHA-256
 );
 ```
 
@@ -315,11 +361,11 @@ CREATE TABLE audit_logs (
 ```
 原始信号采集 → 数据清洗 → 特征工程 → 小波分析 → Frame 标注
                                                         ↓
-                                        Trit-Core 运算（TAND/TOR/仲裁）
+                                            Trit-Core 运算（TAND/TOR/仲裁）
                                                         ↓
-                                        环境冲击检测 → 角色边界检测 → 元监控
+                                            环境冲击检测 → 角色边界检测 → 元监控
                                                         ↓
-                                        告警生成 → 注意力图谱更新 → 审计日志
+                                            告警生成 → 注意力图谱更新 → 审计日志
 ```
 
 ### 5.2 管道阶段详解
@@ -331,9 +377,9 @@ CREATE TABLE audit_logs (
 | 特征工程 | CleanSignal[] | FeatureVector[] | < 500ms | 降级到简单统计特征 |
 | 小波分析 | FeatureVector[] | WaveletResult | < 1s | 降级到频谱分析 |
 | Frame 标注 | WaveletResult | TritWord[] | < 100ms | 使用默认 Frame |
-| Trit-Core | TritWord[] | TritDecision | < 10ms | SafeFallback 触发 |
-| 冲击检测 | TritDecision + Environment | ShockAlert | < 100ms | 保守估计（高冲击） |
-| 角色检测 | TritDecision + RoleState | RoleAlert | < 100ms | 保守估计（高污染） |
+| Trit-Core | TritWord[] | TritDecision | < 10ms | SafeFallback 触发（用户可关闭） |
+| 冲击检测 | TritDecision + Environment | ShockAlert | < 100ms | 保守估计（高冲击），用户可覆盖 |
+| 角色检测 | TritDecision + RoleState | RoleAlert | < 100ms | 保守估计（高污染），用户可覆盖 |
 | 元监控 | 所有中间结果 | MetaLog | 追加写入 | 不可失败（只读） |
 | 告警生成 | 所有检测结果 | Alert[] | < 100ms | 批量生成，降级显示 |
 | 可视化 | Alert[] + TritDecision[] | UI 更新 | < 200ms | 异步更新 |
@@ -345,7 +391,7 @@ CREATE TABLE audit_logs (
 ### 6.1 测试金字塔
 
 ```
-        /\
+        /\                      
        /  \      E2E 测试（5%）— 完整用户场景
       /    \     — 用真实数据验证端到端管道
      /------\    
@@ -365,6 +411,7 @@ CREATE TABLE audit_logs (
 | 属性测试 | 代数不变量 | proptest | 核心代数 100% |
 | 性能测试 | 延迟/吞吐量 | Criterion | 基准 + 回归 |
 | 安全测试 | 漏洞检测 | cargo-audit + fuzz | 无已知高危 |
+| 伦理门禁测试 | 定心盘一致性 | Rust test | 100% 通过 |
 | E2E 测试 | 用户场景 | 自定义脚本 | 核心场景覆盖 |
 
 ### 6.3 关键测试场景
@@ -374,6 +421,7 @@ CREATE TABLE audit_logs (
 - 冲突场景：模拟跨域冲突，验证 Trit-Core 输出 Hold
 - 角色场景：模拟角色入侵，验证污染检测和预警
 - 极端场景：数据缺失、格式错误、恶意输入、资源耗尽
+- 伦理场景：模拟强制坍缩、参考系入侵，验证 Awareness 检测
 
 ---
 
@@ -385,7 +433,7 @@ CREATE TABLE audit_logs (
 用户设备（macOS/Windows/Linux）
   ├── Aurora Desktop（Tauri）
   │   ├── Rust 后端（aurora-core）
-  │   │   ├── SQLite（本地数据库）
+  │   │   ├── SQLite + SQLCipher（本地加密数据库）
   │   │   ├── Trit-Core（决策协议）
   │   │   └── 小波引擎（分析）
   │   └── Web 前端（UI）
@@ -398,11 +446,11 @@ CREATE TABLE audit_logs (
 本地服务器（可选）
   ├── Aurora Server（Rust）
   │   ├── aurora-core（多用户）
-  │   ├── SQLite（多用户数据库）
+  │   ├── SQLite + SQLCipher（多用户加密数据库）
   │   └── 团队管理模块
   └── 客户端（Tauri Desktop）
-      ├── 个人数据（本地）
-      └── 团队数据（从服务器同步）
+      ├── 个人数据（本地加密）
+      └── 团队数据（从服务器同步，端到端加密）
 ```
 
 ### 7.3 企业部署（企业版）
@@ -412,12 +460,14 @@ CREATE TABLE audit_logs (
   ├── Aurora Enterprise Server
   │   ├── aurora-core（多用户、多团队）
   │   ├── PostgreSQL（可选，企业级数据库）
-  │   ├── LDAP/SSO 集成
-  │   └── 审计日志（集中存储）
+  │   ├── LDAP/SSO 集成（可选）
+  │   └── 审计日志（集中存储，但用户可导出本地副本）
   └── 客户端（Tauri Desktop）
-      ├── 个人数据（本地加密）
-      └── 企业数据（同步）
+      ├── 个人数据（本地加密，用户持有密钥）
+      └── 企业数据（同步，端到端加密）
 ```
+
+**关键**：即使企业部署，个人数据仍本地加密，密钥用户持有。企业管理员无法解密个人数据。
 
 ---
 
@@ -433,6 +483,7 @@ CREATE TABLE audit_logs (
 | 注意力图谱 | 可视化当前注意力分布 | 手动测试 |
 | 环境冲击 | 检测环境切换并分级 | 模拟测试 |
 | 角色边界 | 检测角色入侵并预警 | 模拟测试 |
+| 安全模型 | Awareness 不阻断、SafeFallback 可关闭 | 伦理门禁测试 |
 
 ### 8.2 非功能验收
 
@@ -443,7 +494,8 @@ CREATE TABLE audit_logs (
 | 启动 | < 3秒 | 手动计时 |
 | 小波延迟 | < 1秒（日数据） | Criterion |
 | 安全 | 无已知高危漏洞 | cargo-audit |
+| 定心盘 | 通过 TECH_REVIEW_CHECKLIST | 自检 |
 
 ---
 
-*本工程规格为 Aurora 的系统设计文档。所有模块接口、数据模型、管道设计在此定义。后续实现需严格遵循。不是指教，是提醒。*
+*本工程规格为 Aurora 的系统设计文档。v0.2.0 统一了 RawSignal 定义（只定义一次），修正了 Frame/Domain 扩展方式（直接扩展 enum，非 wrapper），增加了 SecurityMode 集成（Awareness/Transparency），增加了 SQLCipher 加密方案。后续实现需严格遵循。不是指教，是提醒。*

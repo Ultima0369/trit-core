@@ -27,13 +27,32 @@ Aurora/
 
 ## 快速导航
 
+### 如果你是新协作者，今天加入项目：
+
+| 第一步 | 文件 | 说明 |
+|--------|------|------|
+| 1 | [MASTER_PLAN.md](MASTER_PLAN.md) | **唯一执行入口**：当前阶段、第一优先级、今天该做什么。不要先读其他文件。 |
+| 2 | [map/00_START_HERE.md](../map/00_START_HERE.md) | 双螺旋知识库入口：代码与文档的跨链导航 |
+| 3 | [00_manifest/CHARTER.md](00_manifest/CHARTER.md) | 四条底线：不可谈判的约束 |
+
+### 按角色阅读：
+
 | 读者角色 | 推荐阅读顺序 |
 |----------|-------------|
-| **新加入者 / 潜在合作者** | INDEX → 00_manifest/AURORA_MANIFEST.md → 01_insights/ → 03_whitepaper/EXECUTIVE_SUMMARY.md |
-| **技术评审者 / 工程师** | 00_manifest/ → 03_whitepaper/ → 04_engineering/ → 07_specs/ → 05_adr/ |
-| **投资人 / 商业决策者** | 00_manifest/ → 01_insights/COGNITIVE_SOVEREIGNTY.md → 03_whitepaper/EXECUTIVE_SUMMARY.md → 06_roadmap/ |
+| **新加入者 / 潜在合作者** | MASTER_PLAN → 00_manifest/AURORA_MANIFEST.md → 01_insights/ → 03_whitepaper/EXECUTIVE_SUMMARY.md |
+| **技术评审者 / 工程师** | MASTER_PLAN → 00_manifest/ → 03_whitepaper/ → 04_engineering/ → 07_specs/ → 05_adr/ |
+| **投资人 / 商业决策者** | MASTER_PLAN → 00_manifest/ → 01_insights/COGNITIVE_SOVEREIGNTY.md → 03_whitepaper/EXECUTIVE_SUMMARY.md → 06_roadmap/ |
 | **数学 / 理论研究者** | 02_math/ → 03_whitepaper/PROTOCOL_SPEC.md → 05_adr/ |
-| **执行团队 / 开发者** | 06_roadmap/ → 04_engineering/ → 07_specs/ → 08_reports/ |
+| **执行团队 / 开发者** | MASTER_PLAN → 06_roadmap/ → 04_engineering/ → 07_specs/ → 08_reports/ |
+
+## 双螺旋知识库
+
+本项目采用 Obsidian 风格的双螺旋知识库架构。`map/` 目录中的 MOC（Map of Content）文件将 `aurora/` 与 `docs/` 两条文档链统一连接，并与 `src/` 代码链建立交叉引用：
+
+- **知识库入口**: [map/00_START_HERE.md](../map/00_START_HERE.md)
+- **MOC 导航**: [宪章](map/01_manifest.md) · [概念](map/02_concepts.md) · [ADR](map/03_adr.md) · [数学](map/04_math.md) · [工程](map/05_engineering.md) · [代码](map/06_code.md) · [洞察](map/07_insights.md) · [标签](map/99_tag_index.md)
+
+> 用 Obsidian 打开项目根目录，所有 `[[链接]]` 将激活双向导航和图谱视图。
 
 ## 文档状态图
 

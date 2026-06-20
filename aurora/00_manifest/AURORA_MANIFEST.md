@@ -1,11 +1,11 @@
 # Aurora 项目宣言
 
-**版本**：0.1.0  
-**日期**：2026-06-20  
-**状态**：活跃  
-**代号**：Aurora  
-**全称**：Attention Quantification & Decision Protocol System  
-**协议**：MIT  
+**版本**：0.2.0
+**日期**：2026-06-20
+**状态**：活跃
+**代号**：Aurora
+**全称**：Attention Quantification & Decision Protocol System
+**协议**：MIT
 
 ---
 
@@ -19,7 +19,7 @@
 
 资本利用这个机制，构建意识画像，预测并收割注意力。推荐系统预测你的点击，CRM 预测你的购买，量化基金预测你的交易，社交平台预测你的情绪窗口。你的注意力被引导至资本预设的方向，而不是你自己选择的方向。
 
-**结果是：人的"自由选择"， increasingly 是环境默化的输出。**
+**结果是：人的"自由选择"，increasingly 是环境默化的输出。**
 
 ### 1.2 现有解决方案的盲区
 
@@ -133,7 +133,7 @@
 
 1. **注意力节律分析**：用小波变换把离散行为变成连续时间-频率表示，识别基频、谐波、相位漂移、频谱重构
 2. **地理生态参考系**：把出生地、气候、土壤、微生物、社交密度作为认知框架的约束条件
-3. **环境相位冲击检测**：计算环境剧变的冲击等级，在恢复完成前强制悬置决策支持
+3. **环境相位冲击检测**：计算环境剧变的冲击等级，在恢复完成前系统输出 Hold（用户可覆盖）
 4. **三值决策协议**：当不同参考系冲突时，不强制输出建议，而是标记 Hold + 完整审计记录
 5. **角色边界监控**：检测角色 Frame 对自我 Frame 的污染，预警解离风险
 6. **群体意识建模**：预测群体走向中的默化成分，给个体留出 Hold 空间
@@ -142,13 +142,15 @@
 
 **原则**：订阅制，无广告，数据不上云，本地优先
 
-| 层级 | 价格（月） | 功能 |
-|------|----------|------|
+| 层级 | 价格（月，人民币）[^1] | 功能 |
+|------|----------------------|------|
 | **个人版** | 免费 / ¥200 | 单数据源、基础注意力图谱、个人节奏报告 |
 | **专业版** | ¥2,000 | 多数据源、环境冲击检测、角色边界监控、决策审计 |
 | **团队版** | ¥10,000+ | 多人拓扑、节点相变检测、组织涡旋动力学、级联风险 |
 | **企业版** | 定制 | 本地部署、私有协议、自定义 Frame/Domain、专属支持 |
 | **决策审计服务** | 按项目 ¥5K-¥50K | 人工 + AI 深度分析、组织认知诊断、恢复协议设计 |
+
+[^1]: 人民币计价。美元参考汇率按发布时计算。
 
 ---
 
@@ -166,13 +168,15 @@
 - 个人识别信息（PII）在采集时脱敏
 - 内容不读取：只提取时间/频率/方向元数据，不读取邮件正文、消息内容
 - 保留期限：用户可设置自动删除窗口（默认90天滚动）
-- 加密：AES-256-GCM，密钥由用户持有
+- 加密：SQLCipher（AES-256-CBC + HMAC-SHA256），密钥由用户持有[^2]
+
+[^2]: SQLite 原生不支持加密。使用 SQLCipher（`rusqlite` 的 `bundled-sqlcipher` 特性），加密方案为 AES-256-CBC + HMAC-SHA256。不是 AES-256-GCM。
 
 ### 4.3 可审计（Auditable）
 
 - 每个决策建议附带完整的 MetaInterrupt 日志
 - 所有关键路径通过 tracing 记录
-- 审计日志追加写入，不可篡改
+- 审计日志追加写入，不可篡改（链式哈希）
 - 用户可以回答"为什么系统这样建议"
 
 ### 4.4 可验证（Verifiable）
@@ -223,8 +227,9 @@ Aurora 是 Trit-Core 的**上层应用**，不是替代品。
 | 层级 | Trit-Core | Aurora |
 |------|-----------|--------|
 | 核心代数 | 三值逻辑（TAND/TOR/TNOT） | 使用 Trit-Core 的代数 |
-| 参考系 | Frame（Science/Individual/Consensus） | 扩展 Frame（GeoEco/Developmental/Role） |
-| 仲裁域 | Domain（Physical/Engineering/MedicalEthics） | 扩展 Domain（Organizational/Relational/Cognitive） |
+| 参考系 | Frame（Science/Individual/Consensus） | 扩展 Frame（GeoEco/Developmental/Role/Environmental）——直接扩展 enum，非 wrapper |
+| 仲裁域 | Domain（Physical/Engineering/MedicalEthics） | 扩展 Domain（Organizational/Relational/Cognitive/Environmental） |
+| 安全模型 | SafeFallback + MetaMonitor | 集成 Awareness/Transparency（不阻断运算） |
 | 应用层 | 无 | 数据采集、小波分析、可视化、告警 |
 | 用户界面 | CLI | 桌面应用（Tauri）+ 可选 Web 仪表板 |
 
@@ -248,4 +253,4 @@ Aurora 是 Trit-Core 的**上层应用**，不是替代品。
 
 ---
 
-*本宣言为 Aurora 项目的顶层设计，所有后续文档均由此推导。不是指教，是提醒。*
+*本宣言为 Aurora 项目的顶层设计。v0.2.0 统一货币符号为人民币（¥），修正加密方案为 SQLCipher（AES-256-CBC + HMAC-SHA256）。所有后续文档均由此推导。不是指教，是提醒。*

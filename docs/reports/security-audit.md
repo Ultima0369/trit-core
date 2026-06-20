@@ -5,7 +5,7 @@
 **审计方法**: SAST（静态分析）→ SCA（依赖扫描）→ 人工逻辑审查
 **审计标准**: OWASP Top 10 (2021)、CWE/SANS Top 25、GDPR、个保法、等保 2.0
 
-> **历史版本说明**：本报告审计的是 Trit-Core v0.1.0。v0.2.0 已移除网络层（`src/net/`、`ResonanceBus`、分布式协议），相应的网络攻击面已不存在。当前安全状态请参考 `audit_log/08_reflexive_audit.md` 与最新源码。
+> **历史版本说明**：本报告审计的是 Trit-Core v0.1.0。v0.2.0 已移除网络层（`src/net/`、`ResonanceBus`、分布式协议），相应的网络攻击面已不存在。当前安全状态请参考 `audit_log/08_reflexive_audit.md` 与最新源码。**本报告中部分问题已在后续版本中修正。**
 
 ---
 

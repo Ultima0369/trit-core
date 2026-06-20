@@ -1,124 +1,101 @@
-# Trit-Core 文档导航
+# Trit-Core Documentation
 
-**Current version**: 0.3.0
-
-欢迎。本文档系统按 [Diátaxis](https://diataxis.fr/) 框架组织为四类：
-
-- **Tutorials** — 手把手教程，面向学习者
-- **How-to Guides** — 任务导向指南，面向使用者
-- **Explanation** — 概念解释，面向理解者
-- **Reference** — 精确信息，面向查阅者
-
-此外设有 `reports/`（验证与审计报告）、`adr/`（架构决策记录）、`archive/`（历史归档）和 `zh/`（中文翻译）。
+> **Language note**: This directory (`docs/`) contains the original Trit-Core technical documentation, primarily in English for crate developers and researchers. For the Chinese Aurora application documentation system, see [`aurora/`](../aurora/). **If you are working on Aurora, see [Aurora MASTER_PLAN](../aurora/MASTER_PLAN.md) for the execution entry point.**
 
 ---
 
-## 推荐阅读路径
+## Quick Navigation
 
-| 你的身份 | 推荐路径 |
+| If you want to... | Read this |
 |---|---|
-| 第一次听说这个项目 | [WHAT_IS_TRIT](tutorials/WHAT_IS_TRIT.md) → [PHILOSOPHY](explanation/PHILOSOPHY.md) → [README](/README.md) |
-| 想快速跑起来看看 | [QUICKSTART](tutorials/QUICKSTART.md) → [CLI_REFERENCE](how-to/CLI_REFERENCE.md) |
-| 想理解架构和数学 | [CONCEPTS](explanation/CONCEPTS.md) → [ARCHITECTURE](explanation/ARCHITECTURE.md) → [ADR 系列](adr/) |
-| 想集成到自己的项目 | [API 参考](reference/api.md) → [MODULES](reference/MODULES.md) → [CUSTOM_RULE](how-to/CUSTOM_RULE.md) |
-| 想贡献代码 | [CONTRIBUTING](how-to/CONTRIBUTING.md) → [MODULES](reference/MODULES.md) → [BENCHMARK](reference/BENCHMARK.md) |
-| 想评审或审计项目 | [REVIEWER_GUIDE](how-to/REVIEWER_GUIDE.md) → [validation-report](reports/validation-report.md) → [security-audit](reports/security-audit.md) |
-| 想理解深层动机和未来 | [PHILOSOPHY](explanation/PHILOSOPHY.md) → [DIALOGUE_ORIGIN](explanation/insights/DIALOGUE-ORIGIN.md) → [FUTURE](explanation/insights/FUTURE.md) → [CONFLICT_CATALOG](explanation/insights/CONFLICT_CATALOG.md) |
+| Understand what Trit-Core is and why it exists | [`technical-whitepaper.md`](technical-whitepaper.md) |
+| Learn the core concepts (TritValue, Frame, Phase, MetaInterrupt) | [`explanation/CONCEPTS.md`](explanation/CONCEPTS.md) |
+| Understand the architecture and module structure | [`explanation/ARCHITECTURE.md`](explanation/ARCHITECTURE.md) |
+| Run your first scenario | [`tutorials/QUICKSTART.md`](tutorials/QUICKSTART.md) |
+| Integrate Trit-Core into your own project | [`reference/api.md`](reference/api.md) |
+| Understand the design decisions behind the code | [`adr/`](adr/) |
+| Review validation evidence | [`reports/validation-report.md`](reports/validation-report.md) |
 
 ---
 
-## 文档地图
+## Directory Structure
 
-### 🌱 Tutorials — 入门教程
+### `adr/` — Architecture Decision Records
 
-| 文档 | 内容 |
-|---|---|
-| [WHAT_IS_TRIT](tutorials/WHAT_IS_TRIT.md) | 三个故事解释“为什么需要三值决策” |
-| [QUICKSTART](tutorials/QUICKSTART.md) | 3 分钟：克隆→编译→运行第一个场景 |
+English-language ADRs for the Trit-Core crate:
 
-### 🛠️ How-to Guides — 使用指南
+- [`001-ternary-logic.md`](adr/001-ternary-logic.md) — Why ternary logic over binary
+- [`002-phase-arithmetic.md`](adr/002-phase-arithmetic.md) — Phase arithmetic design
+- [`003-domain-conflict.md`](adr/003-domain-conflict.md) — Domain conflict detection and arbitration
+- [`004-distributed-protocol.md`](adr/004-distributed-protocol.md) — Distributed protocol (removed in v0.2.0, kept for historical reference)
 
-| 文档 | 内容 |
-|---|---|
-| [CLI_REFERENCE](how-to/CLI_REFERENCE.md) | `trit-sandbox` 命令、参数、JSON 场景格式规范 |
-| [CONFIGURATION](how-to/CONFIGURATION.md) | 环境变量与日志行为控制 |
-| [CUSTOM_RULE](how-to/CUSTOM_RULE.md) | `RuleLoader` 特质：如何定义自定义仲裁域 |
-| [CONTRIBUTING](how-to/CONTRIBUTING.md) | 代码风格、CI 门禁、测试策略、如何添加新 Frame/Domain |
-| [REVIEWER_GUIDE](how-to/REVIEWER_GUIDE.md) | 评审者指引（核心声明验证步骤） |
+### `explanation/` — Conceptual Documentation
 
-### 📖 Explanation — 概念解释
+- [`ARCHITECTURE.md`](explanation/ARCHITECTURE.md) — System architecture (English)
+- [`CONCEPTS.md`](explanation/CONCEPTS.md) — Core type definitions and semantics (Chinese)
+- [`PHILOSOPHY.md`](explanation/PHILOSOPHY.md) — Design philosophy and motivation (Chinese)
+- [`insights/`](explanation/insights/) — Deep-dive essays on epistemology, conflict patterns, humanities, and dao-science connections (Chinese)
 
-| 文档 | 内容 |
-|---|---|
-| [技术白皮书](technical-whitepaper.md) | v0.3.0 综合技术总览与审核索引（本文档替代 archive/technical-whitepaper.md） |
-| [CONCEPTS](explanation/CONCEPTS.md) | `TritValue`、`Phase`、`Frame`、`Domain`、`TritWord` 的完整定义与设计理由 |
-| [ARCHITECTURE](explanation/ARCHITECTURE.md) | 分层架构、热/冷路径、SafeFallback 的 IEC 61508 依据 |
-| [PHILOSOPHY](explanation/PHILOSOPHY.md) | 热力学约束、群体认知髓鞘化、AI 对齐的认知生态视角 |
-| [ROADMAP](explanation/roadmap.md) | 当前版本路线图与里程碑 |
+### `how-to/` — Usage Guides
 
-#### 深度洞察（explanation/insights/）
+- [`CLI_REFERENCE.md`](how-to/CLI_REFERENCE.md) — `trit-sandbox` CLI usage
+- [`CONFIGURATION.md`](how-to/CONFIGURATION.md) — Environment variables and logging
+- [`CONTRIBUTING.md`](how-to/CONTRIBUTING.md) — Contribution guidelines
+- [`CUSTOM_RULE.md`](how-to/CUSTOM_RULE.md) — Defining custom arbitration domains
+- [`REVIEWER_GUIDE.md`](how-to/REVIEWER_GUIDE.md) — Guide for external reviewers
 
-| 文档 | 内容 |
-|---|---|
-| [EPISTEMIC_HUMILITY](explanation/insights/EPISTEMIC-HUMILITY.md) | 认识论谦逊声明：提醒而非指教，邀请实践检验与交叉验证 |
-| [DAO_SCIENCE_REFERENCES](explanation/insights/DAO-SCIENCE-REFERENCES.md) | dao-science 项目引用参考：认知频谱、知止、第一人称认识论、偏离代价 |
-| [DIALOGUE_ORIGIN](explanation/insights/DIALOGUE-ORIGIN.md) | 开悟.md 对话与 Trit-Core 的思想源流关系 |
-| [HUMANITIES_INDEX](explanation/insights/HUMANITIES-INDEX.md) | 人文关键词科学化定义索引：科学范式、个体实情、身心关系、意识起源等 |
-| [CONFLICT_CATALOG](explanation/insights/CONFLICT_CATALOG.md) | 跨域冲突模式分类与记录 |
-| [FUTURE](explanation/insights/FUTURE.md) | 已知局限与可能的解决路径 |
-| [GLOSSARY](explanation/insights/GLOSSARY.md) | 术语表：本项目发明的术语及其跨学科对应 |
+### `reference/` — API & Technical Reference
 
-### 🔍 Reference — 参考文档
+- [`api.md`](reference/api.md) — Public API contract (English)
+- [`MODULES.md`](reference/MODULES.md) — Module-level documentation
+- [`BENCHMARK.md`](reference/BENCHMARK.md) — Performance benchmarks
 
-| 文档 | 内容 |
-|---|---|
-| [api.md](reference/api.md) | 公共 API 契约：类型、方法、错误分类 |
-| [MODULES](reference/MODULES.md) | `src/` 下每个子模块的职责、关键函数、设计约束 |
-| [BENCHMARK](reference/BENCHMARK.md) | Criterion 基准测试运行方法与当前性能数据 |
+### `reports/` — Validation & Audit Reports
 
-### 📊 Reports — 报告与审计
+- [`validation-report.md`](reports/validation-report.md) — M2/M3 validation (v0.3.0, English)
+- [`performance-validation.md`](reports/performance-validation.md) — Performance validation (v0.2.0)
+- [`security-audit.md`](reports/security-audit.md) — Security audit (v0.1.0, **historical**)
+- [`code-quality-audit.md`](reports/code-quality-audit.md) — Code quality audit (v0.1.0, **historical**)
+- [`cto-audit-report.md`](reports/cto-audit-report.md) — CTO audit (v0.1.0, **historical**)
+- [`deep-audit-cto-2026-06-18.md`](reports/deep-audit-cto-2026-06-18.md) — Deep technical audit (v0.1.0, **historical**)
 
-| 文档 | 内容 |
-|---|---|
-| [validation-report](reports/validation-report.md) | M2/M3 三元 vs 二元对比验证（0.3.0） |
-| [performance-validation](reports/performance-validation.md) | 端到端性能验证（TPS 对比、瓶颈分析） |
-| [security-audit](reports/security-audit.md) | 安全审计报告（v0.1.0） |
-| [code-quality-audit](reports/code-quality-audit.md) | 代码质量审计报告（v0.1.0） |
-| [cto-audit-report](reports/cto-audit-report.md) | CTO 审计报告（v0.1.0） |
-| [deep-audit-cto](reports/deep-audit-cto-2026-06-18.md) | CTO 深度技术审计（v0.1.0，42 项发现） |
-| [reflexive-audit](../audit_log/08_reflexive_audit.md) | v0.2.0 重构自反性审计与迭代跟进 |
+> **Historical reports**: Reports marked **historical** audit Trit-Core v0.1.0 or v0.2.0. Many issues identified have been resolved in subsequent versions. Current status is tracked in `audit_log/08_reflexive_audit.md` and `aurora/08_reports/`.
 
-### 🗃️ ADR — 架构决策记录
+### `tutorials/` — Getting Started
 
-| 文档 | 内容 |
-|---|---|
-| [adr/001-ternary-logic.md](adr/001-ternary-logic.md) | 采用三值逻辑的决策 |
-| [adr/002-phase-arithmetic.md](adr/002-phase-arithmetic.md) | Phase 算术设计 |
-| [adr/003-domain-conflict.md](adr/003-domain-conflict.md) | 域冲突检测策略 |
-| [adr/004-distributed-protocol.md](adr/004-distributed-protocol.md) | 分布式节点协议（已归档，v0.1.x） |
+- [`QUICKSTART.md`](tutorials/QUICKSTART.md) — 3-minute quickstart
+- [`WHAT_IS_TRIT.md`](tutorials/WHAT_IS_TRIT.md) — Three stories explaining ternary decisions
+
+### `archive/` — Historical Snapshots (v0.1.x)
+
+- [`preprint.md`](archive/preprint.md) — v0.1.0 preprint
+- [`roadmap-v0.1.0.md`](archive/roadmap-v0.1.0.md) — v0.1.x roadmap
+- [`technical-whitepaper.md`](archive/technical-whitepaper.md) — v0.1.x whitepaper
+
+### `_archive/superpowers/` — AI Work Logs
+
+Design specs and implementation plans from the AI-assisted documentation and architecture design sessions (June 2026). Kept for traceability.
 
 ---
 
-## 历史文档（v0.1.x / v0.2.0）
+## Relationship to `aurora/`
 
-以下文档描述早期版本，已归档。完整归档说明见 [archive/README.md](archive/README.md)。
+- **`docs/`** — Trit-Core crate documentation. Mix of English (technical reference, ADRs) and Chinese (concepts, philosophy, insights).面向 Rust 开发者与研究者.
+- **`aurora/`** — Aurora application documentation system. Fully Chinese. 面向 Aurora 最终用户与中文社区.
 
-| 文档 | 内容 |
-|---|---|
-| [archive/technical-whitepaper.md](archive/technical-whitepaper.md) | 技术白皮书（中文，v0.1.x） |
-| [archive/preprint.md](archive/preprint.md) | 预印本（英文，v0.1.x） |
-| [archive/roadmap-v0.1.0.md](archive/roadmap-v0.1.0.md) | v0.1.0 路线图快照 |
-| [zh/README.zh.md](zh/README.zh.md) | 中文文档入口（v0.1.x 历史文档，按 Diátaxis 镜像组织） |
-| [zh/archive/whitepaper.zh.md](zh/archive/whitepaper.zh.md) | 技术白皮书（中文，v0.1.x） |
-| [zh/archive/preprint.zh.md](zh/archive/preprint.zh.md) | 学术预印本（中文，v0.1.x） |
-| [zh/explanation/roadmap.zh.md](zh/explanation/roadmap.zh.md) | 路线图草案（中文，v0.1.x） |
-| [zh/explanation/architecture-audit.zh.md](zh/explanation/architecture-audit.zh.md) | 架构审计（中文，v0.1.x） |
-| [zh/reference/api.zh.md](zh/reference/api.zh.md) | 公共 API 契约（中文，v0.1.x） |
+Both are maintained independently. When Trit-Core releases a new version, update `docs/`; when Aurora ships a feature, update `aurora/`.
 
-当前版本顶层文件：[CHANGELOG.md](../CHANGELOG.md)、[SECURITY.md](../SECURITY.md)。
+## 双螺旋知识库
+
+本项目采用 Obsidian 风格的双螺旋知识库架构。`map/` 目录中的 MOC（Map of Content）文件将 `docs/` 与 `aurora/` 两条文档链统一连接，并与 `src/` 代码链建立交叉引用：
+
+- **知识库入口**: [map/00_START_HERE.md](../map/00_START_HERE.md)
+- **MOC 导航**: [宪章](../map/01_manifest.md) · [概念](../map/02_concepts.md) · [ADR](../map/03_adr.md) · [数学](../map/04_math.md) · [工程](../map/05_engineering.md) · [代码](../map/06_code.md) · [洞察](../map/07_insights.md) · [标签](../map/99_tag_index.md)
+
+> 用 Obsidian 打开项目根目录，所有 `[[链接]]` 将激活双向导航和图谱视图。
 
 ---
 
-## 关于本文档系统
-
-本导航文件 (`INDEX.md`) 是文档系统的入口。所有活跃文档按 Diátaxis 四类 + Reports/ADR/Archive 组织，便于按读者目的查找和维护。旧文档保留在 `archive/` 或 `zh/` 中，确保外部引用不失效。
+**Version**: 0.3.0  
+**License**: MIT  
+**Last Updated**: 2026-06-20

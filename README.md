@@ -1,5 +1,9 @@
 # Trit-Core v0.3.0
 
+> **Aurora 开发者入口**: [aurora/MASTER_PLAN.md](aurora/MASTER_PLAN.md) — 今天加入项目，第一步该做什么。
+>
+> **双螺旋知识库**: 用 Obsidian 打开 `map/00_START_HERE.md`，探索代码与知识的交织图谱。→ [进入知识库](map/00_START_HERE.md)
+
 [![CI](https://github.com/trit-core/trit-core/actions/workflows/ci.yml/badge.svg)](https://github.com/trit-core/trit-core/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/rust-1.70%2B-blue.svg)](https://www.rust-lang.org)
