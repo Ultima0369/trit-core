@@ -15,8 +15,8 @@ use crate::core::hold::{HoldState, HolderConfig};
 use crate::core::phase::Phase;
 use crate::core::value::TritValue;
 use crate::core::word::TritWord;
-use crate::core::TernaryAlgebra;
-use crate::meta::{ArbitrationResult, Domain, MetaInterrupt, ResolutionPolicy, SafeFallback};
+use crate::meta::SafeFallback;
+use crate::meta::{ArbitrationResult, Domain};
 use crate::sandbox::diagnostic::SandboxDiagnostics;
 use crate::sandbox::error::SandboxError;
 use crate::sandbox::input::{ScenarioInput, SignalInput};
@@ -34,8 +34,7 @@ use crate::sandbox::validate::{sanitize_log_field, validate_scenario};
 pub struct SandboxPipeline {
     pub(crate) registry: Option<FrameRegistry>,
     pub(crate) dry_run: bool,
-    pub(crate) safe_fallback: SafeFallback,
-    pub(crate) reflexive: Option<ReflexiveAuditor>,
+    pub(crate) decision_engine: crate::core::decision_engine::DecisionEngine,
     pub(crate) attention: Option<AttentionScheduler>,
     pub(crate) self_knowledge: Option<SelfKnowledge>,
     pub(crate) holder_config: Option<HolderConfig>,
@@ -56,8 +55,7 @@ impl std::fmt::Debug for SandboxPipeline {
         f.debug_struct("SandboxPipeline")
             .field("registry", &self.registry)
             .field("dry_run", &self.dry_run)
-            .field("safe_fallback", &self.safe_fallback)
-            .field("reflexive", &self.reflexive)
+            .field("decision_engine", &"DecisionEngine { .. }")
             .field("attention", &self.attention)
             .field("self_knowledge", &self.self_knowledge)
             .field("holder_config", &self.holder_config)
@@ -87,8 +85,7 @@ impl SandboxPipeline {
         Self {
             registry: None,
             dry_run: false,
-            safe_fallback: SafeFallback::new(),
-            reflexive: None,
+            decision_engine: crate::core::decision_engine::DecisionEngine::new(),
             attention: None,
             self_knowledge: None,
             holder_config: None,
@@ -117,13 +114,13 @@ impl SandboxPipeline {
 
     /// Inject a custom SafeFallback configuration.
     pub fn with_safe_fallback(mut self, safe_fallback: SafeFallback) -> Self {
-        self.safe_fallback = safe_fallback;
+        self.decision_engine = self.decision_engine.with_safe_fallback(safe_fallback);
         self
     }
 
     /// Attach a reflexive auditor.
     pub fn with_reflexive(mut self, auditor: ReflexiveAuditor) -> Self {
-        self.reflexive = Some(auditor);
+        self.decision_engine = self.decision_engine.with_reflexive(auditor);
         self
     }
 
@@ -148,6 +145,7 @@ impl SandboxPipeline {
     /// Enable phase-trace collection.
     pub fn with_trace_phase(mut self, enabled: bool) -> Self {
         self.trace_phase = enabled;
+        self.decision_engine = self.decision_engine.with_trace_phase(enabled);
         self
     }
 
@@ -207,30 +205,45 @@ impl SandboxPipeline {
         // Stages 1–4: validate, build policy, build trits, registry check
         let trits = self.stage_validate_and_build(scenario, &mut diagnostics)?;
 
-        // Stage 5: batch TAND cascade
-        let (current, interrupts) = self.stage_tand_cascade(&trits, &mut diagnostics);
+        // Stages 5–8: TAND cascade → arbitration → reflexive guard → SafeFallback
+        let stage_start = Instant::now();
+        let decision_result = self.stage_decide(&scenario.domain, &trits)?;
+        diagnostics.record_stage("t_and_n", stage_start);
 
-        // Stages 6–8: arbitration, reflexive guard, SafeFallback
-        let (final_word, policy_action_str, reflexive_alert) = self.stage_arbitrate_and_guard(
-            scenario,
-            &trits,
-            &current,
-            interrupts,
-            &mut diagnostics,
-        )?;
+        // Record arbitration result
+        diagnostics.record_policy_action(&decision_result.policy_action);
+        diagnostics.record_stage("arbitrate", Instant::now());
+
+        // Record interrupts
+        diagnostics.record_interrupts(&decision_result.interrupts);
+
+        // Record reflexive guard
+        if decision_result.reflexive_alert.is_some() {
+            diagnostics.mark_reflexive_guard();
+        }
+        diagnostics.record_stage("reflexive_guard", Instant::now());
+
+        // Record SafeFallback
+        if decision_result.safe_fallback_triggered {
+            diagnostics.mark_safe_fallback();
+        }
+        diagnostics.interrupts = decision_result.interrupts.clone();
+        diagnostics.record_stage("safe_fallback", Instant::now());
 
         // Stage 8b: sample OS → ComputeBudget.depth_level
         self.stage_sample_budget(&mut diagnostics);
 
         // Stages 9–10: attention scheduling, self-knowledge inference
-        // Gated by depth_level >= Standard
+        let final_word = decision_result.final_word;
+        let policy_action_str = format!("{}", decision_result.policy_action);
+        let reflexive_alert = decision_result.reflexive_alert;
         self.stage_optional_extensions(&trits, &final_word, &mut diagnostics);
 
         // Stage 10b: clock tick — advance the harmonic oscillator
         self.stage_tick_clock(&mut diagnostics);
 
         // Stage 11: phase trace
-        let mut final_word = final_word; // ← make mutable for anchor override
+        let mut final_word = final_word;
         if self.trace_phase {
             diagnostics.record_phase(final_word.phase().inner());
         }
@@ -278,14 +291,14 @@ impl SandboxPipeline {
         diagnostics.record_stage("validate", stage_start);
         debug!("scenario input validated");
 
-        // Stage 2: build policy
+        // Stage 2: validate domain (parse-only, full policy is built in DecisionEngine)
         let stage_start = Instant::now();
-        let _policy = build_policy(&scenario.domain).map_err(|e| {
-            error!(error = %e, category = %e.category_name(), "policy build failed");
-            e
+        let _domain: Domain = scenario.domain.parse().map_err(|e| {
+            error!(error = %e, category = "domain", "domain parse failed");
+            SandboxError::InvalidDomain(format!("{}", e))
         })?;
         diagnostics.record_stage("build_policy", stage_start);
-        info!(domain = %scenario.domain, "policy built");
+        info!(domain = %scenario.domain, "domain validated");
 
         // Stage 3: build trits
         let stage_start = Instant::now();
@@ -318,180 +331,30 @@ impl SandboxPipeline {
         Ok(trits)
     }
 
-    /// Stage 5: batch TAND cascade over all input trits.
-    fn stage_tand_cascade(
-        &self,
-        trits: &[TritWord],
-        diagnostics: &mut SandboxDiagnostics,
-    ) -> (TritWord, Vec<MetaInterrupt>) {
-        let stage_start = Instant::now();
-        trace!("running batch TAND cascade");
-        let (current, interrupts) = TernaryAlgebra::t_and_n(trits);
-        diagnostics.record_interrupts(&interrupts);
-        diagnostics.record_stage("t_and_n", stage_start);
-        info!(
-            result_value = ?current.value(),
-            result_frame = %current.frame(),
-            interrupt_count = interrupts.len(),
-            "TAND cascade complete"
-        );
-        (current, interrupts)
-    }
-
-    /// Stages 6–8: policy arbitration, reflexive guard, SafeFallback.
-    fn stage_arbitrate_and_guard(
+    /// Stages 5–8: delegate to DecisionEngine for TAND → arbitration → guard → SafeFallback.
+    fn stage_decide(
         &mut self,
-        scenario: &ScenarioInput,
+        domain_str: &str,
         trits: &[TritWord],
-        current: &TritWord,
-        interrupts: Vec<MetaInterrupt>,
-        diagnostics: &mut SandboxDiagnostics,
-    ) -> Result<(TritWord, String, Option<ReflexiveAlert>), SandboxError> {
+    ) -> Result<crate::core::decision_engine::DecisionResult, SandboxError> {
         if self.dry_run {
-            info!("dry-run mode: skipping arbitration and SafeFallback");
-            diagnostics.record_policy_action(&ArbitrationResult::Negotiate);
-            diagnostics.record_stage("arbitrate", Instant::now());
-            diagnostics.record_stage("reflexive_guard", Instant::now());
-            diagnostics.record_stage("safe_fallback", Instant::now());
-            return Ok((*current, "DryRun".to_string(), None));
+            return Ok(crate::core::decision_engine::DecisionResult {
+                final_word: trits
+                    .first()
+                    .copied()
+                    .unwrap_or_else(|| TritWord::hold(Frame::Meta)),
+                policy_action: ArbitrationResult::Negotiate,
+                interrupts: Vec::new(),
+                reflexive_alert: None,
+                safe_fallback_triggered: false,
+            });
         }
 
-        // Stage 6: policy arbitration
-        let stage_start = Instant::now();
-        trace!("running policy arbitration");
-        let policy = build_policy(&scenario.domain)?;
-        let policy_result = policy.arbitrate(trits).map_err(|e| {
-            error!(error = %e, "policy arbitration failed");
-            SandboxError::InvalidScenario(format!("arbitration failed: {e}"))
-        })?;
-        diagnostics.record_policy_action(&policy_result);
-        diagnostics.record_stage("arbitrate", stage_start);
-        info!(policy_action = %policy_result, "arbitration complete");
+        let domain: Domain = domain_str
+            .parse()
+            .map_err(|e| SandboxError::InvalidDomain(format!("{}", e)))?;
 
-        let arbitrated_word = self.resolve_arbitrated_word(&policy_result, current);
-
-        // Stage 7: reflexive guard
-        let stage_start = Instant::now();
-        let reflexive_alert =
-            self.stage_reflexive_guard(&policy, &arbitrated_word, &interrupts, diagnostics);
-        diagnostics.record_stage("reflexive_guard", stage_start);
-
-        // Stage 8: SafeFallback
-        let stage_start = Instant::now();
-        let force = matches!(&policy_result, ArbitrationResult::ForceCollapse);
-        let final_word =
-            self.stage_safe_fallback(&policy, &arbitrated_word, force, interrupts, diagnostics);
-        diagnostics.record_stage("safe_fallback", stage_start);
-
-        // If reflexive guard fired and output is still forced True/False, override to Hold
-        let final_word = if reflexive_alert.is_some() && final_word.value().is_computable() {
-            TritWord::hold(Frame::Meta)
-        } else {
-            final_word
-        };
-
-        Ok((final_word, format!("{}", policy_result), reflexive_alert))
-    }
-
-    /// Resolve the word to use after arbitration.
-    fn resolve_arbitrated_word(
-        &self,
-        policy_result: &ArbitrationResult,
-        current: &TritWord,
-    ) -> TritWord {
-        match policy_result {
-            ArbitrationResult::Commit(w) => {
-                // If the TAND cascade detected a conflict that the policy
-                // missed (e.g., Unknown propagation producing Hold), the
-                // cascade result should override the policy's mechanical
-                // Commit. But only when the cascade result is Hold — meaning
-                // TAND detected something the arbitration didn't account for.
-                if current.value() == TritValue::Hold && w.value().is_computable() {
-                    TritWord::hold(Frame::Meta)
-                } else {
-                    *w
-                }
-            }
-            // Preserve is an explicit arbitration choice (e.g., FirstPerson
-            // over Science in MedicalEthics). Do not override it with the
-            // TAND cascade result — the policy intentionally chose this frame.
-            ArbitrationResult::Preserve(w) => *w,
-            // A deliberate Hold result (e.g., ValueJudgment) must not be
-            // overridden by the TAND cascade; otherwise a same-frame input
-            // would accidentally commit to True/False.
-            ArbitrationResult::Hold => TritWord::hold(Frame::Meta),
-            // ForceCollapse: return Hold to trigger SafeFallback.guard().
-            // Using the TAND cascade result (*current) would bypass SafeFallback
-            // when the cascade produces True/False without interrupts — e.g.,
-            // Engineering domain with all-Individual True signals.
-            ArbitrationResult::ForceCollapse => TritWord::hold(Frame::Meta),
-            ArbitrationResult::Negotiate => *current,
-        }
-    }
-
-    /// Stage 7: reflexive guard — check for forced decisions with unresolved conflicts.
-    fn stage_reflexive_guard(
-        &mut self,
-        policy: &ResolutionPolicy,
-        arbitrated_word: &TritWord,
-        interrupts: &[MetaInterrupt],
-        diagnostics: &mut SandboxDiagnostics,
-    ) -> Option<ReflexiveAlert> {
-        if let Some(ref mut auditor) = self.reflexive {
-            for int in interrupts {
-                auditor.record_interrupt(int.clone());
-            }
-            if self.trace_phase {
-                auditor.record_phase_shift(crate::adapters::reflexive_audit::PhaseShift::new(
-                    arbitrated_word.phase().inner(),
-                    arbitrated_word.phase().inner(),
-                    "arbitration",
-                ));
-            }
-            let alert = reflexive_guard(
-                auditor,
-                &policy.domain,
-                arbitrated_word,
-                interrupts,
-                &self.safe_fallback,
-            );
-            if alert.is_some() {
-                diagnostics.mark_reflexive_guard();
-            }
-            return alert;
-        }
-        None
-    }
-
-    /// Stage 8: SafeFallback — force False in dangerous domains when uncertain.
-    fn stage_safe_fallback(
-        &self,
-        policy: &ResolutionPolicy,
-        arbitrated_word: &TritWord,
-        force: bool,
-        mut interrupts: Vec<MetaInterrupt>,
-        diagnostics: &mut SandboxDiagnostics,
-    ) -> TritWord {
-        trace!("running SafeFallback guard");
-        let (final_word, fb_interrupt) = self.safe_fallback.guard_with_force(
-            &policy.domain,
-            arbitrated_word,
-            interrupts.len(),
-            force,
-        );
-        if let Some(int) = fb_interrupt {
-            warn!(
-                domain = %policy.domain,
-                force,
-                "SafeFallback triggered: forcing False in dangerous domain"
-            );
-            diagnostics.mark_safe_fallback();
-            interrupts.push(int);
-        } else {
-            debug!("SafeFallback passed through");
-        }
-        diagnostics.interrupts = interrupts;
-        final_word
+        self.decision_engine.decide(trits, &domain)
     }
 
     /// Stages 9–10: attention scheduling and self-knowledge inference.
@@ -697,10 +560,7 @@ impl SandboxPipeline {
                 .map(|i| format!("{:?}: {}", i.conflict, sanitize_log_field(&i.reason)))
                 .collect(),
             policy_action: policy_action_str.to_string(),
-            reflexive_alert: self
-                .reflexive
-                .as_ref()
-                .and(reflexive_alert)
+            reflexive_alert: reflexive_alert
                 .map(|a| format!("{} - {}", a.reason, a.recommendation)),
             attention_cmd: diagnostics.attention_cmd.clone(),
             receiver_estimate: diagnostics.receiver_estimate.clone(),
@@ -811,50 +671,6 @@ pub fn modulate_attention_with_clock_phase(cmd: AttentionCmd, clock_phase: f64) 
     } else {
         cmd
     }
-}
-
-/// Reflexive guard: check whether a forced True/False decision was made
-/// while unresolved cross-frame conflicts remain.
-fn reflexive_guard(
-    _auditor: &mut ReflexiveAuditor,
-    domain: &Domain,
-    decision: &TritWord,
-    interrupts: &[MetaInterrupt],
-    safe_fallback: &SafeFallback,
-) -> Option<ReflexiveAlert> {
-    let unresolved_conflicts = interrupts
-        .iter()
-        .filter(|i| matches!(i.conflict, crate::meta::ConflictType::FrameMismatch))
-        .count();
-
-    let is_forced = decision.value() == TritValue::True || decision.value() == TritValue::False;
-
-    if unresolved_conflicts > 0 && is_forced {
-        // In dangerous domains the forced output may be required by
-        // SafeFallback; do not second-guess safety overrides.
-        let dangerous = safe_fallback.is_dangerous(domain);
-        if dangerous {
-            return None;
-        }
-        let alert = ReflexiveAlert {
-            reason: format!(
-                "Forced {:?} output with {} unresolved frame conflict(s)",
-                decision.value(),
-                unresolved_conflicts
-            ),
-            recommendation: "Reflexive guard suggests returning Hold.".to_string(),
-        };
-        return Some(alert);
-    }
-
-    None
-}
-
-fn build_policy(domain_str: &str) -> Result<ResolutionPolicy, SandboxError> {
-    let domain = domain_str
-        .parse::<Domain>()
-        .map_err(|e| SandboxError::InvalidDomain(format!("{}", e)))?;
-    Ok(ResolutionPolicy::new(domain))
 }
 
 fn build_trits(signals: &[SignalInput]) -> Result<Vec<TritWord>, SandboxError> {

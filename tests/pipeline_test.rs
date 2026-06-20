@@ -4,8 +4,8 @@
 //! under the 300-line SRP limit.
 
 use trit_core::adapters::reflexive_audit::ReflexiveAuditor;
+use trit_core::adapters::self_knowledge::{ResponsePattern, SelfKnowledge};
 use trit_core::adapters::{AttentionCmd, ShiftTarget};
-use trit_core::adapters::{ResponsePattern, SelfKnowledge};
 use trit_core::anchor::ecological_base::EcologicalBase;
 use trit_core::anchor::thermal_baseline::ThermalBaseline;
 use trit_core::anchor::wellbeing_priority::WellbeingPriority;

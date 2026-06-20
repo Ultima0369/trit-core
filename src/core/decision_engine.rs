@@ -91,15 +91,14 @@ impl DecisionEngine {
 
         // Stage 2: policy arbitration
         let policy = ResolutionPolicy::new(domain.clone());
-        let policy_result = policy.arbitrate(trits).map_err(|e| {
-            SandboxError::InvalidScenario(format!("arbitration failed: {e}"))
-        })?;
+        let policy_result = policy
+            .arbitrate(trits)
+            .map_err(|e| SandboxError::InvalidScenario(format!("arbitration failed: {e}")))?;
 
         let arbitrated_word = self.resolve_arbitrated_word(&policy_result, &current);
 
         // Stage 3: reflexive guard
-        let reflexive_alert =
-            self.run_reflexive_guard(&policy, &arbitrated_word, &interrupts);
+        let reflexive_alert = self.run_reflexive_guard(&policy, &arbitrated_word, &interrupts);
 
         // Stage 4: SafeFallback
         let force = matches!(&policy_result, ArbitrationResult::ForceCollapse);
@@ -166,13 +165,11 @@ impl DecisionEngine {
                 auditor.record_interrupt(int.clone());
             }
             if self.trace_phase {
-                auditor.record_phase_shift(
-                    crate::adapters::reflexive_audit::PhaseShift::new(
-                        arbitrated_word.phase().inner(),
-                        arbitrated_word.phase().inner(),
-                        "arbitration",
-                    ),
-                );
+                auditor.record_phase_shift(crate::adapters::reflexive_audit::PhaseShift::new(
+                    arbitrated_word.phase().inner(),
+                    arbitrated_word.phase().inner(),
+                    "arbitration",
+                ));
             }
             return Self::check_reflexive_guard(
                 &policy.domain,
@@ -202,8 +199,7 @@ impl DecisionEngine {
             })
             .count();
 
-        let is_forced =
-            decision.value() == TritValue::True || decision.value() == TritValue::False;
+        let is_forced = decision.value() == TritValue::True || decision.value() == TritValue::False;
 
         if unresolved_conflicts > 0 && is_forced {
             let dangerous = safe_fallback.is_dangerous(domain);
