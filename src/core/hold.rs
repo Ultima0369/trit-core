@@ -18,6 +18,10 @@ pub enum HoldFinality {
     /// The Hold could be resolved if additional information arrives within
     /// the configured question window.
     Resolvable,
+    /// The Hold budget was exhausted — the system escalated to Layer 1
+    /// anchor check. This finality is set by the Hook Manager when
+    /// `hold_cycle_count >= hold_budget`.
+    Expired,
 }
 
 /// State attached to a `Hold` output, describing how it should be treated.

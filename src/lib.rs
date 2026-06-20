@@ -92,6 +92,7 @@ pub mod budget;
 pub mod calibration;
 pub mod clock;
 pub mod core;
+pub mod hook;
 pub mod knowledge;
 pub mod meta;
 pub mod reflexive;
@@ -113,6 +114,15 @@ pub use core::{
     },
     value::TritValue,
     word::{Trit, TritWord, WordError},
+};
+pub use hook::{
+    context_cache::ContextCache,
+    module_registry::{
+        ModuleEntry, ModuleId, ModuleRegistry, ModuleState, RegistryAction, RegistryEvent,
+    },
+    mount_arbiter::{MountArbiter, Resource, ResourceCost},
+    scenario_recognizer::{recognize, recognize_with_score},
+    HoldStrategy, HookContext, HookManager, IterationSummary, ScenarioType, UnmountReason,
 };
 pub use meta::{
     ArbitrationResult, ConflictType, CustomRule, Domain, DomainParseError, FallbackBehavior,
