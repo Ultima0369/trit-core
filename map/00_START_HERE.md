@@ -22,6 +22,8 @@
 | 你想了解... | 进入这条 MOC |
 |---|---|
 | **今天加入项目，第一步该做什么** | [aurora/MASTER_PLAN.md](../aurora/MASTER_PLAN.md) — 唯一执行入口 |
+| 产品战略、里程碑、验收标准（CTO 视角） | [aurora/06_roadmap/CTO_ROADMAP.md](../aurora/06_roadmap/CTO_ROADMAP.md) |
+| Aurora 架构设计（M0-M1 技术方案） | [docs/superpowers/specs/2026-06-20-aurora-architecture-design.md](../docs/superpowers/specs/2026-06-20-aurora-architecture-design.md) |
 | 项目为什么存在、底线是什么 | [[01_manifest]] |
 | TritValue、Frame、Phase、Hold 到底是什么 | [[02_concepts]] |
 | 关键架构决策及其理由 | [[03_adr]] |
