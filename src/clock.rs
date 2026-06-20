@@ -15,8 +15,8 @@
 ///
 /// The clock phase feeds into `AttentionScheduler` as a modulation signal:
 /// near phase peaks (0.8–1.0), the scheduler is more likely to suggest
-/// [`ShiftTo`](crate::attention::AttentionCmd::ShiftTo); near troughs
-/// (0.0–0.2), more likely to [`HoldCurrent`](crate::attention::AttentionCmd::HoldCurrent).
+/// [`ShiftTo`](crate::adapters::bandwidth_scheduler::AttentionCmd::ShiftTo); near troughs
+/// (0.0–0.2), more likely to [`HoldCurrent`](crate::adapters::bandwidth_scheduler::AttentionCmd::HoldCurrent).
 #[derive(Debug, Clone, PartialEq)]
 pub struct HarmonicClock {
     omega: f64, // angular frequency

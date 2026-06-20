@@ -1,8 +1,8 @@
 //! Calibration log: decision history for feedback-driven learning.
 //!
 //! Records every pipeline run as a [`CalibrationEntry`] in a fixed-size
-//! ring buffer. The log is consumed by [`SelfKnowledge`](crate::knowledge::SelfKnowledge)
-//! to calibrate response patterns, and by [`AttentionScheduler`](crate::attention::AttentionScheduler)
+//! ring buffer. The log is consumed by [`SelfKnowledge`](crate::adapters::self_knowledge::SelfKnowledge)
+//! to calibrate response patterns, and by [`AttentionScheduler`](crate::adapters::bandwidth_scheduler::AttentionScheduler)
 //! to adjust bandwidth over time.
 //!
 //! ## Design
@@ -13,7 +13,7 @@
 
 use std::collections::VecDeque;
 
-use crate::attention::AttentionCmd;
+use crate::adapters::AttentionCmd;
 use crate::budget::DepthLevel;
 use crate::core::value::TritValue;
 use crate::meta::Domain;

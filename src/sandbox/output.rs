@@ -1,7 +1,7 @@
+use crate::adapters::self_knowledge::ReceiverEstimate;
 use crate::core::hold::HoldState;
 use crate::core::phase::Phase;
 use crate::core::value::TritValue;
-use crate::knowledge::ReceiverEstimate;
 use serde::{Deserialize, Deserializer, Serialize};
 
 /// Sandbox output record.

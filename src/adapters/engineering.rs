@@ -1,0 +1,221 @@
+//! Engineering architecture adapter — solution generation and feasibility.
+//!
+//! When a decision tends toward True, this module assesses implementation
+//! feasibility: resource availability, path planning, constraint checking.
+//! It does not generate solutions (deferred to future expansion) but gates
+//! True recommendations on resource adequacy.
+
+use crate::adapters::{CognitiveModule, ModuleInput, ModuleOutput};
+use crate::core::TritValue;
+use crate::hook::module_registry::{ModuleId, ModuleState};
+use crate::hook::HookContext;
+
+/// Cognitive module for engineering assessment and feasibility checking.
+pub struct EngineeringArchitecture {
+    state: ModuleState,
+}
+
+impl EngineeringArchitecture {
+    /// Create a new engineering architecture module.
+    pub fn new() -> Self {
+        EngineeringArchitecture {
+            state: ModuleState::Idle,
+        }
+    }
+}
+
+impl Default for EngineeringArchitecture {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl CognitiveModule for EngineeringArchitecture {
+    fn id(&self) -> ModuleId {
+        ModuleId::EngineeringArchitecture
+    }
+
+    fn name(&self) -> &'static str {
+        "engineering_architecture"
+    }
+
+    fn process(&mut self, input: &ModuleInput, ctx: &HookContext) -> ModuleOutput {
+        self.state = ModuleState::Processing;
+
+        // Gate 1: Resource check — insufficient compute budget means Hold.
+        if ctx.compute_budget < 0.3 {
+            self.state = ModuleState::Completed;
+            return ModuleOutput::new(
+                TritValue::Hold,
+                0.5,
+                format!(
+                    "engineering: insufficient compute budget ({:.2}) — defer",
+                    ctx.compute_budget
+                ),
+            );
+        }
+
+        // Gate 2: Time budget exceeded → Hold.
+        if ctx.time_budget_exceeded() {
+            self.state = ModuleState::Completed;
+            return ModuleOutput::new(
+                TritValue::Hold,
+                0.4,
+                "engineering: time budget exceeded — defer",
+            );
+        }
+
+        // Gate 3: Hold cycle exhaustion — if we've been holding too long,
+        // recommend escalation rather than forcing True.
+        if ctx.hold_budget_exhausted() {
+            self.state = ModuleState::Completed;
+            return ModuleOutput::new(
+                TritValue::Hold,
+                0.3,
+                "engineering: hold budget exhausted — escalate, do not force",
+            );
+        }
+
+        // Feasibility assessment: count frames and phase coherence.
+        if input.signals.is_empty() {
+            self.state = ModuleState::Completed;
+            return ModuleOutput::new(
+                TritValue::Hold,
+                0.4,
+                "engineering: no signals to assess feasibility",
+            );
+        }
+
+        let n = input.signals.len();
+        let mean_phase: f64 =
+            input.signals.iter().map(|s| s.phase().inner()).sum::<f64>() / n as f64;
+
+        // Single-frame decisions with moderate phase → straightforward implementation.
+        let mut frames_seen = std::collections::HashSet::new();
+        for signal in &input.signals {
+            frames_seen.insert(signal.frame());
+        }
+
+        let (recommendation, confidence, trace) = if frames_seen.len() == 1 && mean_phase > 0.5 {
+            (
+                TritValue::True,
+                0.8,
+                format!(
+                    "engineering: single-frame, clear phase ({:.2}) — feasible with budget {:.2}",
+                    mean_phase, ctx.compute_budget
+                ),
+            )
+        } else if frames_seen.len() >= 3 {
+            (
+                TritValue::Hold,
+                0.4,
+                format!(
+                    "engineering: {} frames — multi-frame implementation increases risk, recommend Hold",
+                    frames_seen.len()
+                ),
+            )
+        } else {
+            (
+                TritValue::True,
+                0.6,
+                format!(
+                    "engineering: {} frame(s), mean_phase={:.2} — conditionally feasible",
+                    frames_seen.len(),
+                    mean_phase
+                ),
+            )
+        };
+
+        self.state = ModuleState::Completed;
+        ModuleOutput::new(recommendation, confidence, trace)
+    }
+
+    fn on_mount(&mut self) {
+        self.state = ModuleState::Idle;
+    }
+
+    fn on_unmount(&mut self) {
+        self.state = ModuleState::Completed;
+    }
+
+    fn state(&self) -> ModuleState {
+        self.state
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::phase::Phase;
+    use crate::core::Frame;
+
+    fn word(frame: Frame, value: TritValue, phase: f64) -> crate::core::TritWord {
+        crate::core::TritWord::new(value, Phase::new_clamped(phase), frame)
+    }
+
+    #[test]
+    fn insufficient_budget_returns_hold() {
+        let mut m = EngineeringArchitecture::new();
+        let input = ModuleInput {
+            signals: vec![word(Frame::Science, TritValue::True, 0.7)],
+            interrupts: vec![],
+            attention_cmd: None,
+        };
+        let mut ctx = HookContext::default();
+        ctx.update_budget(0.1);
+        let out = m.process(&input, &ctx);
+        assert_eq!(out.recommendation, TritValue::Hold);
+    }
+
+    #[test]
+    fn single_frame_clear_phase_feasible() {
+        let mut m = EngineeringArchitecture::new();
+        let input = ModuleInput {
+            signals: vec![word(Frame::Science, TritValue::True, 0.8)],
+            interrupts: vec![],
+            attention_cmd: None,
+        };
+        let mut ctx = HookContext::default();
+        ctx.update_budget(0.7);
+        let out = m.process(&input, &ctx);
+        assert_eq!(out.recommendation, TritValue::True);
+        assert!(out.confidence > 0.7);
+    }
+
+    #[test]
+    fn many_frames_reduces_feasibility() {
+        let mut m = EngineeringArchitecture::new();
+        let input = ModuleInput {
+            signals: vec![
+                word(Frame::Science, TritValue::True, 0.5),
+                word(Frame::Individual, TritValue::True, 0.5),
+                word(Frame::Consensus, TritValue::True, 0.5),
+            ],
+            interrupts: vec![],
+            attention_cmd: None,
+        };
+        let mut ctx = HookContext::default();
+        ctx.update_budget(0.8);
+        let out = m.process(&input, &ctx);
+        assert_eq!(out.recommendation, TritValue::Hold);
+    }
+
+    #[test]
+    fn empty_signals_hold() {
+        let mut m = EngineeringArchitecture::new();
+        let input = ModuleInput {
+            signals: vec![],
+            interrupts: vec![],
+            attention_cmd: None,
+        };
+        let out = m.process(&input, &HookContext::default());
+        assert_eq!(out.recommendation, TritValue::Hold);
+    }
+
+    #[test]
+    fn module_id_and_name() {
+        let m = EngineeringArchitecture::new();
+        assert_eq!(m.id(), ModuleId::EngineeringArchitecture);
+        assert_eq!(m.name(), "engineering_architecture");
+    }
+}

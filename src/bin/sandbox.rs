@@ -231,11 +231,13 @@ fn run_with_error_context(args: &Args) -> Result<SandboxOutput, SandboxError> {
         .with_trace_phase(args.trace_phase);
 
     if args.reflexive {
-        pipeline = pipeline.with_reflexive(trit_core::reflexive::ReflexiveAuditor::new());
+        pipeline =
+            pipeline.with_reflexive(trit_core::adapters::reflexive_audit::ReflexiveAuditor::new());
     }
     if args.self_knowledge {
-        pipeline = pipeline
-            .with_self_knowledge(trit_core::knowledge::SelfKnowledge::with_human_defaults());
+        pipeline = pipeline.with_self_knowledge(
+            trit_core::adapters::self_knowledge::SelfKnowledge::with_human_defaults(),
+        );
     }
 
     let (output, diagnostics) = pipeline.run_with_diagnostics(&scenario)?;

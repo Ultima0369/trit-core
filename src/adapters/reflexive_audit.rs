@@ -1,20 +1,24 @@
-//! Reflexive audit: a slow half-beat self-check after each decision.
+//! Reflexive audit adapter — post-decision self-check.
 //!
-//! The reflexive auditor looks back at the decision path and asks:
+//! Migrated from `src/reflexive/auditor.rs`. Wraps the existing
+//! [`ReflexiveAuditor`] in a [`CognitiveModule`] implementation.
 //!
+//! The reflexive auditor inspects the decision path and asks:
 //! 1. How was this output assembled?
 //! 2. Was any step driven by an "explanation impulse" rather than evidence?
 //! 3. Could a Hold have been chosen instead of a forced collapse?
-//!
-//! This is the algorithmic form of "knowing oneself" — the system inspects
-//! its own conflict trace before finalizing an answer.
 
 use chrono::Utc;
 
+use crate::adapters::{CognitiveModule, ModuleInput, ModuleOutput};
 use crate::core::frame::Frame;
 use crate::core::word::TritWord;
+use crate::core::TritValue;
+use crate::hook::module_registry::{ModuleId, ModuleState};
+use crate::hook::HookContext;
 use crate::meta::{ConflictType, MetaInterrupt};
-use crate::sandbox::output::SandboxOutput;
+
+// ── Attention event ─────────────────────────────────────────────────
 
 /// A single attention event in the decision trace.
 #[derive(Debug, Clone, PartialEq)]
@@ -35,6 +39,8 @@ impl AttentionEvent {
     }
 }
 
+// ── Phase shift ─────────────────────────────────────────────────────
+
 /// A recorded phase shift in the decision trace.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PhaseShift {
@@ -52,6 +58,8 @@ impl PhaseShift {
         Self { from, to, reason }
     }
 }
+
+// ── Audit report ────────────────────────────────────────────────────
 
 /// Outcome of a reflexive audit.
 #[derive(Debug, Clone, PartialEq)]
@@ -73,6 +81,8 @@ pub enum AuditReport {
     },
 }
 
+// ── Reflexive alert ─────────────────────────────────────────────────
+
 /// Alert produced by the reflexive guard when it intervenes in a pipeline.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ReflexiveAlert {
@@ -81,6 +91,8 @@ pub struct ReflexiveAlert {
     /// Suggested action.
     pub recommendation: String,
 }
+
+// ── Reflexive auditor (inner engine) ────────────────────────────────
 
 /// Reflexive auditor that traces decisions and produces post-hoc audits.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -122,11 +134,6 @@ impl ReflexiveAuditor {
     }
 
     /// Audit the most recent decision path.
-    ///
-    /// Returns `ForcedCollapse` if there are unresolved frame-mismatch
-    /// interrupts but the final output is a forced True/False. Returns
-    /// `ExplanationImpulse` if the attention trace shows rapid back-and-forth
-    /// on the same theme. Otherwise returns `Clean`.
     pub fn audit_last_decision(&self) -> AuditReport {
         let unresolved_conflicts: Vec<_> = self
             .decision_chain
@@ -157,42 +164,7 @@ impl ReflexiveAuditor {
         AuditReport::Clean
     }
 
-    /// Run an automatic post-audit on a concrete sandbox output.
-    ///
-    /// Returns a `MetaInterrupt` if the reflexive guard detects that a
-    /// forced True/False decision was made while unresolved cross-frame
-    /// conflicts remain in the trace. Returns `None` otherwise.
-    pub fn auto_post_audit(&mut self, decision: &SandboxOutput) -> Option<MetaInterrupt> {
-        let unresolved_conflicts = self
-            .decision_chain
-            .iter()
-            .filter(|i| matches!(i.conflict, ConflictType::FrameMismatch))
-            .count();
-
-        let is_forced = decision.final_value_code == 1 || decision.final_value_code == -1;
-
-        if unresolved_conflicts > 0 && is_forced {
-            let alert = ReflexiveAlert {
-                reason: format!(
-                    "Forced {} output with {} unresolved frame conflict(s)",
-                    decision.final_value, unresolved_conflicts
-                ),
-                recommendation: "Reflexive guard suggests reviewing for Hold.".to_string(),
-            };
-            let interrupt = MetaInterrupt::new(
-                ConflictType::PolicyViolation,
-                format!("{}: {}", alert.reason, alert.recommendation),
-            );
-            self.decision_chain.push(interrupt.clone());
-            return Some(interrupt);
-        }
-
-        None
-    }
-
     /// Build a `TritWord` summarizing the reflexive posture of the auditor.
-    ///
-    /// Useful for downstream attention/knowledge modules.
     pub fn reflexive_posture(&self) -> TritWord {
         match self.audit_last_decision() {
             AuditReport::Clean => TritWord::tru(Frame::Meta),
@@ -201,8 +173,6 @@ impl ReflexiveAuditor {
     }
 
     fn has_explanation_impulse(&self) -> bool {
-        // Simple heuristic: if the same attention label appears more than
-        // twice in the trace, treat it as loop entrainment / explanation impulse.
         if self.attention_trace.len() < 4 {
             return false;
         }
@@ -214,26 +184,131 @@ impl ReflexiveAuditor {
     }
 }
 
+// ── ReflexiveAuditModule (CognitiveModule wrapper) ──────────────────
+
+/// Cognitive module wrapping the [`ReflexiveAuditor`].
+///
+/// Implements [`CognitiveModule`] so the Hook Manager can mount/unmount
+/// it based on scenario needs.
+pub struct ReflexiveAuditModule {
+    inner: ReflexiveAuditor,
+    state: ModuleState,
+}
+
+impl ReflexiveAuditModule {
+    /// Create a new reflexive audit module.
+    pub fn new() -> Self {
+        ReflexiveAuditModule {
+            inner: ReflexiveAuditor::new(),
+            state: ModuleState::Idle,
+        }
+    }
+
+    /// Create from an existing auditor.
+    pub fn from_auditor(auditor: ReflexiveAuditor) -> Self {
+        ReflexiveAuditModule {
+            inner: auditor,
+            state: ModuleState::Idle,
+        }
+    }
+
+    /// Access the inner auditor.
+    pub fn inner(&self) -> &ReflexiveAuditor {
+        &self.inner
+    }
+}
+
+impl Default for ReflexiveAuditModule {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl CognitiveModule for ReflexiveAuditModule {
+    fn id(&self) -> ModuleId {
+        ModuleId::ReflexiveAudit
+    }
+
+    fn name(&self) -> &'static str {
+        "reflexive_audit"
+    }
+
+    fn process(&mut self, input: &ModuleInput, ctx: &HookContext) -> ModuleOutput {
+        self.state = ModuleState::Processing;
+
+        // Record incoming interrupts into the decision chain.
+        for interrupt in &input.interrupts {
+            self.inner.record_interrupt(interrupt.clone());
+        }
+
+        // If there's a previous iteration with interrupts, record those too.
+        if let Some(ref prev) = ctx.previous_iteration {
+            // Previous iteration anchor violations suggest forced decisions.
+            if prev.anchor_report.is_some() {
+                self.inner.record_attention(AttentionEvent::new(
+                    "anchor_violation_in_previous_iteration",
+                ));
+            }
+        }
+
+        let report = self.inner.audit_last_decision();
+
+        self.state = ModuleState::Completed;
+
+        match report {
+            AuditReport::Clean => {
+                ModuleOutput::new(TritValue::True, 0.9, "reflexive audit: decision path clean")
+            }
+            AuditReport::ForcedCollapse {
+                ref reason,
+                ref recommendation,
+            } => {
+                let interrupt = MetaInterrupt::new(
+                    ConflictType::PolicyViolation,
+                    format!(
+                        "forced collapse: {}. recommendation: {}",
+                        reason, recommendation
+                    ),
+                );
+                ModuleOutput::new(
+                    TritValue::Hold,
+                    0.7,
+                    format!("reflexive audit: forced collapse detected — {}", reason),
+                )
+                .with_interrupts(vec![interrupt])
+            }
+            AuditReport::ExplanationImpulse { ref reason } => {
+                let interrupt = MetaInterrupt::new(
+                    ConflictType::PolicyViolation,
+                    format!("explanation impulse: {}", reason),
+                );
+                ModuleOutput::new(
+                    TritValue::Hold,
+                    0.5,
+                    format!("reflexive audit: explanation impulse — {}", reason),
+                )
+                .with_interrupts(vec![interrupt])
+            }
+        }
+    }
+
+    fn on_mount(&mut self) {
+        self.state = ModuleState::Idle;
+    }
+
+    fn on_unmount(&mut self) {
+        self.inner.clear();
+        self.state = ModuleState::Completed;
+    }
+
+    fn state(&self) -> ModuleState {
+        self.state
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::value::TritValue;
-
-    fn sample_output(value: &str, code: i8) -> SandboxOutput {
-        SandboxOutput {
-            scenario_id: "test".to_string(),
-            final_value: value.to_string(),
-            final_value_code: code,
-            final_frame: "Meta".to_string(),
-            final_phase_raw: 0.5,
-            interrupts: vec![],
-            policy_action: "Test".to_string(),
-            reflexive_alert: None,
-            attention_cmd: None,
-            receiver_estimate: None,
-            hold_state: None,
-        }
-    }
 
     #[test]
     fn clean_audit_when_no_conflicts() {
@@ -248,24 +323,10 @@ mod tests {
             ConflictType::FrameMismatch,
             "Science vs Individual".to_string(),
         ));
-        let out = sample_output("True", 1);
-        let alert = auditor.auto_post_audit(&out);
-        assert!(alert.is_some());
         assert!(matches!(
             auditor.audit_last_decision(),
             AuditReport::ForcedCollapse { .. }
         ));
-    }
-
-    #[test]
-    fn hold_output_does_not_trigger_alert() {
-        let mut auditor = ReflexiveAuditor::new();
-        auditor.record_interrupt(MetaInterrupt::new(
-            ConflictType::FrameMismatch,
-            "conflict".to_string(),
-        ));
-        let out = sample_output("Hold", 0);
-        assert!(auditor.auto_post_audit(&out).is_none());
     }
 
     #[test]
@@ -298,5 +359,58 @@ mod tests {
     fn reflexive_posture_is_true_when_clean() {
         let auditor = ReflexiveAuditor::new();
         assert_eq!(auditor.reflexive_posture().value(), TritValue::True);
+    }
+
+    // ── CognitiveModule tests ─────────────────────────────────────
+
+    #[test]
+    fn reflexive_audit_module_id() {
+        let module = ReflexiveAuditModule::new();
+        assert_eq!(module.id(), ModuleId::ReflexiveAudit);
+        assert_eq!(module.name(), "reflexive_audit");
+    }
+
+    #[test]
+    fn reflexive_audit_module_clean_process() {
+        let mut module = ReflexiveAuditModule::new();
+        let input = ModuleInput {
+            signals: vec![],
+            interrupts: vec![],
+            attention_cmd: None,
+        };
+        let ctx = HookContext::default();
+        let out = module.process(&input, &ctx);
+        assert_eq!(out.recommendation, TritValue::True);
+        assert!(out.confidence > 0.8);
+    }
+
+    #[test]
+    fn reflexive_audit_module_detects_conflict() {
+        let mut module = ReflexiveAuditModule::new();
+        let interrupt =
+            MetaInterrupt::new(ConflictType::FrameMismatch, "test conflict".to_string());
+        let input = ModuleInput {
+            signals: vec![],
+            interrupts: vec![interrupt],
+            attention_cmd: None,
+        };
+        let ctx = HookContext::default();
+        let out = module.process(&input, &ctx);
+        assert_eq!(out.recommendation, TritValue::Hold);
+        assert!(!out.interrupts.is_empty());
+    }
+
+    #[test]
+    fn reflexive_audit_module_clear_on_unmount() {
+        let mut module = ReflexiveAuditModule::new();
+        module.inner.record_interrupt(MetaInterrupt::new(
+            ConflictType::FrameMismatch,
+            "test".to_string(),
+        ));
+        assert!(!module.inner.decision_chain.is_empty());
+
+        module.on_unmount();
+        assert!(module.inner.decision_chain.is_empty());
+        assert_eq!(module.state(), ModuleState::Completed);
     }
 }

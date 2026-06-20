@@ -27,13 +27,10 @@
 //!   `MetaInterrupt`, `SafeFallback`, custom rules.
 //! - [`sandbox`] — scenario I/O, validation, pipeline, and expected-behavior
 //!   verification.
-//! - [`attention`] — cognitive attention scheduler with depth-gated bandwidth.
-//! - [`knowledge`] — self-knowledge model with calibration feedback loop.
+//! - [`adapter`] — cognitive module pool (Layer 3): scenario-driven module mounting.
 //! - [`budget`] — hardware-aware compute budget and depth-level gating.
 //! - [`calibration`] — decision history recording for feedback-driven learning.
 //! - [`clock`] — phase oscillator and time-scale management.
-//! - [`baseline`] — binary baseline comparator for validation.
-//! - [`tracing_init`] — structured logging initialization.
 //!
 //! # Documentation
 //!
@@ -85,20 +82,37 @@ macro_rules! assert_float_eq {
     };
 }
 
+pub mod adapters;
 pub mod anchor;
-pub mod attention;
 pub mod baseline;
 pub mod budget;
 pub mod calibration;
 pub mod clock;
 pub mod core;
 pub mod hook;
-pub mod knowledge;
 pub mod meta;
-pub mod reflexive;
 pub mod sandbox;
 pub mod tracing_init;
 
+pub use adapters::{
+    adaptive_iteration::AdaptiveIteration,
+    bandwidth_scheduler::{bandwidth_from_depth, AttentionScheduler, LoadProfile},
+    cognitive_deconstruction::CognitiveDeconstruction,
+    conflict_suspension::ConflictSuspension,
+    coupling_adapter::CouplingAdapter,
+    critical_thinking::CriticalThinking,
+    ecological_assessment::EcologicalAssessment,
+    engineering::EngineeringArchitecture,
+    reflexive_audit::{
+        AttentionEvent, AuditReport, PhaseShift, ReflexiveAlert, ReflexiveAuditModule,
+        ReflexiveAuditor,
+    },
+    self_knowledge::{
+        CalibrationEvent, ReceiverEstimate, ResponsePattern, SelfKnowledge, SelfKnowledgeModule,
+        TriggerSignature,
+    },
+    AttentionCmd, CognitiveModule, FeedbackSignal, ModuleInput, ModuleOutput, ShiftTarget,
+};
 pub use anchor::{
     check_all as check_all_anchors, AnchorConstraint, AnchorError, AnchorReport, AnchorSeverity,
     AnchorViolation, DataSource, DecisionPreview, EcosystemZone, StaticSource,

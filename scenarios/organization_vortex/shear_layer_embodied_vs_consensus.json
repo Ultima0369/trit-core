@@ -1,0 +1,10 @@
+{
+  "id": "shear_layer_embodied_vs_consensus",
+  "description": "基层工程师发现严重性能缺陷（Embodied），但中层经理受客户压力推动按时发布（Consensus）。信息在剪切层被强制二值化。",
+  "domain": "General",
+  "signals": [
+    { "frame": "Embodied", "value": -1, "phase": 0.15 },
+    { "frame": "Consensus", "value": 1, "phase": 0.85 }
+  ],
+  "expected_behavior": "hold"
+}

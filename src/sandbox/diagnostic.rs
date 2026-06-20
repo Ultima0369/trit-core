@@ -37,7 +37,7 @@ pub struct SandboxDiagnostics {
     pub attention_cmd: Option<String>,
     /// Optional receiver estimate produced by self-knowledge.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub receiver_estimate: Option<crate::knowledge::ReceiverEstimate>,
+    pub receiver_estimate: Option<crate::adapters::self_knowledge::ReceiverEstimate>,
     /// Optional phase shift trace (when --trace-phase is enabled).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub phase_trace: Option<Vec<f64>>,
@@ -109,12 +109,15 @@ impl SandboxDiagnostics {
     }
 
     /// Record an attention command.
-    pub fn record_attention_cmd(&mut self, cmd: &crate::attention::AttentionCmd) {
+    pub fn record_attention_cmd(&mut self, cmd: &crate::adapters::AttentionCmd) {
         self.attention_cmd = Some(format!("{:?}", cmd));
     }
 
     /// Record a receiver estimate.
-    pub fn record_receiver_estimate(&mut self, estimate: crate::knowledge::ReceiverEstimate) {
+    pub fn record_receiver_estimate(
+        &mut self,
+        estimate: crate::adapters::self_knowledge::ReceiverEstimate,
+    ) {
         self.receiver_estimate = Some(estimate);
     }
 

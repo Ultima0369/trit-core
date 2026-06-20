@@ -1,0 +1,11 @@
+{
+  "id": "eye_instability_cognitive_overload",
+  "description": "创始人（Meta）同时接收技术重构（Science）、市场 deadline（Consensus）、资金短缺（Individual）三个信号。奇点直径不足以统合，涡旋失稳。",
+  "domain": "General",
+  "signals": [
+    { "frame": "Science", "value": -1, "phase": 0.2 },
+    { "frame": "Consensus", "value": 1, "phase": 0.8 },
+    { "frame": "Individual", "value": -1, "phase": 0.3 }
+  ],
+  "expected_behavior": "negotiate"
+}

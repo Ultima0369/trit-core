@@ -1,25 +1,24 @@
-//! Self-knowledge: "knowing oneself" as a precondition for knowing others.
+//! Self-knowledge adapter — model of the system's own response patterns.
 //!
-//! This module provides [`SelfKnowledge`], a minimal model of the system's
-//! own response patterns. By comparing an incoming signal against known
-//! patterns, the system can estimate the likely state of a receiver that
-//! shares similar cognitive architecture.
+//! Migrated from `src/knowledge/self_model.rs`. Wraps the existing
+//! [`SelfKnowledge`] in a [`CognitiveModule`] implementation.
 //!
-//! ## Feedback loop (v0.3.0)
-//!
-//! `calibrate()` is now called after each pipeline run. Clean decisions
-//! (no interrupts, computable result) strengthen matching patterns with
-//! a positive phase delta. Conflicted decisions (interrupts + Hold) weaken
-//! patterns with a negative delta. The confidence ceiling in
-//! `infer_receiver_state()` grows with the calibration count, from a
-//! floor of 0.2 up to a ceiling of 0.95.
+//! By comparing an incoming signal against known patterns, the system
+//! can estimate the likely state of a receiver that shares similar
+//! cognitive architecture. The feedback loop calibrates these patterns
+//! over time.
 
 use serde::{Deserialize, Serialize};
 
+use crate::adapters::{CognitiveModule, FeedbackSignal, ModuleInput, ModuleOutput};
 use crate::core::frame::Frame;
 use crate::core::phase::Phase;
 use crate::core::value::TritValue;
 use crate::core::word::TritWord;
+use crate::hook::module_registry::{ModuleId, ModuleState};
+use crate::hook::HookContext;
+
+// ── Response pattern ────────────────────────────────────────────────
 
 /// A recorded response pattern: "when I see X under conditions C, I tend Y".
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -34,6 +33,8 @@ pub struct ResponsePattern {
     pub context: String,
 }
 
+// ── Trigger signature ───────────────────────────────────────────────
+
 /// A trigger signature: a compact description of a stimulus that reliably
 /// evokes a known response.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -46,6 +47,8 @@ pub struct TriggerSignature {
     pub phase_response: f64,
 }
 
+// ── Calibration event ───────────────────────────────────────────────
+
 /// A calibration event recording how a pattern was updated.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct CalibrationEvent {
@@ -56,6 +59,8 @@ pub struct CalibrationEvent {
     /// Human-readable reason.
     pub reason: String,
 }
+
+// ── Receiver estimate ───────────────────────────────────────────────
 
 /// Estimate of a receiver's likely cognitive state.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -69,6 +74,8 @@ pub struct ReceiverEstimate {
     /// Frames the receiver is likely attending to.
     pub attended_frames: Vec<Frame>,
 }
+
+// ── Self-knowledge (inner engine) ───────────────────────────────────
 
 /// Self-knowledge model containing the system's own patterns and triggers.
 ///
@@ -84,8 +91,6 @@ pub struct ReceiverEstimate {
 /// | 10–49       | 0.8               |
 /// | 50–99       | 0.9               |
 /// | 100+        | 0.95              |
-///
-/// The floor is always 0.2 (when no matching pattern is found).
 #[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
 pub struct SelfKnowledge {
     /// Known response patterns.
@@ -152,9 +157,6 @@ impl SelfKnowledge {
     }
 
     /// Return the confidence ceiling based on calibration count.
-    ///
-    /// More calibrations → higher confidence that the model's patterns
-    /// are well-tuned to actual decision outcomes.
     pub fn confidence_ceiling(&self) -> f64 {
         let n = self.calibration_history.len();
         if n >= 100 {
@@ -171,13 +173,6 @@ impl SelfKnowledge {
     }
 
     /// Infer a receiver's likely state from an input signal.
-    ///
-    /// The heuristic is: "If I had this same input, what would I do?"
-    /// The estimate starts from the matching self-pattern, then shifts
-    /// toward the input's actual phase/value proportionally to confidence.
-    ///
-    /// Confidence is clamped to the calibration-derived ceiling, so a
-    /// well-calibrated model can express higher confidence in its estimates.
     pub fn infer_receiver_state(&self, input: &TritWord) -> ReceiverEstimate {
         let matching = self
             .own_response_patterns
@@ -206,12 +201,7 @@ impl SelfKnowledge {
     }
 
     /// Record a calibration event.
-    ///
-    /// The `phase_delta` is applied to the matching pattern's phase tendency:
-    /// - Positive delta (+0.05): the pattern produced a clean result → strengthen.
-    /// - Negative delta (-0.05): the pattern produced conflict → weaken.
     pub fn calibrate(&mut self, pattern: ResponsePattern, phase_delta: f64, reason: String) {
-        // Apply the delta to the matching pattern in our store.
         if let Some(existing) = self
             .own_response_patterns
             .iter_mut()
@@ -229,12 +219,9 @@ impl SelfKnowledge {
 
     /// Calibrate from a pipeline result.
     ///
-    /// This is the primary feedback entry point:
-    /// - If the result was a clean Commit (no interrupts, computable value),
-    ///   the matching pattern is strengthened with a positive delta.
-    /// - If the result was Hold with interrupts, the matching pattern is
-    ///   weakened with a negative delta.
-    /// - Otherwise, no calibration is performed.
+    /// - Clean Commit (no interrupts, computable value) → strengthen (+0.05)
+    /// - Hold with interrupts → weaken (-0.05)
+    /// - Otherwise → skip
     ///
     /// Returns `true` if a calibration event was recorded.
     pub fn calibrate_from_result(
@@ -255,7 +242,6 @@ impl SelfKnowledge {
         }
     }
 
-    /// Strengthen: clean decision with no interrupts.
     fn calibrate_clean(&mut self, frame: Frame, result: TritValue, phase: f64) {
         self.calibrate(
             ResponsePattern {
@@ -272,7 +258,6 @@ impl SelfKnowledge {
         );
     }
 
-    /// Weaken: conflicted Hold with interrupts present.
     fn calibrate_conflicted(&mut self, frame: Frame, phase: f64, interrupt_count: usize) {
         self.calibrate(
             ResponsePattern {
@@ -292,6 +277,160 @@ impl SelfKnowledge {
     /// Number of calibration events recorded.
     pub fn calibration_count(&self) -> usize {
         self.calibration_history.len()
+    }
+}
+
+// ── SelfKnowledgeModule (CognitiveModule wrapper) ───────────────────
+
+/// Cognitive module wrapping the [`SelfKnowledge`] model.
+///
+/// Implements [`CognitiveModule`] so the Hook Manager can mount/unmount
+/// it based on scenario needs.
+pub struct SelfKnowledgeModule {
+    inner: SelfKnowledge,
+    state: ModuleState,
+}
+
+impl SelfKnowledgeModule {
+    /// Create a new self-knowledge module.
+    pub fn new() -> Self {
+        SelfKnowledgeModule {
+            inner: SelfKnowledge::new(),
+            state: ModuleState::Idle,
+        }
+    }
+
+    /// Create with human default patterns.
+    pub fn with_human_defaults() -> Self {
+        SelfKnowledgeModule {
+            inner: SelfKnowledge::with_human_defaults(),
+            state: ModuleState::Idle,
+        }
+    }
+
+    /// Create from an existing model.
+    pub fn from_model(model: SelfKnowledge) -> Self {
+        SelfKnowledgeModule {
+            inner: model,
+            state: ModuleState::Idle,
+        }
+    }
+
+    /// Access the inner model.
+    pub fn inner(&self) -> &SelfKnowledge {
+        &self.inner
+    }
+
+    /// Mutable access to the inner model.
+    pub fn inner_mut(&mut self) -> &mut SelfKnowledge {
+        &mut self.inner
+    }
+}
+
+impl Default for SelfKnowledgeModule {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl CognitiveModule for SelfKnowledgeModule {
+    fn id(&self) -> ModuleId {
+        ModuleId::SelfKnowledge
+    }
+
+    fn name(&self) -> &'static str {
+        "self_knowledge"
+    }
+
+    fn process(&mut self, input: &ModuleInput, ctx: &HookContext) -> ModuleOutput {
+        self.state = ModuleState::Processing;
+
+        if input.signals.is_empty() {
+            self.state = ModuleState::Completed;
+            return ModuleOutput::new(
+                TritValue::Hold,
+                0.3,
+                "self_knowledge: no signals to infer from",
+            );
+        }
+
+        // Infer receiver state for each input signal and aggregate.
+        let estimates: Vec<ReceiverEstimate> = input
+            .signals
+            .iter()
+            .map(|s| self.inner.infer_receiver_state(s))
+            .collect();
+
+        let avg_confidence: f64 =
+            estimates.iter().map(|e| e.confidence).sum::<f64>() / estimates.len() as f64;
+
+        // If we have a previous iteration with a Hold result, calibrate.
+        if let Some(ref prev) = ctx.previous_iteration {
+            if matches!(prev.arbitration, crate::meta::ArbitrationResult::Hold) {
+                // Calibrate from conflicted result for each signal frame.
+                for signal in &input.signals {
+                    self.inner.calibrate_from_result(
+                        signal.frame(),
+                        TritValue::Hold,
+                        signal.phase().inner(),
+                        prev.interrupt_count,
+                    );
+                }
+            }
+        }
+
+        // Recommendation: if confidence is high, True; otherwise Hold.
+        let (recommendation, confidence) = if avg_confidence >= 0.6 {
+            (TritValue::True, avg_confidence)
+        } else {
+            (TritValue::Hold, avg_confidence.max(0.3))
+        };
+
+        self.state = ModuleState::Completed;
+
+        ModuleOutput::new(
+            recommendation,
+            confidence,
+            format!(
+                "self_knowledge: inferred from {} signals, avg_confidence={:.3}",
+                input.signals.len(),
+                avg_confidence
+            ),
+        )
+    }
+
+    fn on_mount(&mut self) {
+        self.state = ModuleState::Idle;
+    }
+
+    fn on_unmount(&mut self) {
+        self.state = ModuleState::Completed;
+    }
+
+    fn state(&self) -> ModuleState {
+        self.state
+    }
+
+    fn calibrate(&mut self, feedback: &FeedbackSignal) -> f64 {
+        // Use feedback to calibrate patterns.
+        if feedback.was_validated {
+            // Positive feedback: strengthen the most recent pattern.
+            if let Some(last_pattern) = self.inner.own_response_patterns.last().cloned() {
+                self.inner
+                    .calibrate(last_pattern, 0.03, feedback.description.clone());
+            }
+            0.03
+        } else if let Some(deviation) = feedback.deviation {
+            // Negative feedback: weaken proportionally to deviation.
+            let delta = -(deviation * 0.05).min(0.1);
+            if let Some(last_pattern) = self.inner.own_response_patterns.last().cloned() {
+                self.inner
+                    .calibrate(last_pattern, delta, feedback.description.clone());
+            }
+            delta.abs()
+        } else {
+            0.0
+        }
     }
 }
 
@@ -336,10 +475,8 @@ mod tests {
     #[test]
     fn confidence_ceiling_grows_with_calibrations() {
         let mut knowledge = SelfKnowledge::new();
-        // 0 → 0.6
         assert_float_eq!(knowledge.confidence_ceiling(), 0.6);
 
-        // 1 calibration → 0.7
         knowledge.calibrate(
             ResponsePattern {
                 frame: Frame::Science,
@@ -352,7 +489,6 @@ mod tests {
         );
         assert_float_eq!(knowledge.confidence_ceiling(), 0.7);
 
-        // 10 calibrations → 0.8
         for i in 0..9 {
             knowledge.calibrate(
                 ResponsePattern {
@@ -398,16 +534,11 @@ mod tests {
             context: "calibrated".to_string(),
         });
 
-        let did_calibrate = knowledge.calibrate_from_result(
-            Frame::Science,
-            TritValue::True,
-            0.8,
-            0, // no interrupts
-        );
+        let did_calibrate =
+            knowledge.calibrate_from_result(Frame::Science, TritValue::True, 0.8, 0);
         assert!(did_calibrate);
         assert_eq!(knowledge.calibration_count(), 1);
 
-        // The matching pattern should have its phase increased by 0.05
         let pattern = knowledge
             .own_response_patterns
             .iter()
@@ -426,16 +557,11 @@ mod tests {
             context: "calibrated".to_string(),
         });
 
-        let did_calibrate = knowledge.calibrate_from_result(
-            Frame::Individual,
-            TritValue::Hold,
-            0.3,
-            3, // 3 interrupts
-        );
+        let did_calibrate =
+            knowledge.calibrate_from_result(Frame::Individual, TritValue::Hold, 0.3, 3);
         assert!(did_calibrate);
         assert_eq!(knowledge.calibration_count(), 1);
 
-        // The matching pattern should have its phase decreased by 0.05
         let pattern = knowledge
             .own_response_patterns
             .iter()
@@ -447,13 +573,8 @@ mod tests {
     #[test]
     fn calibrate_from_neutral_result_skips() {
         let mut knowledge = SelfKnowledge::new();
-        // Hold with 0 interrupts is neither clean nor conflicted
-        let did_calibrate = knowledge.calibrate_from_result(
-            Frame::Science,
-            TritValue::Hold,
-            0.5,
-            0, // Hold but no interrupts → skip
-        );
+        let did_calibrate =
+            knowledge.calibrate_from_result(Frame::Science, TritValue::Hold, 0.5, 0);
         assert!(!did_calibrate);
         assert_eq!(knowledge.calibration_count(), 0);
     }
@@ -461,7 +582,6 @@ mod tests {
     #[test]
     fn calibrate_from_unknown_skips() {
         let mut knowledge = SelfKnowledge::new();
-        // Unknown is not computable and not Hold → skip
         let did_calibrate =
             knowledge.calibrate_from_result(Frame::Science, TritValue::Unknown, 0.5, 0);
         assert!(!did_calibrate);
@@ -478,7 +598,6 @@ mod tests {
             context: "calibrated".to_string(),
         });
 
-        // +0.05 would push to 1.03, should clamp to 1.0
         knowledge.calibrate_from_result(Frame::Science, TritValue::True, 0.98, 0);
         let pattern = knowledge
             .own_response_patterns
@@ -491,11 +610,9 @@ mod tests {
     #[test]
     fn infer_confidence_scales_with_calibrations() {
         let mut knowledge = SelfKnowledge::with_human_defaults();
-        // 0 calibrations → ceiling 0.6
         let est0 = knowledge.infer_receiver_state(&TritWord::tru(Frame::FirstPerson));
         assert_float_eq!(est0.confidence, 0.6);
 
-        // Add 10 calibrations → ceiling 0.8
         for i in 0..10 {
             knowledge.calibrate(
                 ResponsePattern {
@@ -510,5 +627,85 @@ mod tests {
         }
         let est10 = knowledge.infer_receiver_state(&TritWord::tru(Frame::FirstPerson));
         assert_float_eq!(est10.confidence, 0.8);
+    }
+
+    // ── CognitiveModule tests ─────────────────────────────────────
+
+    #[test]
+    fn self_knowledge_module_id() {
+        let module = SelfKnowledgeModule::new();
+        assert_eq!(module.id(), ModuleId::SelfKnowledge);
+        assert_eq!(module.name(), "self_knowledge");
+    }
+
+    #[test]
+    fn self_knowledge_module_empty_input() {
+        let mut module = SelfKnowledgeModule::with_human_defaults();
+        let input = ModuleInput {
+            signals: vec![],
+            interrupts: vec![],
+            attention_cmd: None,
+        };
+        let ctx = HookContext::default();
+        let out = module.process(&input, &ctx);
+        assert_eq!(out.recommendation, TritValue::Hold);
+        assert!(out.confidence < 0.5);
+    }
+
+    #[test]
+    fn self_knowledge_module_with_signals() {
+        let mut module = SelfKnowledgeModule::with_human_defaults();
+        let input = ModuleInput {
+            signals: vec![TritWord::tru(Frame::FirstPerson)],
+            interrupts: vec![],
+            attention_cmd: None,
+        };
+        let ctx = HookContext::default();
+        let out = module.process(&input, &ctx);
+        // With human defaults, FirstPerson → True pattern exists → high confidence
+        assert_eq!(out.recommendation, TritValue::True);
+        assert!(out.confidence > 0.5);
+    }
+
+    #[test]
+    fn self_knowledge_module_calibrate_from_feedback() {
+        let mut module = SelfKnowledgeModule::with_human_defaults();
+        let initial_count = module.inner.calibration_count();
+
+        let fb = FeedbackSignal {
+            description: "validated decision".into(),
+            was_validated: true,
+            deviation: None,
+        };
+        let delta = module.calibrate(&fb);
+        assert!(delta > 0.0);
+        assert_eq!(module.inner.calibration_count(), initial_count + 1);
+    }
+
+    #[test]
+    fn self_knowledge_module_calibrate_negative_feedback() {
+        let mut module = SelfKnowledgeModule::with_human_defaults();
+        let initial_count = module.inner.calibration_count();
+
+        let fb = FeedbackSignal {
+            description: "deviated decision".into(),
+            was_validated: false,
+            deviation: Some(0.5),
+        };
+        let delta = module.calibrate(&fb);
+        assert!(delta > 0.0);
+        assert_eq!(module.inner.calibration_count(), initial_count + 1);
+    }
+
+    #[test]
+    fn self_knowledge_module_lifecycle() {
+        let mut module = SelfKnowledgeModule::new();
+        assert_eq!(module.state(), ModuleState::Idle);
+
+        module.on_unmount();
+        assert_eq!(module.state(), ModuleState::Completed);
+
+        module.on_mount();
+        assert_eq!(module.state(), ModuleState::Idle);
     }
 }

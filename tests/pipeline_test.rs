@@ -3,18 +3,18 @@
 //! Extracted from `src/sandbox/pipeline.rs` to keep the pipeline module
 //! under the 300-line SRP limit.
 
+use trit_core::adapters::reflexive_audit::ReflexiveAuditor;
+use trit_core::adapters::{AttentionCmd, ShiftTarget};
+use trit_core::adapters::{ResponsePattern, SelfKnowledge};
 use trit_core::anchor::ecological_base::EcologicalBase;
 use trit_core::anchor::thermal_baseline::ThermalBaseline;
 use trit_core::anchor::wellbeing_priority::WellbeingPriority;
-use trit_core::attention::{AttentionCmd, ShiftTarget};
 use trit_core::budget::{ComputeBudget, DepthLevel};
 use trit_core::calibration::CalibrationLog;
 use trit_core::clock::HarmonicClock;
 use trit_core::core::frame::{Frame, FrameRegistry};
 use trit_core::core::sensor::EnvironmentalContext;
 use trit_core::core::value::TritValue;
-use trit_core::knowledge::{ResponsePattern, SelfKnowledge};
-use trit_core::reflexive::ReflexiveAuditor;
 use trit_core::sandbox::pipeline::modulate_attention_with_clock_phase;
 use trit_core::sandbox::{SandboxPipeline, ScenarioInput, SignalInput};
 

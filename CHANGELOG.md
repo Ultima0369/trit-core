@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.4.0] - Unreleased
 
 ### Added
+- **Layer 2 Hook Manager** (`src/hook/`): scenario perception and module scheduling.
+  - `ScenarioType` enum (PhysicalReasoning, ValueConflict, MedicalEthics, ReflexiveAudit, CrisisResponse, General).
+  - `HookContext` inter-layer communication bus with Hold cycle tracking and budget exhaustion.
+  - `HookManager` orchestrator with Hold escalation to Layer 1.
+  - `scenario_recognizer`: feature vector extraction (10 dimensions) + cosine similarity prototype matching.
+  - `module_registry`: mount/unmount lifecycle with idempotent operations and event auditing.
+  - `mount_arbiter`: resource-aware module scheduling with priority ordering and budget checking.
+  - `context_cache`: ephemeral scenario state cache with transition detection.
+- **Layer 3 Adapter Module Pool** (`src/adapters/`): 10 cognitive modules implementing `CognitiveModule` trait.
+  - `CognitiveModule` trait: `id()`, `name()`, `process()`, `on_mount()`, `on_unmount()`, `state()`, `calibrate()`.
+  - `ModuleInput` / `ModuleOutput`: standardized I/O types with confidence scoring.
+  - Migrated: `AttentionScheduler` → `bandwidth_scheduler`, `ReflexiveAuditor` → `reflexive_audit`, `SelfKnowledge` → `self_knowledge`.
+  - New: `CriticalThinking`, `CognitiveDeconstruction` (explanation impulse detection via entropy vs determinacy), `ConflictSuspension`, `EngineeringArchitecture`, `EcologicalAssessment`, `AdaptiveIteration`, `CouplingAdapter`.
+  - `HoldFinality::Expired` variant for budget exhaustion escalation.
 - `cargo-deny` configuration (`deny.toml`) for dependency license/advisory/source auditing.
 - `cargo-machete` verified zero unused dependencies.
 - `cargo-tarpaulin` configuration (`tarpaulin.toml`) for coverage measurement.
@@ -17,6 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Full CI pipeline (`.github/workflows/ci.yml`): fmt, clippy, test (ubuntu + windows), coverage (tarpaulin → Codecov), cargo-deny, cargo-machete.
 
 ### Changed
+- **BREAKING**: `src/attention/`, `src/knowledge/`, `src/reflexive/` modules migrated to `src/adapters/` with `CognitiveModule` wrappers.
+  - `AttentionScheduler` → `BandwidthScheduler` (wraps inner scheduler, implements `CognitiveModule`).
+  - `ReflexiveAuditor` → `ReflexiveAuditModule` (wraps inner auditor, implements `CognitiveModule`).
+  - `SelfKnowledge` → `SelfKnowledgeModule` (wraps inner model, implements `CognitiveModule`).
+  - All public types re-exported from `trit_core::adapters::*`.
 - `adversarial_audit.json` is now skipped by `all_scenarios_match_expected_behavior` (it's an array of scenario summaries, not a single `ScenarioInput`).
 
 ### Fixed

@@ -1,0 +1,10 @@
+{
+  "id": "mach_shock_engineering_overload",
+  "description": "基层上报架构级风险（Science），但中层处理能力超载（Consensus），且面临市场 deadline 压力。在 Engineering 域中，SafeFallback 应触发，但中层协议覆盖。",
+  "domain": "Engineering",
+  "signals": [
+    { "frame": "Science", "value": -1, "phase": 0.1 },
+    { "frame": "Consensus", "value": 1, "phase": 0.9 }
+  ],
+  "expected_behavior": "commit_false"
+}

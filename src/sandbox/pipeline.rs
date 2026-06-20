@@ -2,8 +2,11 @@ use std::time::Instant;
 
 use tracing::{debug, error, info, instrument, trace, warn};
 
+use crate::adapters::bandwidth_scheduler::AttentionScheduler;
+use crate::adapters::reflexive_audit::{ReflexiveAlert, ReflexiveAuditor};
+use crate::adapters::self_knowledge::SelfKnowledge;
+use crate::adapters::{AttentionCmd, ShiftTarget};
 use crate::anchor::{check_all, AnchorConstraint};
-use crate::attention::{AttentionCmd, AttentionScheduler, ShiftTarget};
 use crate::budget::ComputeBudget;
 use crate::calibration::{CalibrationEntry, CalibrationLog};
 use crate::clock::HarmonicClock;
@@ -13,9 +16,7 @@ use crate::core::phase::Phase;
 use crate::core::value::TritValue;
 use crate::core::word::TritWord;
 use crate::core::TernaryAlgebra;
-use crate::knowledge::SelfKnowledge;
 use crate::meta::{ArbitrationResult, Domain, MetaInterrupt, ResolutionPolicy, SafeFallback};
-use crate::reflexive::{ReflexiveAlert, ReflexiveAuditor};
 use crate::sandbox::diagnostic::SandboxDiagnostics;
 use crate::sandbox::error::SandboxError;
 use crate::sandbox::input::{ScenarioInput, SignalInput};
@@ -441,7 +442,7 @@ impl SandboxPipeline {
                 auditor.record_interrupt(int.clone());
             }
             if self.trace_phase {
-                auditor.record_phase_shift(crate::reflexive::PhaseShift::new(
+                auditor.record_phase_shift(crate::adapters::reflexive_audit::PhaseShift::new(
                     arbitrated_word.phase().inner(),
                     arbitrated_word.phase().inner(),
                     "arbitration",
@@ -741,7 +742,7 @@ impl SandboxPipeline {
 
 /// Parse a serialized attention command string back to an `AttentionCmd`.
 fn parse_attention_cmd(s: &str) -> Option<AttentionCmd> {
-    use crate::attention::ShiftTarget;
+    use crate::adapters::ShiftTarget;
     // Format: "ShiftTo(Body)", "HoldCurrent", "Recalibrate", "Continue"
     match s {
         "HoldCurrent" => Some(AttentionCmd::HoldCurrent),
