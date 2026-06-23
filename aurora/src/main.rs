@@ -35,19 +35,13 @@ fn main() -> Result<()> {
         .with_context(|| "failed to parse input JSON as SignalSpec")?;
 
     // ── Link 1: Analysis ────────────────────────────────────────────
-    let analysis_report = analysis::run_analysis(
-        &spec,
-        args.frequency_threshold,
-        args.user_feels_normal,
-    )
-    .map_err(|e| anyhow::anyhow!("analysis link failed: {e}"))?;
+    let analysis_report =
+        analysis::run_analysis(&spec, args.frequency_threshold, args.user_feels_normal)
+            .map_err(|e| anyhow::anyhow!("analysis link failed: {e}"))?;
 
     // ── Link 2: Attention ───────────────────────────────────────────
-    let attention_outcome = attention::run_attention(
-        &analysis_report.decision.input_signals,
-        db,
-    )
-    .map_err(|e| anyhow::anyhow!("attention link failed: {e}"))?;
+    let attention_outcome = attention::run_attention(&analysis_report.decision.input_signals, db)
+        .map_err(|e| anyhow::anyhow!("attention link failed: {e}"))?;
 
     // ── Presentation ────────────────────────────────────────────────
     let mut view = ViewState::new(

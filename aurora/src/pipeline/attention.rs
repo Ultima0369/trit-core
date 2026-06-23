@@ -4,9 +4,7 @@
 //! entries to SQLite (or in-memory for testing), and computes the ASI metric.
 
 use crate::bc::attention_guidance::{AttentionManager, AttentionPort, AttentionSession};
-use crate::bc::audit_trail::{
-    AuditDecisionSnapshot, AuditEntry, AuditEventType, AuditPort,
-};
+use crate::bc::audit_trail::{AuditDecisionSnapshot, AuditEntry, AuditEventType, AuditPort};
 use crate::bc::BcError;
 use crate::db::audit_log::SqliteAuditLog;
 use crate::db::Database;
@@ -42,10 +40,7 @@ fn build_snapshot(signals: &[TritWord]) -> AuditDecisionSnapshot {
 /// 2. Build an audit snapshot from the signals.
 /// 3. Persist the audit entry to SQLite via SqliteAuditLog.
 /// 4. Return the attention outcome.
-pub fn run_attention(
-    signals: &[TritWord],
-    db: Database,
-) -> Result<AttentionOutcome, BcError> {
+pub fn run_attention(signals: &[TritWord], db: Database) -> Result<AttentionOutcome, BcError> {
     let mut attention = AttentionManager::new("attention_session");
     let cmd = attention.run_cycle(signals);
 
@@ -124,10 +119,12 @@ mod tests {
 
     #[test]
     fn run_attention_with_sqlite_persists_audit_entry() {
-        let db = Database::open_in_memory().map_err(|e| BcError::Domain {
-            bc: "AuditTrail".into(),
-            message: e.to_string(),
-        }).unwrap();
+        let db = Database::open_in_memory()
+            .map_err(|e| BcError::Domain {
+                bc: "AuditTrail".into(),
+                message: e.to_string(),
+            })
+            .unwrap();
 
         let signals = vec![
             TritWord::tru(Frame::Embodied),

@@ -9,11 +9,14 @@ use aurora::bc::presentation::{AuroraRenderer, ConflictCard, RenderPort, ViewSta
 fn html_report_includes_asi_section() {
     let mut session = AttentionSession::new("test_render");
     session.record_reminder("ShiftTo", "ConflictTrace", "test");
-    session.record_user_response(
-        aurora::bc::attention_guidance::UserResponse::ShiftedTo("ConflictTrace".into()),
-    );
+    session.record_user_response(aurora::bc::attention_guidance::UserResponse::ShiftedTo(
+        "ConflictTrace".into(),
+    ));
 
-    let mut view = ViewState::new("Detected frequency: 2.500 Hz | Decision: Hold".into(), session);
+    let mut view = ViewState::new(
+        "Detected frequency: 2.500 Hz | Decision: Hold".into(),
+        session,
+    );
     view.add_conflict(ConflictCard {
         conflict_type: "FrameMismatch".into(),
         reason: "Embodied vs Individual conflict".into(),
@@ -32,7 +35,10 @@ fn html_report_includes_asi_section() {
 #[test]
 fn html_report_includes_conflict_panel_when_conflict_present() {
     let session = AttentionSession::new("test_render");
-    let mut view = ViewState::new("Detected frequency: 2.500 Hz | Decision: Hold".into(), session);
+    let mut view = ViewState::new(
+        "Detected frequency: 2.500 Hz | Decision: Hold".into(),
+        session,
+    );
     view.add_conflict(ConflictCard {
         conflict_type: "FrameMismatch".into(),
         reason: "Embodied vs Individual conflict".into(),
@@ -49,7 +55,10 @@ fn html_report_includes_conflict_panel_when_conflict_present() {
 #[test]
 fn html_report_shows_no_conflict_when_empty() {
     let session = AttentionSession::new("test_render");
-    let view = ViewState::new("Detected frequency: 2.500 Hz | Decision: True".into(), session);
+    let view = ViewState::new(
+        "Detected frequency: 2.500 Hz | Decision: True".into(),
+        session,
+    );
 
     let renderer = AuroraRenderer;
     let html = renderer.render_html(&view);

@@ -4,7 +4,9 @@
 //! maps frequency and user state to TritWords, and evaluates a ternary decision.
 
 use crate::bc::signal_analysis::{FftWaveletEngine, FrequencySpectrum, TimeSeries, WaveletEngine};
-use crate::bc::ternary_decision::{DecisionPort, DecisionRecord, DecisionSession, TritDecisionEngine};
+use crate::bc::ternary_decision::{
+    DecisionPort, DecisionRecord, DecisionSession, TritDecisionEngine,
+};
 use crate::bc::BcError;
 use crate::wavelet::sine_wave;
 use serde::Deserialize;
@@ -68,7 +70,12 @@ pub fn run_analysis(
     user_feels_normal: bool,
 ) -> Result<AnalysisReport, BcError> {
     // Step 1: Generate synthetic signal
-    let signal = sine_wave(spec.freq, spec.sample_rate, spec.duration_secs, spec.noise_std);
+    let signal = sine_wave(
+        spec.freq,
+        spec.sample_rate,
+        spec.duration_secs,
+        spec.noise_std,
+    );
 
     // Step 2: Analyze via FFT
     let ts = TimeSeries::new(spec.sample_rate, signal)?;

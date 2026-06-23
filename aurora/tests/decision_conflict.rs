@@ -2,7 +2,9 @@
 //!
 //! Migrated from old decision module to new pipeline::analysis link.
 
-use aurora::pipeline::analysis::{frequency_to_embodied, run_analysis, user_state_to_individual, SignalSpec};
+use aurora::pipeline::analysis::{
+    frequency_to_embodied, run_analysis, user_state_to_individual, SignalSpec,
+};
 use truncore::core::{Frame, TritValue, TritWord};
 
 #[test]
