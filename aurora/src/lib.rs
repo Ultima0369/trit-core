@@ -27,9 +27,6 @@ pub mod cli;
 /// End-to-end pipeline orchestration (two independent links).
 pub mod pipeline;
 
-/// Output renderers (JSON, HTML).
-pub mod render;
-
 /// Bounded Context modules (M1 architecture).
 ///
 /// Six independent BCs with trait-defined boundaries:
