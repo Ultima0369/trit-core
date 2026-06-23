@@ -94,16 +94,27 @@ JSON scenario → ScenarioInput → validate → TritWord[] → t_and_n (batch T
     → SandboxOutput (JSON)
 ```
 
-## Architecture: Aurora (M1 — Bounded Contexts + SQLite)
+## Architecture: Aurora (M1 — BC Architecture Hardened)
 
 Aurora is a CLI binary (future: Tauri desktop app) with these layers:
 
-### Pipeline (M0, working end-to-end)
+### Pipeline (`aurora/src/pipeline/`, M1)
+Two independent links replacing the old single-file `pipeline.rs`:
+
+**Analysis link** (`pipeline/analysis.rs`): SignalSpec → FFT wavelet analysis → TritWord mapping → TernaryDecision
 ```
-Synthetic signal (2Hz sine) → FFT base frequency detection
-    → Trit-Core decision (Embodied vs Individual frame)
-    → CLI/JSON/HTML output
+SignalSpec → sine_wave() → TimeSeries → FftWaveletEngine.analyze() → FrequencySpectrum
+    → frequency_to_embodied() + user_state_to_individual() → TritWord[]
+    → TritDecisionEngine.evaluate() → DecisionRecord → AnalysisReport
 ```
+
+**Attention link** (`pipeline/attention.rs`): TritWord[] → AttentionScheduler → AuditTrail → SQLite
+```
+&TritWord[] → AttentionManager.run_cycle() → Option<AttentionCmd>
+    → AuditDecisionSnapshot → SqliteAuditLog.record() → AttentionOutcome
+```
+
+Both `run_attention(db)` (SQLite) and `run_attention_in_memory()` (test-only) are available.
 
 ### Bounded Contexts (`aurora/src/bc/`, M1)
 Six independent BCs with trait-defined boundaries, connected in a DAG:
@@ -121,11 +132,10 @@ Each BC exposes exactly one public trait (its "port") and has one aggregate root
 Local database at `~/.aurora/data/aurora.db`. Schema: `contacts`, `frame_annotations`, `annotation_history`, `audit_log`, `communication_events`. Includes schema migration system.
 
 ### Other Aurora Modules
-- **`aurora/src/wavelet/`**: Synthetic signal generation + FFT base frequency detection.
+- **`aurora/src/wavelet/`**: Synthetic signal generation + FFT base frequency detection (engine layer, retained).
 - **`aurora/src/ingest/`**: `DataSource` trait abstraction — JSON fallback + mail abstract.
-- **`aurora/src/attention/`**: Attention Sovereignty Index (ASI) dashboard + reminder history + conflict panel.
-- **`aurora/src/decision/`**: Maps signals to Trit-Core trits, conflict detection.
-- **`aurora/src/render/`**: JSON and HTML output renderers.
+- **`aurora/src/cli.rs`**: CLI args including `--db-path` for SQLite persistence.
+- **`aurora/src/main.rs`**: Orchestrates: analysis link → attention link → presentation.
 
 ## Key Design Rules
 
@@ -142,6 +152,11 @@ Local database at `~/.aurora/data/aurora.db`. Schema: `contacts`, `frame_annotat
 - **Modules do NOT call each other** — all cross-module communication goes through `HookContext`.
 - **Unmount = release** — no background processing after a module is unmounted.
 - **`assert_float_eq!` macro** — use this for all `f64` comparisons in tests (replaces the `(a-b).abs() < f64::EPSILON` pattern).
+
+### Aurora-Specific
+- **BC trait `_owned` methods** — `AuditPort` and `AnnotationStore` traits provide `query_owned()` / `get_contact_owned()` for SQLite compatibility. The reference variants (`query()` / `get_contact()`) panic with a clear message directing to `_owned`.
+- **Pipeline has two independent links** — `analysis::run_analysis()` (stateless, FFT → ternary decision) and `attention::run_attention()` (stateful, attention scheduler → SQLite audit). They don't call each other; `main.rs` orchestrates.
+- **`Database::open_in_memory()`** — use for tests that need SQLite persistence without a file.
 
 ## Scenario JSON Format
 

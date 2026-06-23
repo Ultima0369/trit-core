@@ -19,10 +19,10 @@
 | 维度 | 状态 |
 |------|------|
 | **Trit-Core 版本** | v0.3.0 — 单机决策引擎，5 层架构完整（Core→Meta→Hook→Adapter→Feedback） |
-| **Aurora 阶段** | M1 数据层完成。6 个 BC 骨架 + SQLite 持久化（`aurora/src/db/`）：AnnotationStore + AuditPort 的 SQLite 实现、`~/.aurora/` 目录管理、schema 迁移系统。69 个内联测试 + 全部旧测试通过。 |
+| **Aurora 阶段** | M1 BC 架构硬化完成。旧 M0 模块（attention/decision/render）已删除，两条独立 BC 链路（analysis + attention）替代旧单管道。6 个 BC 模块全部通过 pipeline 调用。SQLite 持久化集成。114 个测试通过（82 lib + 32 integration），clippy + fmt clean。 |
 | **架构设计** | 已完成 — 见 `docs/superpowers/specs/2026-06-20-aurora-architecture-design.md` |
 | **M0 剩余工作** | 无代码任务。P1 待办：作者自我验证 + 2 外部用户试用（创始人侧） |
-| **M1 入口** | Tauri 桌面应用（见 `aurora/06_roadmap/CTO_ROADMAP.md` §M1） |
+| **M1 入口** | BC 架构硬化完成。下一步：真实数据接入（mail/calendar）、Tauri 桌面应用 |
 
 ---
 
@@ -30,6 +30,7 @@
 
 | 日期 | 决策 | 文档 |
 |------|------|------|
+| 2026-06-23 | BC 架构硬化完成 — 删除旧 M0 模块（attention/decision/render），两条独立 BC 链路（analysis + attention）替代旧单管道。`pipeline/analysis.rs`（SignalAnalysis→TernaryDecision）+ `pipeline/attention.rs`（AttentionGuidance→AuditTrail→SQLite）。114 tests 0 failures，clippy + fmt clean。 | `docs/superpowers/specs/2026-06-23-aurora-bc-hardening-design.md` |
 | 2026-06-23 | 深度技术审计完成 — 702 tests 0 failures，clippy clean，5层架构评估 B+。修复 3 个 `unimplemented!()` 调用（AnnotationStore/AuditPort trait 改为 owned 方法默认实现），TECH_REVIEW_CHECKLIST 不一致修正。WAL 模式已启用。 | 审计报告见本轮对话 |
 | 2026-06-22 | M1 SQLite 数据层完成 — rusqlite 集成，`aurora/src/db/` 含 schema 迁移、AnnotationStore/AuditPort SQLite 实现、`~/.aurora/` 目录管理，22 个新测试通过 | `aurora/src/db/` |
 | 2026-06-22 | M1 BC 模块骨架完成 — 6 个限界上下文（SignalAnalysis/RelationshipAnnotation/TernaryDecision/AttentionGuidance/AuditTrail/Presentation）在 `aurora/src/bc/` 搭建，47 个测试通过，trait 边界清晰，旧模块向后兼容 | `docs/superpowers/specs/2026-06-20-aurora-architecture-design.md` §3 |
