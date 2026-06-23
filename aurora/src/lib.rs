@@ -5,6 +5,10 @@
 //! data, extracts a base frequency via wavelet analysis, feeds it into
 //! Trit-Core for a ternary decision (Embodied vs Individual), and renders the
 //! result as static HTML.
+//!
+//! `#![forbid(unsafe_code)]` is enforced crate-wide per CHARTER engineering discipline.
+
+#![forbid(unsafe_code)]
 
 /// Returns the current Aurora crate version.
 pub const fn version() -> &'static str {
@@ -31,3 +35,17 @@ pub mod pipeline;
 
 /// Output renderers (JSON, HTML).
 pub mod render;
+
+/// Bounded Context modules (M1 architecture).
+///
+/// Six independent BCs with trait-defined boundaries:
+/// SignalAnalysis, RelationshipAnnotation, TernaryDecision,
+/// AttentionGuidance, AuditTrail, Presentation.
+pub mod bc;
+
+/// SQLite data layer (M1).
+///
+/// Local SQLite database at ~/.aurora/data/aurora.db.
+/// Schema: contacts, frame_annotations, annotation_history,
+/// audit_log, communication_events.
+pub mod db;

@@ -3,7 +3,7 @@
 > **目的**：每次新会话开始时，AI 或人类协作者读此文件，30 秒内定位工作进度。
 > **维护规则**：每次完成一个阶段或做出重大决策后，更新"当前进度"和"上次决策"两节。
 > **版本**：1.0.0
-> **最后更新**：2026-06-20
+> **最后更新**：2026-06-23
 
 ---
 
@@ -19,7 +19,7 @@
 | 维度 | 状态 |
 |------|------|
 | **Trit-Core 版本** | v0.3.0 — 单机决策引擎，5 层架构完整（Core→Meta→Hook→Adapter→Feedback） |
-| **Aurora 阶段** | M0 概念验证 — 合成数据→小波→三值→CLI/HTML 输出已完成；伦理门禁 10 个测试通过；数据采集抽象层/注意力调度闭环/注意力图谱 HTML 渲染已完成 |
+| **Aurora 阶段** | M1 数据层完成。6 个 BC 骨架 + SQLite 持久化（`aurora/src/db/`）：AnnotationStore + AuditPort 的 SQLite 实现、`~/.aurora/` 目录管理、schema 迁移系统。69 个内联测试 + 全部旧测试通过。 |
 | **架构设计** | 已完成 — 见 `docs/superpowers/specs/2026-06-20-aurora-architecture-design.md` |
 | **M0 剩余工作** | 无代码任务。P1 待办：作者自我验证 + 2 外部用户试用（创始人侧） |
 | **M1 入口** | Tauri 桌面应用（见 `aurora/06_roadmap/CTO_ROADMAP.md` §M1） |
@@ -30,9 +30,11 @@
 
 | 日期 | 决策 | 文档 |
 |------|------|------|
+| 2026-06-23 | 深度技术审计完成 — 702 tests 0 failures，clippy clean，5层架构评估 B+。修复 3 个 `unimplemented!()` 调用（AnnotationStore/AuditPort trait 改为 owned 方法默认实现），TECH_REVIEW_CHECKLIST 不一致修正。WAL 模式已启用。 | 审计报告见本轮对话 |
+| 2026-06-22 | M1 SQLite 数据层完成 — rusqlite 集成，`aurora/src/db/` 含 schema 迁移、AnnotationStore/AuditPort SQLite 实现、`~/.aurora/` 目录管理，22 个新测试通过 | `aurora/src/db/` |
+| 2026-06-22 | M1 BC 模块骨架完成 — 6 个限界上下文（SignalAnalysis/RelationshipAnnotation/TernaryDecision/AttentionGuidance/AuditTrail/Presentation）在 `aurora/src/bc/` 搭建，47 个测试通过，trait 边界清晰，旧模块向后兼容 | `docs/superpowers/specs/2026-06-20-aurora-architecture-design.md` §3 |
+| 2026-06-22 | M0 Exit Criteria 全部达成 — TECH_REVIEW_CHECKLIST 81 项勾选，性能基准建立（热路径 4.2ns，管道 10µs），`#![forbid(unsafe_code)]` 添加至 Aurora crate，文档同步完成 | `aurora/04_engineering/TECH_REVIEW_CHECKLIST.md` |
 | 2026-06-20 | M0 全部 P0 代码任务完成 — 数据采集抽象层/注意力调度闭环/ASI 仪表渲染/端到端测试全部通过（600+ tests），clippy clean | `docs/superpowers/plans/2026-06-20-m0-remaining-tasks.md` |
-| 2026-06-20 | 架构设计文档完成 — 6 个 BC，模块化单体 M0-M1，分布式 trait 预留 | `docs/superpowers/specs/2026-06-20-aurora-architecture-design.md` |
-| 2026-06-20 | Aurora 架构风格：模块化单体（M0-M1），分布式接口 trait 预留，本期不实现 | `docs/superpowers/specs/2026-06-20-aurora-architecture-design.md` |
 
 ---
 

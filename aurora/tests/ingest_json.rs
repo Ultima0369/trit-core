@@ -1,6 +1,6 @@
 //! JSON fallback data source tests.
 
-use aurora::ingest::{DataSource, IngestManager, json_fallback::JsonFallbackSource};
+use aurora::ingest::{json_fallback::JsonFallbackSource, DataSource, IngestManager};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]

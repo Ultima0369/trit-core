@@ -23,8 +23,12 @@ thiserror = "1.0"
 
 plotters = "0.3"
 
-# NOTE: rusqlite is intentionally omitted from the M0 skeleton.
-# It will be added in Stage 5 (mail ingestion) once the core pipeline is proven.
+# SQLite with encryption (SQLCipher) for local data storage.
+# M0: not yet used at runtime; M1: data layer backed by SQLite.
+rusqlite = { version = "0.31", features = ["bundled"] }
+
+# NOTE: bundled-sqlcipher feature will be enabled in M1 when encryption is activated.
+# For now, use plain SQLite for development. The schema is identical.
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }

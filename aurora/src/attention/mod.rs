@@ -83,7 +83,10 @@ impl AttentionSession {
     /// Record the user's response to the most recent reminder.
     pub fn record_user_response(&mut self, response: UserResponse) {
         if let Some(last) = self.reminders.last_mut() {
-            if matches!(response, UserResponse::ShiftedTo(_) | UserResponse::OverrodeHold { .. }) {
+            if matches!(
+                response,
+                UserResponse::ShiftedTo(_) | UserResponse::OverrodeHold { .. }
+            ) {
                 self.user_active_shift_count += 1;
             }
             last.user_response = Some(response);
@@ -146,21 +149,22 @@ impl AttentionManager {
         match &cmd {
             AttentionCmd::Continue => None,
             AttentionCmd::HoldCurrent => {
-                self.session.record_reminder("HoldCurrent", "Meta", "带宽不足，建议暂停当前处理");
+                self.session
+                    .record_reminder("HoldCurrent", "Meta", "带宽不足，建议暂停当前处理");
                 Some(cmd)
             }
             AttentionCmd::ShiftTo(target) => {
                 let target_str = format!("{:?}", target);
-                self.session.record_reminder(
-                    "ShiftTo",
-                    &target_str,
-                    "注意力调度建议切换焦点",
-                );
+                self.session
+                    .record_reminder("ShiftTo", &target_str, "注意力调度建议切换焦点");
                 Some(cmd)
             }
             AttentionCmd::Recalibrate => {
-                self.session
-                    .record_reminder("Recalibrate", "Meta", "连续 Hold 超过阈值，建议重新校准");
+                self.session.record_reminder(
+                    "Recalibrate",
+                    "Meta",
+                    "连续 Hold 超过阈值，建议重新校准",
+                );
                 Some(cmd)
             }
         }

@@ -2,7 +2,7 @@
 
 > **Scope**: 从源码文件出发，指向对应的知识文档。这是"链 A → 链 B"的反向连接。
 >
-> **最后更新**: 2026-06-20（v0.3.0 同步）
+> **最后更新**: 2026-06-22（M0 完成同步 — ingest/attention 模块从预留移至已实现）
 >
 > #trit-core #code #source #implementation #cross-chain
 
@@ -164,13 +164,20 @@
 | `aurora/src/decision/conflict.rs` | 跨域冲突检测 → Hold + MetaInterrupt | [[CONFLICT_CATALOG]], [[SECURITY_MODEL]] |
 | `aurora/src/decision/mod.rs` | 决策模块导出 | [[TRIT_CORE_INTEGRATION_SPEC]] |
 | `aurora/src/render/json.rs` | JSON 决策报告 | [[UI_SPEC]], [[api]] |
-| `aurora/src/render/html.rs` | HTML 报告渲染（plotters 图表） | [[UI_SPEC]] |
+| `aurora/src/render/html.rs` | HTML 报告渲染（ASI 仪表 + 冲突面板 + 提醒历史） | [[UI_SPEC]], [[CTO_ROADMAP]] |
 | `aurora/src/render/mod.rs` | 渲染模块导出 | [[UI_SPEC]] |
+| `aurora/src/ingest/mod.rs` | DataSource trait + IngestManager（采集抽象层） | [[DATA_INGESTION_SPEC]], [[CTO_ROADMAP]] |
+| `aurora/src/ingest/json_fallback.rs` | JSON fallback 数据源 | [[DATA_INGESTION_SPEC]] |
+| `aurora/src/ingest/mail_abstract.rs` | 邮件采集抽象层（M1 桩） | [[DATA_INGESTION_SPEC]] |
+| `aurora/src/attention/mod.rs` | AttentionSession + AttentionManager（注意力调度闭环 + ASI） | [[ATTENTION_CAPITALISM]], [[CTO_ROADMAP]] |
 | `aurora/tests/smoke.rs` | 冒烟测试 | [[TESTING_STRATEGY]] |
 | `aurora/tests/wavelet_detect.rs` | 小波检测单元测试 | [[WAVELET_ENGINE_SPEC]] |
 | `aurora/tests/decision_conflict.rs` | 决策冲突单元测试 | [[TRIT_CORE_INTEGRATION_SPEC]] |
-| `aurora/tests/cli_end_to_end.rs` | CLI 端到端测试 | [[PIPELINE_DESIGN]] |
+| `aurora/tests/cli_end_to_end.rs` | CLI 端到端测试（含 ASI + 冲突 + 提醒验证） | [[PIPELINE_DESIGN]] |
 | `aurora/tests/ethics_gates.rs` | 10 个伦理门禁测试（不可跳过） | [[009-ethics-hardening]], [[TECH_REVIEW_CHECKLIST]] |
+| `aurora/tests/ingest_json.rs` | JSON fallback 数据源测试 | [[DATA_INGESTION_SPEC]] |
+| `aurora/tests/attention_session.rs` | 注意力会话测试（ASI 计算） | [[CTO_ROADMAP]] |
+| `aurora/tests/render_attention.rs` | 注意力图谱渲染测试 | [[UI_SPEC]] |
 | `aurora/benches/aurora_bench.rs` | Aurora 性能基准 | [[BENCHMARK]] |
 
 ---
@@ -181,8 +188,6 @@
 |---|---|---|
 | `src-tauri/` | Tauri GUI 框架（M1） | [[006-tauri-over-electron]], [[UI_SPEC]], [[CTO_ROADMAP]] §M1 |
 | `aurora/src/db/` | SQLite 数据层（M1） | [[DATA_MODEL]], [[007-sqlite-over-postgres]] |
-| `aurora/src/attention/` | 注意力调度引擎（M0 剩余） | [[ATTENTION_CAPITALISM]], [[CTO_ROADMAP]] |
-| `aurora/src/ingest/` | 邮件/日历/通知采集（M0 剩余） | [[DATA_INGESTION_SPEC]], [[CTO_ROADMAP]] §M0 |
 | `aurora/src/security/` | SecurityMode 落地与审计日志（M1） | [[SECURITY_MODEL]], [[009-ethics-hardening]] |
 
 ---

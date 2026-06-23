@@ -31,10 +31,7 @@ impl JsonFallbackSource {
         let raw_json = fs::read_to_string(path)?;
         // Validate it's a JSON array by parsing to serde_json::Value
         let parsed: serde_json::Value = serde_json::from_str(&raw_json)?;
-        let contact_count = parsed
-            .as_array()
-            .map(|a| a.len())
-            .unwrap_or(0);
+        let contact_count = parsed.as_array().map(|a| a.len()).unwrap_or(0);
         Ok(Self {
             path: path.to_path_buf(),
             raw_json,

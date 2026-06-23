@@ -3,13 +3,16 @@
 use aurora::attention::{AttentionManager, UserResponse};
 use aurora::pipeline::DecisionReport;
 use truncore::core::{Frame, TritWord};
-use truncore::meta::MetaInterrupt;
 use truncore::meta::ConflictType;
+use truncore::meta::MetaInterrupt;
 
 #[test]
 fn html_report_includes_asi_section() {
     let mut attention = AttentionManager::new("test_render");
-    attention.run_cycle(&[TritWord::tru(Frame::Embodied), TritWord::fals(Frame::Individual)]);
+    attention.run_cycle(&[
+        TritWord::tru(Frame::Embodied),
+        TritWord::fals(Frame::Individual),
+    ]);
     attention.respond(UserResponse::ShiftedTo("ConflictTrace".into()));
 
     let report = DecisionReport {

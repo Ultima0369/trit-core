@@ -27,8 +27,13 @@ fn main() -> Result<()> {
     let spec: SignalSpec = serde_json::from_str(&input_text)
         .with_context(|| "failed to parse input JSON as SignalSpec")?;
 
-    let report = run_pipeline(&spec, args.frequency_threshold, args.user_feels_normal, &mut attention)
-        .map_err(|e| anyhow::anyhow!("pipeline failed: {e}"))?;
+    let report = run_pipeline(
+        &spec,
+        args.frequency_threshold,
+        args.user_feels_normal,
+        &mut attention,
+    )
+    .map_err(|e| anyhow::anyhow!("pipeline failed: {e}"))?;
 
     match args.output {
         Some(path) => {

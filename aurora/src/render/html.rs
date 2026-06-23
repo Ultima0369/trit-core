@@ -122,7 +122,7 @@ fn render_conflict_panel(report: &DecisionReport) -> String {
         None => r#"<div class="no-conflict">
     <p>✅ No conflict detected — signals are aligned.</p>
 </div>"#
-        .to_string(),
+            .to_string(),
     }
 }
 
