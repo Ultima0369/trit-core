@@ -26,4 +26,8 @@ pub struct Args {
     /// Path to JSON contacts file for relationship-aware analysis (optional).
     #[arg(long)]
     pub data_source: Option<PathBuf>,
+
+    /// Path to SQLite database (optional; uses in-memory fallback if not set).
+    #[arg(long, default_value = ":memory:")]
+    pub db_path: String,
 }

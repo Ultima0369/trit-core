@@ -21,6 +21,9 @@ pub mod wavelet;
 /// Data ingestion layer (M0: JSON fallback, M1: mail).
 pub mod ingest;
 
+/// Command-line argument definitions.
+pub mod cli;
+
 /// End-to-end pipeline orchestration (two independent links).
 pub mod pipeline;
 

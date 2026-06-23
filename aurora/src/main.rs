@@ -1,18 +1,24 @@
 use anyhow::{Context, Result};
-use aurora::attention::AttentionManager;
+use aurora::bc::presentation::{AuroraRenderer, ConflictCard, RenderPort, ViewState};
 use aurora::cli::Args;
-use aurora::pipeline::{run_pipeline, SignalSpec};
-use aurora::render::{html, json};
+use aurora::db::Database;
+use aurora::pipeline::{analysis, attention};
 use clap::Parser;
 use std::fs;
+use std::path::Path;
 
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    // Initialize attention manager for this session (M0: one session per run)
-    let mut attention = AttentionManager::new("aurora_session");
+    // Open database (in-memory if no path specified)
+    let db_path = Path::new(&args.db_path);
+    let db = if db_path == Path::new(":memory:") {
+        Database::open_in_memory()?
+    } else {
+        Database::open(db_path)?
+    };
 
-    // Load data source if provided (M0: JSON fallback; M1: mail)
+    // Load data source if provided
     if let Some(ref path) = args.data_source {
         let manager = aurora::ingest::IngestManager::with_json_fallback(path)?;
         eprintln!(
@@ -22,29 +28,61 @@ fn main() -> Result<()> {
         );
     }
 
+    // Read and parse input
     let input_text = fs::read_to_string(&args.input)
         .with_context(|| format!("failed to read input file {:?}", args.input))?;
-    let spec: SignalSpec = serde_json::from_str(&input_text)
+    let spec: analysis::SignalSpec = serde_json::from_str(&input_text)
         .with_context(|| "failed to parse input JSON as SignalSpec")?;
 
-    let report = run_pipeline(
+    // ── Link 1: Analysis ────────────────────────────────────────────
+    let analysis_report = analysis::run_analysis(
         &spec,
         args.frequency_threshold,
         args.user_feels_normal,
-        &mut attention,
     )
-    .map_err(|e| anyhow::anyhow!("pipeline failed: {e}"))?;
+    .map_err(|e| anyhow::anyhow!("analysis link failed: {e}"))?;
+
+    // ── Link 2: Attention ───────────────────────────────────────────
+    let attention_outcome = attention::run_attention(
+        &analysis_report.decision.input_signals,
+        db,
+    )
+    .map_err(|e| anyhow::anyhow!("attention link failed: {e}"))?;
+
+    // ── Presentation ────────────────────────────────────────────────
+    let mut view = ViewState::new(
+        format!(
+            "Detected frequency: {:.3} Hz | Decision: {:?}",
+            analysis_report.spectrum.fundamental_hz,
+            analysis_report.decision.result.value()
+        ),
+        attention_outcome.session,
+    );
+
+    // Add conflicts to view
+    for interrupt in &analysis_report.decision.interrupts {
+        view.add_conflict(ConflictCard {
+            conflict_type: format!("{:?}", interrupt.conflict),
+            reason: interrupt.reason.clone(),
+            frame_a: "Embodied".into(),
+            frame_b: "Individual".into(),
+            acknowledged: false,
+        });
+    }
+
+    let renderer = AuroraRenderer;
+    let html = renderer.render_html(&view);
 
     match args.output {
         Some(path) => {
-            let html = html::render(&report, attention.session());
-            fs::write(&path, html)
+            fs::write(&path, &html)
                 .with_context(|| format!("failed to write HTML report to {:?}", path))?;
             println!("Report written to {}", path.display());
         }
         None => {
-            let json =
-                json::to_string(&report).map_err(|e| anyhow::anyhow!("JSON render failed: {e}"))?;
+            let json = renderer
+                .render_json(&view)
+                .map_err(|e| anyhow::anyhow!("JSON render failed: {e}"))?;
             println!("{}", json);
         }
     }
