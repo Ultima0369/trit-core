@@ -21,16 +21,7 @@ pub mod wavelet;
 /// Data ingestion layer (M0: JSON fallback, M1: mail).
 pub mod ingest;
 
-/// Attention guidance layer (M0: minimal closed loop with ASI).
-pub mod attention;
-
-/// Decision layer: map signals and user state to Trit-Core trits.
-pub mod decision;
-
-/// Command-line argument definitions.
-pub mod cli;
-
-/// End-to-end pipeline orchestration.
+/// End-to-end pipeline orchestration (two independent links).
 pub mod pipeline;
 
 /// Output renderers (JSON, HTML).

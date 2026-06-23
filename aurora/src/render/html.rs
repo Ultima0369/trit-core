@@ -2,7 +2,7 @@
 //!
 //! Renders: decision table, conflict panel, ASI gauge, reminder history.
 
-use crate::attention::AttentionSession;
+use crate::bc::attention_guidance::{AttentionSession, UserResponse};
 use crate::pipeline::DecisionReport;
 use truncore::core::TritValue;
 
@@ -170,14 +170,14 @@ fn render_reminder_rows(session: &AttentionSession) -> String {
         .iter()
         .map(|r| {
             let (response_text, row_class) = match &r.user_response {
-                Some(crate::attention::UserResponse::ShiftedTo(t)) => {
+                Some(UserResponse::ShiftedTo(t)) => {
                     (format!("Shifted → {}", t), "shifted")
                 }
-                Some(crate::attention::UserResponse::OverrodeHold { chosen_frame }) => {
+                Some(UserResponse::OverrodeHold { chosen_frame }) => {
                     (format!("Overrode Hold → {}", chosen_frame), "shifted")
                 }
-                Some(crate::attention::UserResponse::Ignored) => ("Ignored".into(), "ignored"),
-                Some(crate::attention::UserResponse::Dismissed) => ("Dismissed".into(), "ignored"),
+                Some(UserResponse::Ignored) => ("Ignored".into(), "ignored"),
+                Some(UserResponse::Dismissed) => ("Dismissed".into(), "ignored"),
                 None => ("Pending".into(), "pending"),
             };
             format!(
