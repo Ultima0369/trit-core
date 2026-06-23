@@ -1,79 +1,57 @@
 //! Attention-aware HTML rendering tests.
+//!
+//! Migrated from old render module to new bc::presentation (AuroraRenderer).
 
-use aurora::attention::{AttentionManager, UserResponse};
-use aurora::pipeline::DecisionReport;
-use truncore::core::{Frame, TritWord};
-use truncore::meta::ConflictType;
-use truncore::meta::MetaInterrupt;
+use aurora::bc::attention_guidance::AttentionSession;
+use aurora::bc::presentation::{AuroraRenderer, ConflictCard, RenderPort, ViewState};
 
 #[test]
 fn html_report_includes_asi_section() {
-    let mut attention = AttentionManager::new("test_render");
-    attention.run_cycle(&[
-        TritWord::tru(Frame::Embodied),
-        TritWord::fals(Frame::Individual),
-    ]);
-    attention.respond(UserResponse::ShiftedTo("ConflictTrace".into()));
+    let mut session = AttentionSession::new("test_render");
+    session.record_reminder("ShiftTo", "ConflictTrace", "test");
+    session.record_user_response(
+        aurora::bc::attention_guidance::UserResponse::ShiftedTo("ConflictTrace".into()),
+    );
 
-    let report = DecisionReport {
-        input_freq: 2.5,
-        detected_freq: 2.5,
-        embodied: TritWord::tru(Frame::Embodied),
-        individual: TritWord::fals(Frame::Individual),
-        result: TritWord::hold(Frame::Meta),
-        interrupt: Some(MetaInterrupt::new(
-            ConflictType::FrameMismatch,
-            "Embodied vs Individual conflict".to_string(),
-        )),
-        attention_cmd: None,
-        asi: attention.session().asi(),
-        reminder_count: attention.session().reminder_count(),
-    };
+    let mut view = ViewState::new("Detected frequency: 2.500 Hz | Decision: Hold".into(), session);
+    view.add_conflict(ConflictCard {
+        conflict_type: "FrameMismatch".into(),
+        reason: "Embodied vs Individual conflict".into(),
+        frame_a: "Embodied".into(),
+        frame_b: "Individual".into(),
+        acknowledged: false,
+    });
 
-    let html = aurora::render::html::render(&report, attention.session());
+    let renderer = AuroraRenderer;
+    let html = renderer.render_html(&view);
     assert!(html.contains("Attention Sovereignty Index"));
     assert!(html.contains("ASI"));
     assert!(html.contains("reminder"));
 }
 
 #[test]
-fn html_report_includes_conflict_panel_when_interrupt_present() {
-    let attention = AttentionManager::new("test_render");
-    let report = DecisionReport {
-        input_freq: 2.5,
-        detected_freq: 2.5,
-        embodied: TritWord::tru(Frame::Embodied),
-        individual: TritWord::fals(Frame::Individual),
-        result: TritWord::hold(Frame::Meta),
-        interrupt: Some(MetaInterrupt::new(
-            ConflictType::FrameMismatch,
-            "Embodied vs Individual conflict".to_string(),
-        )),
-        attention_cmd: None,
-        asi: 0.0,
-        reminder_count: 0,
-    };
+fn html_report_includes_conflict_panel_when_conflict_present() {
+    let session = AttentionSession::new("test_render");
+    let mut view = ViewState::new("Detected frequency: 2.500 Hz | Decision: Hold".into(), session);
+    view.add_conflict(ConflictCard {
+        conflict_type: "FrameMismatch".into(),
+        reason: "Embodied vs Individual conflict".into(),
+        frame_a: "Embodied".into(),
+        frame_b: "Individual".into(),
+        acknowledged: false,
+    });
 
-    let html = aurora::render::html::render(&report, attention.session());
-    assert!(html.contains("Conflict Panel"));
+    let renderer = AuroraRenderer;
+    let html = renderer.render_html(&view);
     assert!(html.contains("FrameMismatch"));
 }
 
 #[test]
-fn html_report_shows_no_conflict_when_interrupt_absent() {
-    let attention = AttentionManager::new("test_render");
-    let report = DecisionReport {
-        input_freq: 2.5,
-        detected_freq: 2.5,
-        embodied: TritWord::tru(Frame::Individual),
-        individual: TritWord::tru(Frame::Individual),
-        result: TritWord::tru(Frame::Individual),
-        interrupt: None,
-        attention_cmd: None,
-        asi: 0.0,
-        reminder_count: 0,
-    };
+fn html_report_shows_no_conflict_when_empty() {
+    let session = AttentionSession::new("test_render");
+    let view = ViewState::new("Detected frequency: 2.500 Hz | Decision: True".into(), session);
 
-    let html = aurora::render::html::render(&report, attention.session());
+    let renderer = AuroraRenderer;
+    let html = renderer.render_html(&view);
     assert!(html.contains("No conflict detected"));
 }

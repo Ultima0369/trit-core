@@ -1,6 +1,8 @@
 //! Attention session tests — ASI tracking and user response recording.
+//!
+//! Migrated from old attention module to new bc::attention_guidance.
 
-use aurora::attention::{AttentionSession, UserResponse};
+use aurora::bc::attention_guidance::{AttentionSession, UserResponse};
 use truncore::core::{Frame, TritWord};
 
 #[test]
