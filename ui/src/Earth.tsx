@@ -21,8 +21,6 @@ const DEFAULT_ROTATION_SPEED_DEG_PER_SEC = 6;
 const RESOURCE_SERVER = 'http://localhost:21337';
 const CESIUM_BASE_URL = `${RESOURCE_SERVER}/cesium`;
 const CESIUM_INIT_TIMEOUT_MS = 15000;
-// 自转恢复倍数递增封顶：2^4 = 16 倍。初始 60s → 封顶 60*16 = 960s（16 分钟）。
-const RESUME_MULT_CAP = 4;
 
 const TEXTURE_URLS: Record<GlobeTexture, string> = {
   'blue-marble': 'earth-blue-marble.jpg',
@@ -76,9 +74,6 @@ export default function Earth({ resumeDelayMs, rotationSpeed = DEFAULT_ROTATION_
   const [textures, setTextures] = useState(FALLBACK_TEXTURES);
   const rotatingRef = useRef(true);
   const resumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // 自转恢复倍数递增：每次用户操作倍数 +1，实际延迟 = resumeDelayMs * 2^倍数。
-  // 封顶 RESUME_MULT_CAP，避免无限增长。鼓励用户专注操作时地球保持静止。
-  const resumeMultRef = useRef(0);
   const [serverReady, setServerReady] = useState(false);
   const serverReadyRef = useRef(false);
   const [resetCounter, setResetCounter] = useState(0);
@@ -364,20 +359,16 @@ export default function Earth({ resumeDelayMs, rotationSpeed = DEFAULT_ROTATION_
   }
 
   // Shared interaction: pause rotation on user drag/scroll
-  // 每次操作倍数递增：实际延迟 = resumeDelayMs * 2^倍数，封顶 2^RESUME_MULT_CAP。
-  // 鼓励专注——用户连续操作时地球保持静止更久。
+  // 用户操作后延迟固定时间恢复自转（由设置档位决定，1/3/5/10 分钟或关闭）。
   const pauseRotation = useCallback(() => {
     rotatingRef.current = false;
     if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
     if (resumeDelayMs > 0) {
-      const mult = Math.min(resumeMultRef.current, RESUME_MULT_CAP);
-      const delay = resumeDelayMs * Math.pow(2, mult);
-      resumeMultRef.current = mult + 1; // 下次操作倍数再翻
-      diag('Earth', 'INFO', `自转暂停，${Math.round(delay / 1000)}s 后恢复 (倍数 x${Math.pow(2, mult)})`);
+      diag('Earth', 'INFO', `自转暂停，${Math.round(resumeDelayMs / 1000)}s 后恢复`);
       resumeTimerRef.current = setTimeout(() => {
         rotatingRef.current = true;
         resumeTimerRef.current = null;
-      }, delay);
+      }, resumeDelayMs);
     }
   }, [resumeDelayMs]);
 

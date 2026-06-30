@@ -24,7 +24,7 @@ const DEFAULT_PIPELINE_REQUEST: PipelineRequest = {
   user_feels_normal: true,
 };
 
-const DEFAULT_RESUME_DELAY_MS = 60000; // 初始 60s，之后倍数递增（见 Earth pauseRotation）
+const DEFAULT_RESUME_DELAY_MS = 60000; // 1 分钟（固定延迟，见 Earth pauseRotation）
 const DEFAULT_FONT_SCALE = 1;
 const DEFAULT_ROTATION_SPEED = 2;
 

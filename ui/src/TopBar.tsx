@@ -56,7 +56,16 @@ export default function TopBar({
   return (
     <header className="aur-topbar aur-topbar--overlay">
       <span className="aur-wordmark">Aurora</span>
-      <span className="aur-topbar-sub">{view2D ? '流沙' : '极光'}</span>
+
+      {/* 设置按钮置于左上角 wordmark 旁 */}
+      <button
+        className="aur-btn aur-btn--icon"
+        onClick={onToggleSettings}
+        title="设置"
+      >
+        <Settings size={16} />
+      </button>
+
       <div className="aur-topbar-divider" />
 
       {decision && (
@@ -98,14 +107,6 @@ export default function TopBar({
         title={isFullscreen ? '退出全屏 (F11)' : '全屏 (F11)'}
       >
         {isFullscreen ? <Minimize size={15} /> : <Maximize size={15} />}
-      </button>
-
-      <button
-        className="aur-btn aur-btn--icon"
-        onClick={onToggleSettings}
-        title="设置"
-      >
-        <Settings size={16} />
       </button>
 
       <button

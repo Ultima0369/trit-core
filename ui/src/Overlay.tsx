@@ -20,12 +20,13 @@ interface Props {
   onPipelineRequestChange: (req: PipelineRequest) => void;
 }
 
-// 自转恢复：初始延迟，之后 Earth 内部倍数递增（60→120→240→…→960s 封顶）。
+// 自转恢复：固定延迟档位。拖动地球后，选定的延迟过后恢复自转。
 const RESUME_OPTIONS = [
-  { value: 60000, label: '60 秒 (倍数递增)' },
-  { value: 30000, label: '30 秒' },
-  { value: 10000, label: '10 秒' },
-  { value: 0, label: '关闭' },
+  { value: 60000, label: '1 分钟' },
+  { value: 180000, label: '3 分钟' },
+  { value: 300000, label: '5 分钟' },
+  { value: 600000, label: '10 分钟' },
+  { value: 0, label: '关闭自转' },
 ];
 
 interface AssetInfo {

@@ -65,11 +65,6 @@ describe('App', () => {
     expect(screen.getByText(/Esc 退出/)).toBeInTheDocument();
   });
 
-  it('renders the 极光 subtitle (3D default)', () => {
-    render(<App />);
-    expect(screen.getByText('极光')).toBeInTheDocument();
-  });
-
   it('renders the decision indicator after run resolves', async () => {
     const { container } = render(<App />);
     // App auto-runs on mount; once the pipeline resolves, the TopBar shows the decision.
