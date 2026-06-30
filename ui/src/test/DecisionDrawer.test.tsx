@@ -49,4 +49,22 @@ describe('DecisionDrawer', () => {
     fireEvent.click(screen.getByTitle('关闭'));
     expect(onClose).toHaveBeenCalled();
   });
+
+  it('renders ASI gauge with percentage', () => {
+    render(<DecisionDrawer open={true} onClose={vi.fn()} data={baseData} loading={false} />);
+    // asi=0.62 → 62%
+    expect(screen.getByText(/62%/)).toBeInTheDocument();
+  });
+
+  it('renders a row per signal with frame name', () => {
+    render(<DecisionDrawer open={true} onClose={vi.fn()} data={baseData} loading={false} />);
+    expect(screen.getByText('Embodied')).toBeInTheDocument();
+    expect(screen.getByText('Individual')).toBeInTheDocument();
+  });
+
+  it('shows placeholder when signals empty', () => {
+    const empty = { ...baseData, signals: [] };
+    render(<DecisionDrawer open={true} onClose={vi.fn()} data={empty} loading={false} />);
+    expect(screen.getByText('无输入信号')).toBeInTheDocument();
+  });
 });

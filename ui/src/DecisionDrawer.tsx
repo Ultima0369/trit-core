@@ -35,6 +35,44 @@ export default function DecisionDrawer({ open, onClose, data }: Props) {
             <span className="aur-decision-head__frame">Frame: {final_frame}</span>
           </div>
         </div>
+
+        {/* ASI 仪表 */}
+        <div className="aur-settings__section">
+          <div className="aur-settings__title">注意力主权指数</div>
+          <div className="aur-gauge">
+            <div className="aur-gauge__track">
+              <div
+                className="aur-gauge__fill"
+                style={{ width: `${Math.round(data.asi * 100)}%` }}
+              />
+            </div>
+            <span className="aur-gauge__value">
+              {Math.round(data.asi * 100)}%
+            </span>
+          </div>
+        </div>
+
+        {/* Frame 张力 */}
+        <div className="aur-settings__section">
+          <div className="aur-settings__title">Frame 张力</div>
+          {data.signals.length === 0 ? (
+            <div className="aur-summary-empty">无输入信号</div>
+          ) : (
+            data.signals.map((s, i) => (
+              <div key={i} className="aur-tension-row">
+                <span
+                  className="aur-tension-row__dot"
+                  data-value={s.value}
+                  aria-label={s.value}
+                />
+                <span className="aur-tension-row__frame">{s.frame}</span>
+                <span className="aur-tension-row__phase">
+                  {s.phase.toFixed(2)}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );
