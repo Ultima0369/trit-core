@@ -31,3 +31,6 @@ ui/dist/
 *.exe
 build.bat
 run-sandbox.bat
+
+# 外部参考项目（借鉴用，不纳入本仓库）
+/solar-system-master/

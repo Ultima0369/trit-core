@@ -369,6 +369,15 @@ html, body, #root {
   /* grid 已分配区域，不再用 absolute inset —— 避免与 sidebar 宽度硬编码耦合 */
   position: relative;
   inset: auto;
+  /* 地球登场过渡：is-entering 移除时从中心小尺寸+圆形裁剪放大到全屏。 */
+  transition: transform 1.2s cubic-bezier(0.22, 1, 0.36, 1), clip-path 1.2s cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: center center;
+}
+/* 初始小态（BootScreen 在前时地球缩小+裁剪为 0，不可见）。
+   earthEntering 触发后 React 移除该 class → 过渡放大到全屏（地球登场）。 */
+.aur-globe-area--full.is-entering {
+  transform: scale(0.3);
+  clip-path: circle(0% at 50% 50%);
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -1031,6 +1040,106 @@ html, body, #root {
   font-size: 0.625rem;
   color: var(--aur-void-dim);
   opacity: 0.5;
+}
+
+/* ── Boot screen (太阳系启动加载屏) ── */
+.aur-boot-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--aur-deep);
+  /* 与地球登场过渡（1.2s）同步：太阳系淡出 + 背景透明露出地球。 */
+  transition: opacity 1.2s ease;
+  opacity: 1;
+}
+.aur-boot-screen--fade {
+  opacity: 0;
+  pointer-events: none;
+}
+.aur-boot-canvas {
+  position: absolute;
+  inset: 0;
+}
+.aur-boot-canvas canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+.aur-boot-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-8);
+  gap: var(--space-3);
+  pointer-events: none;
+}
+.aur-boot-title {
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  letter-spacing: 0.12em;
+  color: var(--aur-aurora);
+  text-shadow: 0 0 24px var(--aur-aurora-glow);
+}
+.aur-boot-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+.aur-boot-milestones {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+}
+.aur-boot-milestone {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--aur-void-dim);
+  transition: color 0.3s;
+}
+.aur-boot-milestone.is-done {
+  color: var(--aur-true);
+}
+.aur-boot-milestone__mark {
+  width: 1ch;
+  text-align: center;
+}
+.aur-boot-progress {
+  width: 280px;
+  max-width: 60vw;
+  height: 2px;
+  background: var(--aur-ice);
+  overflow: hidden;
+}
+.aur-boot-progress__fill {
+  height: 100%;
+  background: var(--aur-aurora);
+  transition: width 0.4s ease;
+}
+/* 进度条满后：进入等待点击态，提示用户进入。 */
+.aur-boot-hint {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  letter-spacing: 0.12em;
+  color: var(--aur-aurora);
+  text-shadow: 0 0 16px var(--aur-aurora-glow);
+  opacity: 0.85;
+  animation: aur-boot-breathe 2.4s ease-in-out infinite;
+  cursor: pointer;
+}
+.aur-boot-screen.is-awaiting {
+  cursor: pointer;
+}
+@keyframes aur-boot-breathe {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 0.95; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════

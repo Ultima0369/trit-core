@@ -8,6 +8,7 @@ import TopBar from './TopBar';
 import Overlay from './Overlay';
 import Sidebar from './Sidebar';
 import StatusBar from './StatusBar';
+import BootScreen from './BootScreen';
 import diag, { isTauriEnvironment } from './utils/diag';
 import type { MapCoord, PipelineRequest, PipelineResponse } from './types';
 import { DEFAULT_LAYERS, type MapLayers } from './config/layer-definitions';
@@ -73,6 +74,11 @@ export default function App() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [coord, setCoord] = useState<MapCoord>({ lng: null, lat: null, zoom: null, scale: null });
   const [pipelineRequest, setPipelineRequest] = useState(DEFAULT_PIPELINE_REQUEST);
+
+  // 启动过场：太阳系表演 → 进度条满+2s → 地球登场过渡 → 卸载 BootScreen。
+  const [cesiumReady, setCesiumReady] = useState(false);
+  const [earthEntering, setEarthEntering] = useState(false);
+  const [bootDone, setBootDone] = useState(false);
 
   const initialRunDone = useRef(false);
 
@@ -179,6 +185,17 @@ export default function App() {
     handleRun();
   }, [handleRun]);
 
+  // BootScreen 进度条满+2s 回调 onTransitionReady → 触发地球登场过渡。
+  // 30s 兜底：若里程碑卡住（管线失败/资源超时），强制进入界面，不卡死。
+  useEffect(() => {
+    if (earthEntering || bootDone) return;
+    const t = setTimeout(() => {
+      diag('Boot', 'WARN', '启动超时兜底，强制进入界面');
+      setEarthEntering(true);
+    }, 30000);
+    return () => clearTimeout(t);
+  }, [earthEntering, bootDone]);
+
   return (
     <div className="aur-app aur-app--hud">
       <TopBar
@@ -196,8 +213,10 @@ export default function App() {
       {/* 左侧栏目：图层 + 数据摘要（2D/3D 视图都保留） */}
       <Sidebar layers={mapLayers} onLayersChange={setMapLayers} />
 
-      {/* Globe / Map backdrop fills the content area */}
-      <div className="aur-globe-area aur-globe-area--full">
+      {/* Globe / Map backdrop fills the content area.
+          is-entering = 初始小尺寸+裁剪态（被 BootScreen 盖住）；
+          earthEntering 触发时移除该 class → CSS 过渡放大到全屏（地球登场）。 */}
+      <div className={`aur-globe-area aur-globe-area--full${(!earthEntering && !bootDone) ? ' is-entering' : ''}`}>
         {view2D ? (
           <Suspense fallback={<div style={{ color: '#fff' }}>加载 2D 地图…</div>}>
             <MapPanel flavor="light" layers={mapLayers} onCoordChange={setCoord} />
@@ -207,6 +226,7 @@ export default function App() {
             resumeDelayMs={resumeDelayMs}
             rotationSpeed={rotationSpeed}
             onViewChange={setCoord}
+            onReady={() => setCesiumReady(true)}
           />
         )}
       </div>
@@ -227,6 +247,22 @@ export default function App() {
         pipelineRequest={pipelineRequest}
         onPipelineRequestChange={setPipelineRequest}
       />
+
+      {/* 启动加载屏：太阳系转动 + 里程碑读条，淡出后卸载 */}
+      {!bootDone && (
+        <BootScreen
+          externalMilestones={[
+            { label: '地球引擎', done: view2D || cesiumReady },
+            { label: '首次分析', done: data != null },
+          ]}
+          fadeOut={earthEntering}
+          onFadeComplete={() => setBootDone(true)}
+          onTransitionReady={() => {
+            diag('Boot', 'INFO', '进度条满+2s，地球登场');
+            setEarthEntering(true);
+          }}
+        />
+      )}
     </div>
   );
 }

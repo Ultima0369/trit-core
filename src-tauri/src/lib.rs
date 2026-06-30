@@ -236,11 +236,7 @@ pub fn run() {
                 .expect("main 窗口应由 Tauri 自动创建（见 tauri.conf.json app.windows）");
             logger::log("setup", "INFO", "获取到 main 窗口");
 
-            #[cfg(debug_assertions)]
-            {
-                logger::log("setup", "INFO", "打开 DevTools (debug 模式)");
-                _window.open_devtools();
-            }
+            // DevTools 不自动打开——避免启动时抢前台挡住过场动画。需要时手动 F12。
 
             logger::log("setup", "INFO", "Tauri setup 回调完成");
             Ok(())

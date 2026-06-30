@@ -40,6 +40,8 @@ interface Props {
   rotationSpeed?: number;
   /** 视角/鼠标坐标变化回调 → App → StatusBar。 */
   onViewChange?: (coord: MapCoord) => void;
+  /** 引擎就绪回调 → App → BootScreen 里程碑。Cesium/globe.gl 任一就绪即触发一次。 */
+  onReady?: () => void;
 }
 
 // 从 get_asset_status 报告中按需取纹理的代理 URL。
@@ -62,11 +64,14 @@ export function buildTextureUrls(report: any): { globe: string; bump: string; ba
   };
 }
 
-export default function Earth({ resumeDelayMs, rotationSpeed = DEFAULT_ROTATION_SPEED_DEG_PER_SEC, onViewChange }: Props) {
+export default function Earth({ resumeDelayMs, rotationSpeed = DEFAULT_ROTATION_SPEED_DEG_PER_SEC, onViewChange, onReady }: Props) {
   const [engine, setEngine] = useState<Engine>('loading');
   const engineRef = useRef<Engine>('loading');
   const coordRef = useRef(onViewChange);
   coordRef.current = onViewChange;
+  const readyRef = useRef(onReady);
+  readyRef.current = onReady;
+  const readyFiredRef = useRef(false);
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<any>(null);
@@ -187,6 +192,7 @@ export default function Earth({ resumeDelayMs, rotationSpeed = DEFAULT_ROTATION_
             cesiumOk = true;
             setEngine('cesium');
             setReady(true);
+            fireReadyOnce();
           }
         });
       } catch (e) {
@@ -428,9 +434,17 @@ export default function Earth({ resumeDelayMs, rotationSpeed = DEFAULT_ROTATION_
     return () => cancelAnimationFrame(rafId);
   }, [engine, ready, rotationSpeed]);
 
+  // 引擎就绪只通知一次（Cesium 与 globe.gl 互斥，但回退路径可能重复触发）。
+  const fireReadyOnce = useCallback(() => {
+    if (readyFiredRef.current) return;
+    readyFiredRef.current = true;
+    readyRef.current?.();
+  }, []);
+
   const onGlobeReady = useCallback(() => {
     diag('Earth', 'INFO', 'react-globe.gl 加载完成');
     setReady(true);
+    fireReadyOnce();
     if (globeRef.current) {
       globeRef.current.pointOfView({ lat: 30, lng: 104, altitude: 2.5 }, 0);
       applyCosmosPreset();
