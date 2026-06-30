@@ -586,204 +586,6 @@ html, body, #root {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   ASI Gauge
-   ═══════════════════════════════════════════════════════════════════ */
-
-.aur-gauge {
-  margin-bottom: var(--space-4);
-}
-
-.aur-gauge__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: var(--space-2);
-}
-
-.aur-gauge__label {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--aur-void-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
-
-.aur-gauge__value {
-  font-family: var(--font-data);
-  font-size: var(--text-xl);
-  font-weight: 500;
-  transition: color var(--duration-normal);
-}
-
-.aur-gauge__value--high { color: var(--aur-true); }
-.aur-gauge__value--mid  { color: var(--aur-hold); }
-.aur-gauge__value--low  { color: var(--aur-false); }
-
-.aur-gauge__track {
-  height: 4px;
-  background: var(--aur-ice);
-  border-radius: 2px;
-  overflow: hidden;
-  margin-bottom: var(--space-2);
-}
-
-.aur-gauge__fill {
-  height: 100%;
-  border-radius: 2px;
-  transition: width 0.6s var(--ease-out), background var(--duration-normal);
-}
-
-.aur-gauge__fill--high { background: var(--aur-true); }
-.aur-gauge__fill--mid  { background: var(--aur-hold); }
-.aur-gauge__fill--low  { background: var(--aur-false); }
-
-.aur-gauge__detail {
-  display: flex;
-  gap: var(--space-4);
-  font-size: var(--text-xs);
-  color: var(--aur-void-dim);
-}
-
-.aur-gauge__detail strong {
-  font-family: var(--font-data);
-  font-weight: 500;
-  color: var(--aur-void);
-}
-
-.aur-gauge__hint {
-  margin-top: var(--space-2);
-  font-size: var(--text-xs);
-  color: var(--aur-void-dim);
-  font-style: italic;
-}
-
-/* ═══════════════════════════════════════════════════════════════════
-   Conflict List
-   ═══════════════════════════════════════════════════════════════════ */
-
-.aur-conflicts {
-  margin-bottom: var(--space-4);
-}
-
-.aur-conflicts__header {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  margin-bottom: var(--space-3);
-}
-
-.aur-conflicts__label {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--aur-void-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
-
-.aur-conflicts__count {
-  font-family: var(--font-data);
-  font-size: var(--text-xs);
-  color: var(--aur-hold);
-}
-
-.aur-conflict-card {
-  padding: var(--space-3);
-  background: var(--aur-deep);
-  border-left: 3px solid var(--aur-hold);
-  margin-bottom: var(--space-2);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-}
-
-.aur-conflict-card__type {
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--aur-hold);
-  margin-bottom: var(--space-1);
-}
-
-.aur-conflict-card__reason {
-  font-size: var(--text-sm);
-  color: var(--aur-void);
-  margin-bottom: var(--space-1);
-}
-
-.aur-conflict-card__frames {
-  font-family: var(--font-data);
-  font-size: var(--text-xs);
-  color: var(--aur-void-dim);
-  margin-bottom: var(--space-2);
-}
-
-.aur-conflict-card__hint {
-  font-size: var(--text-xs);
-  color: var(--aur-void-dim);
-  font-style: italic;
-  line-height: 1.4;
-}
-
-.aur-conflicts__empty {
-  padding: var(--space-4);
-  background: var(--aur-deep);
-  border-left: 3px solid var(--aur-true);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-}
-
-.aur-conflicts__empty p {
-  font-size: var(--text-sm);
-  color: var(--aur-true);
-}
-
-/* ═══════════════════════════════════════════════════════════════════
-   Reminder Table
-   ═══════════════════════════════════════════════════════════════════ */
-
-.aur-reminders {
-  margin-bottom: var(--space-4);
-}
-
-.aur-reminders__label {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--aur-void-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  margin-bottom: var(--space-2);
-}
-
-.aur-reminders__empty {
-  font-size: var(--text-sm);
-  color: var(--aur-void-dim);
-}
-
-.aur-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-xs);
-}
-
-.aur-table th {
-  text-align: left;
-  padding: var(--space-1) var(--space-2);
-  color: var(--aur-void-dim);
-  font-weight: 500;
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border-bottom: 1px solid var(--aur-ice);
-}
-
-.aur-table td {
-  padding: var(--space-2);
-  color: var(--aur-void);
-  border-bottom: 1px solid rgba(26, 32, 48, 0.5);
-}
-
-.aur-table tr.row--shifted { border-left: 3px solid var(--aur-true); }
-.aur-table tr.row--ignored  { border-left: 3px solid var(--aur-false); }
-.aur-table tr.row--pending { border-left: 3px solid var(--aur-hold); }
-
-/* ═══════════════════════════════════════════════════════════════════
    Settings Panel
    ═══════════════════════════════════════════════════════════════════ */
 
@@ -1249,4 +1051,127 @@ html, body, #root {
 
 .aur-statusbar__mode {
   color: var(--aur-signal);
+}
+
+/* ── Decision Drawer ── */
+
+.aur-decision-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-items: flex-start;
+}
+.aur-decision-head__value {
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.aur-decision-head__value[data-decision="True"]  { color: var(--aur-true); }
+.aur-decision-head__value[data-decision="Hold"]  { color: var(--aur-hold); }
+.aur-decision-head__value[data-decision="False"] { color: var(--aur-false); }
+.aur-decision-head__phase,
+.aur-decision-head__frame {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--aur-void);
+}
+
+/* Frame 张力行 */
+.aur-tension-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.25rem 0;
+  font-size: var(--text-sm);
+}
+.aur-tension-row__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.aur-tension-row__dot[data-value="True"]    { background: var(--aur-true); }
+.aur-tension-row__dot[data-value="Hold"]    { background: var(--aur-hold); }
+.aur-tension-row__dot[data-value="False"]   { background: var(--aur-false); }
+.aur-tension-row__dot[data-value="Unknown"] { background: var(--aur-void-dim); }
+.aur-tension-row__frame {
+  flex: 1;
+  color: var(--aur-void);
+}
+.aur-tension-row__phase {
+  font-family: var(--font-mono);
+  color: var(--aur-void-dim);
+}
+
+/* 冲突项：左色条 + body（借鉴 worldmonitor renderSignal 横向布局） */
+.aur-conflict-item {
+  display: flex;
+  align-items: stretch;
+  margin-top: 0.4rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.aur-conflict-item__bar {
+  width: 4px;
+  flex-shrink: 0;
+  background: var(--aur-hold);
+}
+.aur-conflict-item__body {
+  flex: 1;
+  min-width: 0;
+  padding: 0.4rem 0.5rem;
+}
+.aur-conflict-item__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.aur-conflict-item__pair {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--aur-hold);
+}
+.aur-conflict-item__badge {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--aur-void-dim);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--aur-ice);
+  border-radius: 2px;
+  padding: 1px 5px;
+}
+.aur-conflict-item__reason {
+  font-size: var(--text-sm);
+  color: var(--aur-void);
+  margin-top: 0.15rem;
+}
+
+/* ASI 仪表行内布局（复用 aur-gauge__track/fill，加自身 flex 排版） */
+.aur-gauge {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.aur-gauge__track {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.aur-gauge__fill {
+  height: 100%;
+  background: var(--aur-true);
+  border-radius: 3px;
+}
+.aur-gauge__value {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--aur-true);
+  min-width: 3ch;
+  text-align: right;
 }
