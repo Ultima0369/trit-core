@@ -185,14 +185,14 @@ export default function App() {
     handleRun();
   }, [handleRun]);
 
-  // BootScreen 进度条满+2s 回调 onTransitionReady → 触发地球登场过渡。
-  // 30s 兜底：若里程碑卡住（管线失败/资源超时），强制进入界面，不卡死。
+  // BootScreen onTransitionReady（用户点按钮）→ 触发地球登场过渡。
+  // 60s 最终兜底：若 Boot 按钮也没出现（组件异常），强制进入界面，不卡死。
   useEffect(() => {
     if (earthEntering || bootDone) return;
     const t = setTimeout(() => {
-      diag('Boot', 'WARN', '启动超时兜底，强制进入界面');
+      diag('Boot', 'WARN', '启动最终超时兜底，强制进入界面');
       setEarthEntering(true);
-    }, 30000);
+    }, 60000);
     return () => clearTimeout(t);
   }, [earthEntering, bootDone]);
 

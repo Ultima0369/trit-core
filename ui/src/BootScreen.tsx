@@ -9,6 +9,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import diag, { isTauriEnvironment } from './utils/diag';
 
 const RESOURCE_SERVER = 'http://localhost:21337';
@@ -44,6 +45,7 @@ export default function BootScreen({ externalMilestones, fadeOut, onFadeComplete
       return;
     }
     let cancelled = false;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     const check = setInterval(async () => {
       try {
         const res = await fetch(`${RESOURCE_SERVER}/health`);
@@ -51,17 +53,18 @@ export default function BootScreen({ externalMilestones, fadeOut, onFadeComplete
           diag('Boot', 'INFO', '后端服务就绪');
           setBackendReady(true);
           clearInterval(check);
+          if (timeout) clearTimeout(timeout);
         }
       } catch { /* server not ready yet */ }
     }, 200);
-    const timeout = setTimeout(() => {
+    timeout = setTimeout(() => {
       clearInterval(check);
       if (!cancelled) {
         diag('Boot', 'WARN', '后端探测超时，标记就绪以避免死锁');
         setBackendReady(true);
       }
     }, 15000);
-    return () => { cancelled = true; clearInterval(check); clearTimeout(timeout); };
+    return () => { cancelled = true; clearInterval(check); if (timeout) clearTimeout(timeout); };
   }, []);
 
   // ── 里程碑 2: 资源就绪（cesium category cached/ok，复用 Earth.tsx:164 判断）──
@@ -71,6 +74,7 @@ export default function BootScreen({ externalMilestones, fadeOut, onFadeComplete
       return;
     }
     let cancelled = false;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     const check = setInterval(async () => {
       try {
         const report = await fetchAssetStatus();
@@ -81,17 +85,18 @@ export default function BootScreen({ externalMilestones, fadeOut, onFadeComplete
           diag('Boot', 'INFO', 'Cesium 资源就绪');
           setAssetsReady(true);
           clearInterval(check);
+          if (timeout) clearTimeout(timeout);
         }
       } catch { /* not ready */ }
     }, 500);
-    const timeout = setTimeout(() => {
+    timeout = setTimeout(() => {
       clearInterval(check);
       if (!cancelled) {
         diag('Boot', 'WARN', '资源探测超时，标记就绪以避免死锁');
         setAssetsReady(true);
       }
     }, 20000);
-    return () => { cancelled = true; clearInterval(check); clearTimeout(timeout); };
+    return () => { cancelled = true; clearInterval(check); if (timeout) clearTimeout(timeout); };
   }, []);
 
   // ── Three.js 太阳系（生命周期借鉴 Earth.tsx Cosmos preset）──
@@ -108,13 +113,20 @@ export default function BootScreen({ externalMilestones, fadeOut, onFadeComplete
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(45, host.clientWidth / host.clientHeight, 1, 6000);
-    camera.position.set(0, 180, 320);
+    camera.position.set(0, 95, 180);
     camera.lookAt(0, 0, 0);
 
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     renderer.setSize(host.clientWidth, host.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     host.appendChild(renderer.domElement);
+
+    // 拖动/缩放控制：过场期允许用户旋转视角看太阳系。
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.minDistance = 50;
+    controls.maxDistance = 500;
 
     // 光照：太阳点光源 + 微弱环境光
     scene.add(new THREE.AmbientLight(0x222233, 0.6));
@@ -136,10 +148,14 @@ export default function BootScreen({ externalMilestones, fadeOut, onFadeComplete
       new THREE.MeshBasicMaterial({ map: tex('sun_bg.jpg') })
     );
     sunSystem.add(sun);
-    const glowLayers = [9.5, 11, 13].map((r, i) => {
+    // 多层光晕：9 层递增弥散，从太阳表面扩散到最外围行星轨道（145）。
+    // 暖白色（非橙黄，避免"火烧"感），opacity 降至 1/3，非线性递减至几乎不可见。
+    const glowRadii = [9.5, 14, 22, 34, 50, 70, 92, 118, 145];
+    const glowLayers = glowRadii.map((r, i) => {
+      const fade = Math.pow(1 - i / (glowRadii.length - 1), 1.5);
       const mesh = new THREE.Mesh(
         new THREE.SphereGeometry(r, 32, 32),
-        new THREE.MeshBasicMaterial({ color: 0xffaa44, side: THREE.BackSide, transparent: true, opacity: 0.22 - i * 0.06 })
+        new THREE.MeshBasicMaterial({ color: 0xffe8c0, side: THREE.BackSide, transparent: true, opacity: 0.055 * fade + 0.004 })
       );
       scene.add(mesh);
       return mesh;
@@ -156,7 +172,7 @@ export default function BootScreen({ externalMilestones, fadeOut, onFadeComplete
     }
     const flareGeo = new THREE.BufferGeometry();
     flareGeo.setAttribute('position', new THREE.BufferAttribute(flarePos, 3));
-    const flareMat = new THREE.PointsMaterial({ size: 0.7, color: 0xffd98a, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending });
+    const flareMat = new THREE.PointsMaterial({ size: 0.7, color: 0xffe8c0, transparent: true, opacity: 0.27, blending: THREE.AdditiveBlending });
     const flares = new THREE.Points(flareGeo, flareMat);
     scene.add(flares);
 
@@ -177,13 +193,17 @@ export default function BootScreen({ externalMilestones, fadeOut, onFadeComplete
     const planets: THREE.Mesh[] = [];
     const planetTracks: THREE.Mesh[] = [];
     const saturnRings: THREE.Mesh[] = [];
+    const moonPivots: THREE.Object3D[] = [];
     for (const d of planetDefs) {
       const planet = new THREE.Mesh(
         new THREE.SphereGeometry(d.r, 32, 32),
         new THREE.MeshBasicMaterial({ map: tex(`${d.name}_bg.jpg`) })
       );
-      planet.position.z = -d.orbit;
-      planet.userData = { speed: d.speed };
+      // 随机起始相位，避免所有行星排成一线（cos/sin 定位而非纯 -z）。
+      const phase = Math.random() * Math.PI * 2;
+      planet.position.x = Math.cos(phase) * d.orbit;
+      planet.position.z = Math.sin(phase) * d.orbit;
+      planet.userData = { speed: d.speed, phase, orbit: d.orbit };
       sunSystem.add(planet);
       planets.push(planet);
 
@@ -198,10 +218,24 @@ export default function BootScreen({ externalMilestones, fadeOut, onFadeComplete
         saturnRings.push(ring);
       }
 
+      // 月亮：绕地球公转（pivot 挂地球下，避免跟地球自转）
+      if (d.name === 'earth') {
+        const moonPivot = new THREE.Object3D();
+        planet.add(moonPivot);
+        const moon = new THREE.Mesh(
+          new THREE.SphereGeometry(d.r * 0.35, 24, 24),
+          new THREE.MeshBasicMaterial({ map: tex('moon_bg.jpg') })
+        );
+        moon.position.x = d.r * 2.4;
+        moonPivot.add(moon);
+        moonPivot.userData = { speed: 0.6 };
+        moonPivots.push(moonPivot);
+      }
+
       // 轨道环线
       const track = new THREE.Mesh(
         new THREE.RingGeometry(d.orbit, d.orbit + 0.15, 96, 1),
-        new THREE.MeshBasicMaterial({ color: 0x2a3548, side: THREE.DoubleSide, transparent: true, opacity: 0.5 })
+        new THREE.MeshBasicMaterial({ color: 0x2a3548, side: THREE.DoubleSide, transparent: true, opacity: 0.25 })
       );
       track.rotation.x = -Math.PI / 2;
       scene.add(track);
@@ -248,17 +282,29 @@ export default function BootScreen({ externalMilestones, fadeOut, onFadeComplete
       const t = now / 1000;
 
       sun.rotation.y += 0.05 * dt;
-      glowLayers.forEach((g, i) => { g.scale.setScalar(1 + Math.sin(t * 0.6 + i) * 0.04); });
+      // 光晕脉动：内层明显，外层几乎不脉动（避免大半径球剧烈摆动）
+      glowLayers.forEach((g, i) => {
+        const amp = 0.04 * Math.pow(1 - i / glowLayers.length, 1.5);
+        g.scale.setScalar(1 + Math.sin(t * 0.6 + i) * amp);
+      });
       flares.rotation.y += 0.04 * dt;
 
-      // 整体公转（借鉴 solar-system-master：旋转父级）
-      sunSystem.rotation.y -= 0.02 * dt;
+      // 每行星独立公转（各自 phase + speed）+ 自转
       for (const p of planets) {
+        const ud = p.userData;
+        ud.phase += ud.speed * dt;
+        p.position.x = Math.cos(ud.phase) * ud.orbit;
+        p.position.z = Math.sin(ud.phase) * ud.orbit;
         p.rotation.y += 0.3 * dt;
+      }
+      // 月亮绕地球公转
+      for (const mp of moonPivots) {
+        mp.rotation.y += mp.userData.speed * dt;
       }
 
       starField.rotation.y += 0.003 * dt;
 
+      controls.update();
       renderer.render(scene, camera);
       rafId = requestAnimationFrame(animate);
     };
@@ -279,10 +325,15 @@ export default function BootScreen({ externalMilestones, fadeOut, onFadeComplete
       { geo: flareGeo, mat: flareMat },
       ...planetTracks.map(t => ({ geo: t.geometry, mat: t.material as THREE.Material })),
       ...saturnRings.map(r => ({ geo: r.geometry, mat: r.material as THREE.Material })),
+      ...moonPivots.map(mp => {
+        const m = mp.children[0] as THREE.Mesh;
+        return { geo: m.geometry, mat: m.material as THREE.Material };
+      }),
     ];
     return () => {
       cancelAnimationFrame(rafId);
       window.removeEventListener('resize', onResize);
+      controls.dispose();
       renderer.dispose();
       sun.geometry.dispose(); (sun.material as THREE.Material).dispose();
       planets.forEach(p => { p.geometry.dispose(); (p.material as THREE.Material).dispose(); });
@@ -308,20 +359,17 @@ export default function BootScreen({ externalMilestones, fadeOut, onFadeComplete
   const allDone = doneCount === milestones.length;
   const [awaitingClick, setAwaitingClick] = useState(false);
 
-  // 进度条满 → 进入"等待点击"态（不自动进入地球），用户点窗口任意处才开始登场。
+  // 进度条满 → 进入"等待点击"态。30s 兜底：若里程碑卡住（如管线未返回），
+  // 也显示按钮让用户进入，不卡死在进度条。
   useEffect(() => {
-    if (allDone && !awaitingClick) setAwaitingClick(true);
+    if (awaitingClick) return;
+    if (allDone) { setAwaitingClick(true); return; }
+    const t = setTimeout(() => {
+      diag('Boot', 'WARN', '里程碑超时，强制显示进入按钮');
+      setAwaitingClick(true);
+    }, 30000);
+    return () => clearTimeout(t);
   }, [allDone, awaitingClick]);
-
-  useEffect(() => {
-    if (!awaitingClick || fadeOut) return;
-    const onClick = () => {
-      diag('Boot', 'INFO', '用户点击，地球登场');
-      onTransitionReady();
-    };
-    window.addEventListener('pointerdown', onClick);
-    return () => window.removeEventListener('pointerdown', onClick);
-  }, [awaitingClick, fadeOut, onTransitionReady]);
 
   const pct = (doneCount / milestones.length) * 100;
 
@@ -347,7 +395,15 @@ export default function BootScreen({ externalMilestones, fadeOut, onFadeComplete
             </>
           )}
           {awaitingClick && (
-            <div className="aur-boot-hint">点击任意处进入</div>
+            <button
+              className="aur-boot-enter-btn"
+              onClick={() => {
+                diag('Boot', 'INFO', '用户点击进入按钮，地球登场');
+                onTransitionReady();
+              }}
+            >
+              进入 Aurora
+            </button>
           )}
         </div>
       </div>

@@ -1047,7 +1047,7 @@ html, body, #root {
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: var(--aur-deep);
+  background: var(--aur-deep) url('/back.jpg') center center / cover no-repeat;
   /* 与地球登场过渡（1.2s）同步：太阳系淡出 + 背景透明露出地球。 */
   transition: opacity 1.2s ease;
   opacity: 1;
@@ -1123,23 +1123,30 @@ html, body, #root {
   background: var(--aur-aurora);
   transition: width 0.4s ease;
 }
-/* 进度条满后：进入等待点击态，提示用户进入。 */
-.aur-boot-hint {
+/* 进度条满后：显示"进入"按钮，点击触发地球登场。 */
+.aur-boot-enter-btn {
+  pointer-events: auto; /* overlay 父级 pointer-events:none，按钮单独放行 */
   font-family: var(--font-mono);
   font-size: var(--text-sm);
-  letter-spacing: 0.12em;
-  color: var(--aur-aurora);
-  text-shadow: 0 0 16px var(--aur-aurora-glow);
-  opacity: 0.85;
+  letter-spacing: 0.14em;
+  color: #2a2e36;
+  background: #d8dce2;
+  border: none;
+  border-radius: 999px;
+  padding: 0.7rem 2.2rem;
+  margin-bottom: 20px; /* 上移 20px */
+  cursor: pointer;
+  box-shadow: 0 0 24px rgba(216, 220, 226, 0.4);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
   animation: aur-boot-breathe 2.4s ease-in-out infinite;
-  cursor: pointer;
 }
-.aur-boot-screen.is-awaiting {
-  cursor: pointer;
+.aur-boot-enter-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 36px rgba(216, 220, 226, 0.6);
 }
 @keyframes aur-boot-breathe {
-  0%, 100% { opacity: 0.45; }
-  50% { opacity: 0.95; }
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════

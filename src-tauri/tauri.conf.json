@@ -20,10 +20,11 @@
     "windows": [
       {
         "fullscreen": false,
+        "maximized": true,
         "resizable": true,
         "title": "Aurora 极光",
-        "width": 1280,
-        "height": 800
+        "width": 1440,
+        "height": 900
       }
     ],
     "security": {
