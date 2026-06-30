@@ -161,6 +161,8 @@ export default function App() {
       } else if (e.key === 'Escape') {
         if (settingsOpen) {
           setSettingsOpen(false);
+        } else if (decisionDrawerOpen) {
+          setDecisionDrawerOpen(false);
         } else {
           diag('Earth', 'INFO', 'Esc 退出');
           try {
@@ -173,7 +175,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [handleRun, settingsOpen]);
+  }, [handleRun, settingsOpen, decisionDrawerOpen]);
 
   useEffect(() => {
     if (initialRunDone.current) return;

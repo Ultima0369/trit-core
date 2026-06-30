@@ -3,7 +3,7 @@
 > **目的**：每次新会话开始时，AI 或人类协作者读此文件，30 秒内定位工作进度。
 > **维护规则**：每次完成一个阶段或做出重大决策后，更新"当前进度"和"上次决策"两节。
 > **版本**：1.1.0
-> **最后更新**：2026-06-30
+> **最后更新**：2026-07-01
 
 ---
 
@@ -21,7 +21,7 @@
 | 维度 | 状态 |
 |------|------|
 | **Trit-Core 版本** | v0.3.0 — 单机决策引擎，5 层架构完整（Core→Meta→Hook→Adapter→Feedback） |
-| **Aurora 阶段** | M1 — Sandcastle 3-column UI 完成（Monaco Editor + CesiumJS Globe + Analysis Panel）。Cosmos 视觉预设（MeshStandardMaterial + 双辉光壳 + 星空）已集成。纹理切换（Blue Marble / Topographic）通过 TopBar 按钮支持。55 UI 测试通过，TypeScript 干净。共享类型和事件常量已提取到 types.ts。 |
+| **Aurora 阶段** | M1 — Sandcastle 3-column UI 完成（Monaco Editor + CesiumJS Globe + Analysis Panel）。Cosmos 视觉预设（MeshStandardMaterial + 双辉光壳 + 星空）已集成。纹理切换（Blue Marble / Topographic）通过 TopBar 按钮支持。决策结果抽屉完成（顶栏 decision 标签可点击 → 抽屉展示 phase/asi/signals/conflicts；Esc 关闭）。55 UI 测试通过，TypeScript 干净。共享类型和事件常量已提取到 types.ts。 |
 | **架构设计** | 已完成 — 见 `docs/superpowers/specs/2026-06-20-aurora-architecture-design.md` |
 | **M0 剩余工作** | 无代码任务。P1 待办：作者自我验证 + 2 外部用户试用（创始人侧） |
 | **M1 入口** | Sandcastle 3-column UI 完成。下一步：Tauri 桌面打包验证、真实数据源接入、注意力训练闭环测试 |
@@ -33,6 +33,7 @@
 
 | 日期 | 决策 | 文档 |
 |------|------|------|
+| 2026-07-01 | 决策结果抽屉完成 — 顶栏 decision 标签可点击 → 抽屉展示 phase/asi/signals/conflicts。Esc 键优先关设置抽屉，其次关决策抽屉，最后退出应用。 | 本轮对话 |
 | 2026-06-30 | M1 数据持久化 + 导出完成 — 对齐 M1 Exit Criteria "数据导出"硬指标 + CHARTER "不剥夺"底线。AuroraApp 加 `export_data_json()` (5 表通用反射导出, 2 单测)。桌面应用 DB 从 in-memory 改为落盘 `aurora_data_dir/aurora.db` (持久化失败回落 in-memory)。新增 `export_user_data` Tauri 命令，前端 Blob+a[download] 下载 (零新插件依赖)。Sidebar 加"导出我的数据"按钮。 | 本轮对话 |
 | 2026-06-30 | 地图 + 公开数据采集链路完成 — 借鉴 worldmonitor 的公开数据采集 + 图层效果设计。新增 `src-tauri/data_sources/` 模块：Open-Meteo 温度异常 + NOAA GML Mauna Loa CO2 + UCDP 地缘冲突事件，本地 L2 缓存 + 后台定时刷新 (1h)。anchor 接真实气候读数 (OLR=温度异常, CO2=Mauna Loa 实测)。图层效果：分色 + 半径按严重度缩放 + 半透明区域填充 + 国家聚合 fill。左侧栏目化 (Sidebar.tsx)。 | 本轮对话 |
 | 2026-06-30 | 文档系统深度审计与一致性修复 — Workflow 并行审计 8 分支，发现 130 处问题（24 critical / 35 high）。根因：① 愿景/计划被写成"已实现"现状（CWT/MetaMonitor 高阶能力/虚构 crate/SQLCipher/guard_irreducible）；② Frame(12)/Domain(10) 在多文档过时；③ NARRATIVE_CHARTER 的 ADR 引用未标完整路径（两套 ADR 命名空间）；④ 两套架构模型（L0-L5 愿景 vs 五层代码栈）未交叉标注；⑤ "不是指教是提醒"在 52 文件机械重复。全部修复：手改核心层 + 3 个 Workflow 批量校准。代码真相源确立：Frame 12 变体、Domain 10 变体、FrameMask u16、SecurityMode Service/Refusal(阻断)/Awareness/Transparency。 | 本轮对话 |
