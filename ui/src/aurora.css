@@ -349,6 +349,23 @@ html, body, #root {
 .aur-topbar-decision[data-decision="Hold"]  { color: var(--aur-hold); }
 .aur-topbar-decision[data-decision="False"] { color: var(--aur-false); }
 
+.aur-topbar-decision--btn {
+  background: transparent;
+  border: none;
+  padding: 0 0.25rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.aur-topbar-decision--btn:hover:not(:disabled) { opacity: 0.7; }
+
+.aur-topbar-decision--btn:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
 .aur-esc-hint {
   font-family: var(--font-mono);
   font-size: 0.625rem;
