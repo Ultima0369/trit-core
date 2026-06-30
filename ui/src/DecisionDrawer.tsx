@@ -12,6 +12,7 @@ interface Props {
   loading: boolean;
 }
 
+// ponytail: loading 由 App 传入但本组件暂不分支——保留接口供后续"运行中占位"复用。
 export default function DecisionDrawer({ open, onClose, data }: Props) {
   if (!open || data == null) return null;
 
