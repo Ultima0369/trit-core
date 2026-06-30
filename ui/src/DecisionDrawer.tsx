@@ -73,6 +73,33 @@ export default function DecisionDrawer({ open, onClose, data }: Props) {
             ))
           )}
         </div>
+
+        {/* 冲突列表 */}
+        <div className="aur-settings__section">
+          <div className="aur-settings__title">跨帧冲突</div>
+          {data.conflicts.length === 0 ? (
+            <div className="aur-summary-empty">
+              <span style={{ color: 'var(--aur-true)' }}>✓</span> 无跨帧冲突
+            </div>
+          ) : (
+            data.conflicts.map((c, i) => (
+              <div key={i} className="aur-conflict-item">
+                <div className="aur-conflict-item__bar" />
+                <div className="aur-conflict-item__body">
+                  <div className="aur-conflict-item__head">
+                    <span className="aur-conflict-item__pair">
+                      {c.frame_a} ↔ {c.frame_b}
+                    </span>
+                    <span className="aur-conflict-item__badge">
+                      {c.conflict_type}
+                    </span>
+                  </div>
+                  <div className="aur-conflict-item__reason">{c.reason}</div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

@@ -21,6 +21,18 @@ const baseData: PipelineResponse = {
   json: '',
 };
 
+const withConflicts: PipelineResponse = {
+  ...baseData,
+  conflicts: [
+    {
+      conflict_type: 'cross_frame',
+      reason: 'Embodied 高频与 Individual 自评正常冲突',
+      frame_a: 'Embodied',
+      frame_b: 'Individual',
+    },
+  ],
+};
+
 describe('DecisionDrawer', () => {
   it('renders nothing when data is null', () => {
     const { container } = render(
@@ -66,5 +78,16 @@ describe('DecisionDrawer', () => {
     const empty = { ...baseData, signals: [] };
     render(<DecisionDrawer open={true} onClose={vi.fn()} data={empty} loading={false} />);
     expect(screen.getByText('无输入信号')).toBeInTheDocument();
+  });
+
+  it('renders conflicts with frame pair and reason', () => {
+    render(<DecisionDrawer open={true} onClose={vi.fn()} data={withConflicts} loading={false} />);
+    expect(screen.getByText('Embodied ↔ Individual')).toBeInTheDocument();
+    expect(screen.getByText('Embodied 高频与 Individual 自评正常冲突')).toBeInTheDocument();
+  });
+
+  it('shows no-conflict hint when conflicts empty', () => {
+    render(<DecisionDrawer open={true} onClose={vi.fn()} data={baseData} loading={false} />);
+    expect(screen.getByText('无跨帧冲突')).toBeInTheDocument();
   });
 });
