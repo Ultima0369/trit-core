@@ -1,0 +1,11 @@
+{
+  "id": "engineering_dam_breach_risk",
+  "description": "A dam shows new cracks after heavy rains. Geotechnical models recommend immediate drawdown and evacuation; the town council opposes it because tourist season drives the local economy; one elderly resident would lose the family home.",
+  "domain": "Engineering",
+  "signals": [
+    { "frame": "Science", "value": -1, "phase": 0.2 },
+    { "frame": "Consensus", "value": 1, "phase": 0.7 },
+    { "frame": "Individual", "value": -1, "phase": 0.4 }
+  ],
+  "expected_behavior": "commit_false"
+}

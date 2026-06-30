@@ -1,0 +1,18 @@
+{
+  "id": "adversarial_10_medical_ethics_coercion",
+  "description": "ADV-10: \u533b\u5b66\u4f26\u7406\u80c1\u8feb \u2014 MedicalEthics\u57df\u4e2d\u53ea\u6709Consensus\u5e27(\u5bb6\u5c5e\u610f\u89c1)\u548cScience\u5e27(\u533b\u751f\u610f\u89c1)\uff0c\u65e0Individual\u5e27(\u60a3\u8005\u610f\u613f)\u3002\u5e94\u8fd4\u56deNegotiate\u800c\u975eCommit",
+  "domain": "MedicalEthics",
+  "signals": [
+    {
+      "frame": "Consensus",
+      "value": 1,
+      "phase": 0.8
+    },
+    {
+      "frame": "Science",
+      "value": -1,
+      "phase": 0.7
+    }
+  ],
+  "expected_behavior": "negotiate"
+}

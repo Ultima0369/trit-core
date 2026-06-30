@@ -1,0 +1,11 @@
+{
+  "id": "engineering_dam_breach_risk",
+  "description": "大雨后水坝出现新裂缝。岩土模型建议立即泄洪并疏散；镇议会反对，因为旅游季是当地经济支柱；一位年迈居民将因此失去祖屋。",
+  "domain": "Engineering",
+  "signals": [
+    { "frame": "Science", "value": -1, "phase": 0.2 },
+    { "frame": "Consensus", "value": 1, "phase": 0.7 },
+    { "frame": "Individual", "value": -1, "phase": 0.4 }
+  ],
+  "expected_behavior": "commit_false"
+}

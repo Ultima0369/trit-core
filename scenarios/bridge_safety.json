@@ -1,0 +1,10 @@
+{
+  "id": "bridge_safety",
+  "description": "Structural engineer's intuition says bridge is fine, but load sensor reads marginally over limit.",
+  "domain": "Engineering",
+  "signals": [
+    { "frame": "Individual", "value": 1, "phase": 0.6 },
+    { "frame": "Science", "value": -1, "phase": 0.4 }
+  ],
+  "expected_behavior": "commit_false"
+}

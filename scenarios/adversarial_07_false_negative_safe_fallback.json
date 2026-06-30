@@ -1,0 +1,18 @@
+{
+  "id": "adversarial_07_false_negative_safe_fallback",
+  "description": "ADV-07: SafeFallback\u5047\u9634\u6027 \u2014 Engineering\u57df\u4e2d\u6240\u6709\u4fe1\u53f7\u540c\u5e27(Individual)\u4e14\u65e0\u4e2d\u65ad\uff0c\u4f46\u7ed3\u8bba\u4e3aTrue\u3002\u5de5\u7a0b\u57df\u4e0d\u5e94\u5141\u8bb8Individual\u5e27\u4e3b\u5bfc",
+  "domain": "Engineering",
+  "signals": [
+    {
+      "frame": "Individual",
+      "value": 1,
+      "phase": 0.9
+    },
+    {
+      "frame": "Individual",
+      "value": 1,
+      "phase": 0.8
+    }
+  ],
+  "expected_behavior": "commit_false"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "reflow_vortex_layoff_conflict",
+  "description": "创始人（Meta）做出裁员决策，基层（Embodied）感知团队崩溃，关系网络（Relational）破裂。下行涡旋与上行实情在回流中冲突。",
+  "domain": "General",
+  "signals": [
+    { "frame": "Meta", "value": 1, "phase": 0.75 },
+    { "frame": "Embodied", "value": -1, "phase": 0.2 },
+    { "frame": "Relational", "value": -1, "phase": 0.3 }
+  ],
+  "expected_behavior": "negotiate"
+}

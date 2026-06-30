@@ -1,0 +1,522 @@
+# Aurora 工程规格：系统设计
+
+**版本**：0.2.0
+**日期**：2026-06-20
+**状态**：活跃
+**分类**：04_engineering — 工程规格
+
+---
+
+## 一、设计目标
+
+### 1.1 功能目标（Functional Goals）
+
+| 目标 | 优先级 | 说明 |
+|------|--------|------|
+| 采集个人注意力数据 | P0 | 通信、日程、行为、生理、环境 |
+| 分析注意力节律 | P0 | 小波变换、基频、谐波、相位漂移 |
+| 检测跨域冲突 | P0 | Trit-Core 三值协议、MetaInterrupt |
+| 输出注意力图谱 | P0 | 可视化、可交互、可审计 |
+| 检测环境冲击 | P1 | 地理生态变化、冲击等级、恢复曲线 |
+| 监控角色边界 | P1 | 角色入侵、解离预警、恢复仪式 |
+| 支持团队/组织 | P2 | 多节点拓扑、级联风险、组织涡旋 |
+
+### 1.2 非功能目标（Non-Functional Goals）
+
+| 目标 | 指标 | 验证方式 |
+|------|------|----------|
+| 本地优先 | 100% 离线可用 | 断网测试 |
+| 数据主权 | 用户完全控制数据 | 导出/删除测试 |
+| 性能 | 单用户 < 1GB 内存 | 压力测试 |
+| 安全 | 无已知高危漏洞 | 安全审计 |
+| 可维护 | 模块化、可替换 | 架构评审 |
+| 可扩展 | 新 Frame/Domain 可插拔 | 扩展测试 |
+
+---
+
+## 二、技术栈
+
+### 2.1 核心栈
+
+| 层级 | 技术 | 选择理由 |
+|------|------|----------|
+| 语言 | Rust | 性能、安全、零 unsafe（Trit-Core 已有） |
+| 数据库 | SQLite + SQLCipher | 本地嵌入、零配置、文件即数据库。**当前 M0 为明文 SQLite（rusqlite `bundled`），SQLCipher 加密计划 M1 启用**（见 `aurora/Cargo.toml` 注释与 CLAUDE.md 已知限制），届时采用 AES-256 |
+| 桌面 UI | Tauri | Rust 后端 + Web 前端，本地优先 |
+| 前端 | HTML/CSS/JS + Web Components | 轻量、跨平台、不依赖 heavy framework |
+| 小波分析 | 自研 Rust + 可选 Python 桥接 | 性能 vs 开发速度的平衡 |
+| 协议核心 | Trit-Core（Rust crate） | 已有实现，向后兼容扩展 |
+
+### 2.2 可选栈
+
+| 场景 | 技术 | 说明 |
+|------|------|------|
+| 小波快速原型 | Python + PyWavelets | 验证算法可行性，后续用 Rust 重写热路径 |
+| 可视化 | D3.js / ECharts | 注意力图谱、小波尺度图渲染 |
+| 同步 | 端到端加密 P2P | 多设备同步，非默认，用户可选 |
+| 移动 | Tauri Mobile / React Native | 未来扩展，M2 后考虑 |
+
+---
+
+## 三、模块设计
+
+### 3.1 模块清单
+
+> ⚠️ **当前实现状态（2026-06）**：实际 workspace 仅有三个 crate：`trit-core`（决策协议库）、`aurora`（CLI/管道库，含 wavelet/ingest/pipeline/bc/db 等模块）、`aurora-desktop`（Tauri 桌面应用，位于 `src-tauri/`）。下列 `aurora-core` / `aurora-cli` / `aurora-scenarios` 多 crate 拆分为**设想中的目标结构**，当前均未独立成 crate——`aurora` 同时承担 core 与 CLI 角色。下列结构作为演进参考保留。
+
+```
+Aurora/                      # 设想目标结构（未实现）
+├── aurora-core/          # 核心库（Rust crate）— 当前由 aurora crate 承担
+│   ├── src/
+│   │   ├── data/         # 数据采集模块（设想，未实现）
+│   ├── wavelet/          # 小波分析模块（当前：aurora/src/wavelet/，M0 仅 FFT 基频检测）
+│   ├── frame/            # 参考系建模模块（设想，未实现）
+│   ├── trit/             # Trit-Core 扩展模块（设想，未实现）
+│   ├── alert/            # 告警引擎模块（设想，未实现）
+│   ├── audit/            # 审计日志模块（当前：aurora/src/db/ + aurora/src/bc/audit/）
+│   └── lib.rs            # 公共 API
+│   └── tests/            # 单元测试、集成测试
+├── aurora-desktop/       # 桌面应用（Tauri）— 当前：src-tauri/（crate 名 aurora-desktop）
+│   ├── src-tauri/        # Rust 后端
+│   └── src/              # Web 前端
+├── aurora-cli/           # 命令行工具（设想，未独立成 crate）— 当前由 aurora crate 的 aurora/src/cli.rs 承担
+│   └── src/
+├── aurora-scenarios/     # 场景套件（JSON）（设想，未实现）— 当前场景在 trit-core/scenarios/
+└── docs/                 # 文档（指向 aurora/ 目录）
+```
+
+### 3.2 模块接口
+
+#### 数据采集模块（`aurora::ingest`，设想路径 `aurora_core::data`）
+
+> ⚠️ **愿景接口（未实现）**：当前 `aurora` crate 中数据采集抽象位于 `aurora::ingest`（`DataSource` trait + JSON 回落），并非独立的 `aurora_core::data` 模块。下列 `RawSignal` / `SourceType` 细化为设计参考，实际 `ingest` 模块签名以代码为准。
+
+```rust
+pub trait DataSource {
+    fn name(&self) -> &str;
+    fn connect(&mut self) -> Result<(), DataError>;
+    fn fetch(&self, start: DateTime<Utc>, end: DateTime<Utc>) -> Result<Vec<RawSignal>, DataError>;
+    fn disconnect(&mut self);
+}
+
+/// RawSignal 定义（唯一、统一）
+/// 注意：此结构体在 core 模块中只定义一次，数据模型层直接复用
+pub struct RawSignal {
+    pub id: Uuid,                    // 信号唯一标识
+    pub timestamp: DateTime<Utc>,   // 时间戳
+    pub source_type: SourceType,    // Communication / Calendar / Location / Physiological / Environmental
+    pub metadata: HashMap<String, String>,  // 频率、时长、方向等元数据
+    pub content_hash: Option<String>,  // 内容哈希（不存储内容本身）
+}
+```
+
+**关键修正**：`RawSignal` 在系统中只定义一次。数据采集模块输出 `RawSignal`，数据模型层直接复用此结构体，不重新定义。字段统一为：`id`、`timestamp`、`source_type`、`metadata`、`content_hash`。
+
+#### 小波分析模块（`aurora::wavelet`，设想路径 `aurora_core::wavelet`）
+
+> ⚠️ **愿景接口（部分未实现）**：当前 M0 实现仅是 `WaveletEngine { sampling_rate: f64 }` + `analyze()` 的 **FFT 基频峰值检测**（`aurora/src/wavelet/detect.rs`）。`WaveletFeature` 仅含 `FundamentalFreq` 单一变体。下列 `MotherWavelet` / `Daubechies` / `scales` / `extract_features` / 多变体 `FeatureType`（Harmonic / PhaseDrift / SpectralReconfig / CrossSync）均为设想中的未来接口，待后续里程碑实现。详见 `aurora/02_math/WAVELET_ANALYSIS.md` §5。
+
+```rust
+pub struct WaveletEngine {
+    pub mother_wavelet: MotherWavelet,  // Morlet / Daubechies-4
+    pub scales: Vec<f64>,               // 分析尺度
+}
+
+impl WaveletEngine {
+    pub fn analyze(&self, signal: &[f64]) -> Result<WaveletResult, WaveletError>;
+    pub fn extract_features(&self, result: &WaveletResult) -> Result<Vec<WaveletFeature>, WaveletError>;
+}
+
+pub struct WaveletFeature {
+    pub feature_type: FeatureType,  // 当前实现仅 FundamentalFreq；Harmonic / PhaseDrift / SpectralReconfig / CrossSync 为设想变体（未实现）
+    pub value: f64,
+    pub confidence: f64,            // 信噪比
+    pub timestamp: DateTime<Utc>,
+}
+```
+
+#### 参考系建模模块（`aurora::frame`，设想路径 `aurora_core::frame`）
+
+> ⚠️ **愿景接口（未实现）**：`aurora` crate 当前无独立 `frame` 建模模块。Frame 概念复用 `trit-core` 的 `Frame` enum（12 变体）。下列 `FrameModel` / `GeoEcoProfile` / `ShockResult` / `RoleBoundaryMetrics` 为设想接口，待后续里程碑实现。
+
+```rust
+pub struct FrameModel {
+    pub geo_eco: GeoEcoProfile,
+    pub developmental: DevelopmentalProfile,
+    pub environmental: EnvironmentalState,
+    pub role: RoleState,
+}
+
+impl FrameModel {
+    pub fn weights(&self) -> FrameWeights;
+    pub fn shock_level(&self, old_env: &Environment, new_env: &Environment) -> ShockResult;
+    pub fn role_boundary(&self) -> RoleBoundaryMetrics;
+    pub fn update_environment(&mut self, new_env: EnvironmentalState);
+    pub fn update_role(&mut self, new_role: RoleState);
+}
+```
+
+#### Trit-Core 扩展模块（`aurora::trit`，设想路径 `aurora_core::trit`）
+
+> ⚠️ **当前状态**：`aurora` crate 当前无独立 `trit` 扩展模块。下列代码块描述的是**设想的扩展方式**，其中 Frame/Domain 变体清单与代码真相源对齐——但实际扩展 enum 需在 `trit-core` 侧完成（见下注）。
+
+**关键修正**：不定义 wrapper（`AuroraFrame`/`AuroraDomain`），直接在 Trit-Core 的 `Frame`/`Domain` enum 中扩展。
+
+```rust
+// 在 Trit-Core 的 Frame enum 中直接新增变体（向后兼容）
+// 文件: trit-core/src/core/frame.rs
+// 
+// pub enum Frame {
+//     Science,
+//     Individual,
+//     Consensus,
+//     Absolute,
+//     Meta,          // 系统内部帧，不可作为外部输入
+//     FirstPerson,
+//     Embodied,
+//     Relational,
+//     // Aurora 扩展 — 直接作为独立变体
+//     GeoEco,          // 地理生态参考系
+//     Developmental,   // 成长轨迹参考系
+//     Role,            // 角色参考系
+//     Environmental,   // 环境状态参考系
+// }
+//
+// 在 Trit-Core 的 Domain enum 中直接新增变体
+// pub enum Domain {
+//     Physical,
+//     Engineering,
+//     MedicalEthics,
+//     ValueJudgment,
+//     General,
+//     Custom(String),
+//     // Aurora 扩展
+//     Organizational,
+//     Relational,
+//     Cognitive,
+//     Environmental,
+// }
+
+// Aurora 的扩展中断类型（设想，未实现）
+// 注意：trit-core 实际 ConflictType 为 5 变体 FrameMismatch / OutOfScope / PhaseDrift /
+// PolicyViolation / ExplainImpulse（无 SpectralReconfiguration）。下列包装类型为 Aurora 设想扩展。
+pub enum AuroraInterruptType {
+    Core(ConflictType),   // Trit-Core 原有中断类型
+    EnvironmentalPhaseShock,
+    RoleContamination,
+    SpectralReconfiguration,
+    DataAnomaly,          // 输入模式与历史基线偏离 > 3σ
+    PolicyViolation(PolicyViolation), // 策略违反通知
+}
+
+// SecurityMode 扩展（设想）
+// 注意：trit-core 实际 SecurityMode 为四态 Service / Refusal / Awareness / Transparency
+// （无 Normal），allows_computation 返回 !matches!(self, Refusal)，即仅 Refusal 阻断运算。
+// 下列 AuroraSecurityMode 为设想包装，尚未实现；实际应直接复用 trit-core::SecurityMode。
+pub enum AuroraSecurityMode {
+    Service,
+    Refusal,
+    Awareness { trigger: PolicyViolation, timestamp: DateTime<Utc> },
+    Transparency { since: DateTime<Utc>, violation_count: u32 },
+}
+
+impl AuroraSecurityMode {
+    /// 仅 Refusal 阻断运算，其余状态允许。
+    pub fn allows_computation(&self) -> bool {
+        !matches!(self, Self::Refusal)  // 与 trit-core::SecurityMode 语义一致
+    }
+    
+    /// 是否应通知用户
+    pub fn should_notify(&self) -> bool {
+        matches!(self, Self::Awareness { .. } | Self::Transparency { .. })
+    }
+}
+```
+
+---
+
+## 四、数据模型
+
+### 4.1 核心实体
+
+```rust
+// 用户
+pub struct User {
+    pub id: Uuid,
+    pub created_at: DateTime<Utc>,
+    pub frame_model: FrameModel,      // 参考系模型
+    pub alert_settings: AlertSettings, // 告警设置
+}
+
+// 原始信号（复用 data 模块的 RawSignal，不重复定义）
+// 设想路径：aurora_core::data::RawSignal；当前对应 aurora::ingest 中的抽象
+pub use aurora::ingest::RawSignal;
+
+// 小波特征
+pub struct WaveletFeatureRecord {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub timestamp: DateTime<Utc>,
+    pub feature_type: FeatureType,
+    pub value: f64,
+    pub confidence: f64,
+    pub phase: Phase,                 // 归一化到 [0,1]
+    pub frame: Frame,                 // 直接使用 Trit-Core 的 Frame（含扩展变体）
+}
+
+// Trit 决策
+pub struct TritDecision {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub timestamp: DateTime<Utc>,
+    pub domain: Domain,               // 直接使用 Trit-Core 的 Domain（含扩展变体）
+    pub result: TritValue,            // True / Hold / False / Unknown
+    pub phase: Phase,
+    pub interrupts: Vec<MetaInterrupt>,
+    pub audit_log: String,            // 不可篡改的审计日志
+    pub user_override: bool,          // 用户是否覆盖了系统的 Hold
+}
+
+// 告警
+pub struct Alert {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub timestamp: DateTime<Utc>,
+    pub alert_type: AlertType,
+    pub severity: Severity,
+    pub message: String,
+    pub meta_interrupt: Option<MetaInterrupt>,
+    pub resolved: bool,
+    pub user_acknowledged: bool,      // 用户是否已确认
+}
+```
+
+### 4.2 SQLite Schema
+
+```sql
+-- 用户表
+CREATE TABLE users (
+    id BLOB PRIMARY KEY,  -- UUID
+    created_at TEXT NOT NULL,  -- ISO 8601
+    frame_model TEXT NOT NULL,  -- JSON
+    alert_settings TEXT NOT NULL  -- JSON
+);
+
+-- 原始信号表
+CREATE TABLE raw_signals (
+    id BLOB PRIMARY KEY,
+    user_id BLOB NOT NULL REFERENCES users(id),
+    timestamp TEXT NOT NULL,
+    source_type TEXT NOT NULL,
+    metadata TEXT NOT NULL,  -- JSON
+    content_hash TEXT,       -- 可选，内容哈希
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+CREATE INDEX idx_signals_user_time ON raw_signals(user_id, timestamp);
+
+-- 小波特征表
+CREATE TABLE wavelet_features (
+    id BLOB PRIMARY KEY,
+    user_id BLOB NOT NULL,
+    timestamp TEXT NOT NULL,
+    feature_type TEXT NOT NULL,
+    value REAL NOT NULL,
+    confidence REAL NOT NULL,
+    phase REAL NOT NULL,
+    frame TEXT NOT NULL,      -- Frame 变体名称（含扩展变体）
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+CREATE INDEX idx_features_user_time ON wavelet_features(user_id, timestamp);
+
+-- Trit 决策表
+CREATE TABLE trit_decisions (
+    id BLOB PRIMARY KEY,
+    user_id BLOB NOT NULL,
+    timestamp TEXT NOT NULL,
+    domain TEXT NOT NULL,     -- Domain 变体名称（含扩展变体）
+    result TEXT NOT NULL,     -- True / Hold / False / Unknown
+    phase REAL NOT NULL,
+    interrupts TEXT NOT NULL,  -- JSON
+    audit_log TEXT NOT NULL,
+    user_override INTEGER NOT NULL DEFAULT 0,  -- 用户是否覆盖
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+CREATE INDEX idx_decisions_user_time ON trit_decisions(user_id, timestamp);
+
+-- 告警表
+CREATE TABLE alerts (
+    id BLOB PRIMARY KEY,
+    user_id BLOB NOT NULL,
+    timestamp TEXT NOT NULL,
+    alert_type TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    message TEXT NOT NULL,
+    meta_interrupt TEXT,  -- JSON
+    resolved INTEGER NOT NULL DEFAULT 0,
+    user_acknowledged INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+CREATE INDEX idx_alerts_user_resolved ON alerts(user_id, resolved);
+
+-- 审计日志表（追加写入，不可篡改）
+CREATE TABLE audit_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL,
+    operation TEXT NOT NULL,
+    details TEXT NOT NULL,
+    prev_hash TEXT NOT NULL,  -- 前一行的 hash
+    hash TEXT NOT NULL        -- 前一行的 hash + 当前行内容的 SHA-256
+);
+```
+
+---
+
+## 五、管道设计
+
+### 5.1 数据流管道
+
+```
+原始信号采集 → 数据清洗 → 特征工程 → 小波分析 → Frame 标注
+                                                        ↓
+                                            Trit-Core 运算（TAND/TOR/仲裁）
+                                                        ↓
+                                            环境冲击检测 → 角色边界检测 → 元监控
+                                                        ↓
+                                            告警生成 → 注意力图谱更新 → 审计日志
+```
+
+### 5.2 管道阶段详解
+
+| 阶段 | 输入 | 输出 | 延迟要求 | 错误处理 |
+|------|------|------|----------|----------|
+| 数据采集 | 外部数据源 | RawSignal[] | 实时 | 跳过失败源，记录错误 |
+| 数据清洗 | RawSignal[] | CleanSignal[] | < 100ms | 丢弃无效数据，标记异常 |
+| 特征工程 | CleanSignal[] | FeatureVector[] | < 500ms | 降级到简单统计特征 |
+| 小波分析 | FeatureVector[] | WaveletResult | < 1s | 降级到频谱分析 |
+| Frame 标注 | WaveletResult | TritWord[] | < 100ms | 使用默认 Frame |
+| Trit-Core | TritWord[] | TritDecision | < 10ms | SafeFallback 触发（用户可关闭） |
+| 冲击检测 | TritDecision + Environment | ShockAlert | < 100ms | 保守估计（高冲击），用户可覆盖 |
+| 角色检测 | TritDecision + RoleState | RoleAlert | < 100ms | 保守估计（高污染），用户可覆盖 |
+| 元监控 | 所有中间结果 | MetaLog | 追加写入 | 不可失败（只读） |
+| 告警生成 | 所有检测结果 | Alert[] | < 100ms | 批量生成，降级显示 |
+| 可视化 | Alert[] + TritDecision[] | UI 更新 | < 200ms | 异步更新 |
+
+---
+
+## 六、测试策略
+
+### 6.1 测试金字塔
+
+```
+        /\                      
+       /  \      E2E 测试（5%）— 完整用户场景
+      /    \     — 用真实数据验证端到端管道
+     /------\    
+    /        \   集成测试（15%）— 模块间交互
+   /          \  — 数据采集+小波+Trit-Core 的联合测试
+  /------------\ 
+ /              \ 单元测试（80%）— 单个模块
+/                \ — 每个函数、每个边界条件、每个错误路径
+```
+
+### 6.2 测试类型
+
+| 类型 | 目标 | 工具 | 覆盖率要求 |
+|------|------|------|-----------|
+| 单元测试 | 函数正确性 | Rust built-in test | > 80% |
+| 集成测试 | 模块交互 | Rust test + SQLite | > 60% |
+| 属性测试 | 代数不变量 | proptest | 核心代数 100% |
+| 性能测试 | 延迟/吞吐量 | Criterion | 基准 + 回归 |
+| 安全测试 | 漏洞检测 | cargo-audit + fuzz | 无已知高危 |
+| 伦理门禁测试 | 定心盘一致性 | Rust test | 100% 通过 |
+| E2E 测试 | 用户场景 | 自定义脚本 | 核心场景覆盖 |
+
+### 6.3 关键测试场景
+
+- 合成数据：已知节律（正弦波 + 噪声），验证小波检测准确
+- 迁移场景：模拟环境切换，验证冲击检测和恢复曲线
+- 冲突场景：模拟跨域冲突，验证 Trit-Core 输出 Hold
+- 角色场景：模拟角色入侵，验证污染检测和预警
+- 极端场景：数据缺失、格式错误、恶意输入、资源耗尽
+- 伦理场景：模拟强制坍缩、参考系入侵，验证 Awareness 检测
+
+---
+
+## 七、部署架构
+
+### 7.1 本地部署（单机，开源免费）
+
+```
+用户设备（macOS/Windows/Linux）
+  ├── Aurora Desktop（Tauri）
+  │   ├── Rust 后端（当前：aurora crate；设想拆分后为 aurora-core）
+  │   │   ├── SQLite（当前 M0 明文；SQLCipher 加密计划 M1 启用）
+  │   │   ├── Trit-Core（决策协议）
+  │   │   └── 小波引擎（分析）
+  │   └── Web 前端（UI）
+  └── 数据源（本地邮件、日历、文件）
+```
+
+### 7.2 多机协作部署（自托管，非商业层级）
+
+> ⚠️ **愿景部署形态（未实现）**：当前无 `aurora-server` crate，工作区仅 `trit-core` / `aurora` / `aurora-desktop`。下列 aurora-core / Aurora Server 为设想拆分，待后续里程碑实现。SQLCipher 加密状态同 7.1。
+
+```
+本地服务器（可选）
+  ├── Aurora Server（Rust）（设想，未实现）
+  │   ├── aurora-core（多用户）（设想拆分）
+  │   ├── SQLite + SQLCipher（多用户加密数据库）
+  │   └── 团队管理模块
+  └── 客户端（Tauri Desktop）
+      ├── 个人数据（本地加密）
+      └── 团队数据（从服务器同步，端到端加密）
+```
+
+### 7.3 组织内网部署（自托管，非商业层级）
+
+> ⚠️ **愿景部署形态（未实现）**：当前无 `aurora-enterprise-server`，工作区仅 `trit-core` / `aurora` / `aurora-desktop`。下列 aurora-core / Aurora Enterprise Server / PostgreSQL / LDAP 集成均为设想，待后续里程碑实现。
+
+```
+企业内网
+  ├── Aurora Enterprise Server（设想，未实现）
+  │   ├── aurora-core（多用户、多团队）（设想拆分）
+  │   ├── PostgreSQL（可选，企业级数据库）
+  │   ├── LDAP/SSO 集成（可选）
+  │   └── 审计日志（集中存储，但用户可导出本地副本）
+  └── 客户端（Tauri Desktop）
+      ├── 个人数据（本地加密，用户持有密钥）
+      └── 企业数据（同步，端到端加密）
+```
+
+**关键**：即使企业部署，个人数据仍本地加密，密钥用户持有。企业管理员无法解密个人数据。
+
+---
+
+## 八、验收标准
+
+### 8.1 功能验收
+
+| 功能 | 验收标准 | 验证方式 |
+|------|----------|----------|
+| 数据采集 | 至少支持邮件元数据、日历、位置（可选） | 手动测试 + 自动化测试 |
+| 小波分析 | 能检测基频、谐波、相位漂移（当前 M0 仅基频；谐波/相位漂移为后续里程碑） | 合成数据验证 |
+| 跨域冲突 | 跨 Frame 运算输出 Hold + MetaInterrupt | 场景测试 |
+| 注意力图谱 | 可视化当前注意力分布 | 手动测试 |
+| 环境冲击 | 检测环境切换并分级 | 模拟测试 |
+| 角色边界 | 检测角色入侵并预警 | 模拟测试 |
+| 安全模型 | Awareness 不阻断、SafeFallback 可关闭 | 伦理门禁测试 |
+
+### 8.2 非功能验收
+
+| 指标 | 目标 | 验证方式 |
+|------|------|----------|
+| 离线可用 | 100% 功能可用 | 断网测试 |
+| 内存 | < 500MB | 压力测试 |
+| 启动 | < 3秒 | 手动计时 |
+| 小波延迟 | < 1秒（日数据） | Criterion |
+| 安全 | 无已知高危漏洞 | cargo-audit |
+| 定心盘 | 通过 TECH_REVIEW_CHECKLIST | 自检 |
+
+---
+
+*本工程规格为 Aurora 的系统设计文档。v0.2.0 统一了 RawSignal 定义（只定义一次），修正了 Frame/Domain 扩展方式（直接扩展 enum，非 wrapper），增加了 SecurityMode 集成（Service/Refusal/Awareness/Transparency，仅 Refusal 阻断运算），规划了 SQLCipher 加密方案（M0 仍为明文 SQLite，M1 启用）。当前实际 crate 为 trit-core / aurora / aurora-desktop；aurora-core / aurora-cli / aurora-server 等拆分为设想结构。后续实现需严格遵循。*

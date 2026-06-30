@@ -1,0 +1,10 @@
+{
+  "id": "physical_runway_length",
+  "description": "Pilot's intuition says landing is possible on short runway, but instrument measurements show insufficient length for aircraft type.",
+  "domain": "Physical",
+  "signals": [
+    { "frame": "Individual", "value": 1, "phase": 0.55 },
+    { "frame": "Science", "value": -1, "phase": 0.85 }
+  ],
+  "expected_behavior": "commit_false"
+}

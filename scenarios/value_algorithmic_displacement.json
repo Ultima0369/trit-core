@@ -1,0 +1,10 @@
+{
+  "id": "value_algorithmic_displacement",
+  "description": "A city considers replacing human social workers with an AI triage system. Consensus data shows faster processing and cost savings; an individual caseworker reports that vulnerable clients lose the human recognition they need.",
+  "domain": "ValueJudgment",
+  "signals": [
+    { "frame": "Consensus", "value": 1, "phase": 0.75 },
+    { "frame": "Individual", "value": -1, "phase": 0.35 }
+  ],
+  "expected_behavior": "hold"
+}

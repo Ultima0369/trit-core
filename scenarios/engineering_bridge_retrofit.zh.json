@@ -1,0 +1,10 @@
+{
+  "id": "engineering_bridge_retrofit",
+  "description": "预算委员会希望对老化桥梁做最低限度改造，但结构分析建议全面更换。",
+  "domain": "Engineering",
+  "signals": [
+    { "frame": "Consensus", "value": 1, "phase": 0.5 },
+    { "frame": "Science", "value": -1, "phase": 0.9 }
+  ],
+  "expected_behavior": "commit_false"
+}

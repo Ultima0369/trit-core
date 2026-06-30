@@ -1,0 +1,10 @@
+{
+  "id": "engineering_bridge_retrofit",
+  "description": "Budget committee wants minimal retrofit on aging bridge, but structural analysis recommends full replacement.",
+  "domain": "Engineering",
+  "signals": [
+    { "frame": "Consensus", "value": 1, "phase": 0.5 },
+    { "frame": "Science", "value": -1, "phase": 0.9 }
+  ],
+  "expected_behavior": "commit_false"
+}

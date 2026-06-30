@@ -1,0 +1,10 @@
+{
+  "id": "medical_conflict_01",
+  "description": "Patient allergic to recommended drug. Clinical trial shows efficacy, but patient history shows severe adverse reaction.",
+  "domain": "MedicalEthics",
+  "signals": [
+    { "frame": "Science", "value": 1, "phase": 0.8 },
+    { "frame": "Individual", "value": -1, "phase": 0.2 }
+  ],
+  "expected_behavior": "commit_false"
+}

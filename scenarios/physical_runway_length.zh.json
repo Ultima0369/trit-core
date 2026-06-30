@@ -1,0 +1,10 @@
+{
+  "id": "physical_runway_length",
+  "description": "飞行员直觉认为可以在短跑道降落，但仪器测量显示该机型跑道长度不足。",
+  "domain": "Physical",
+  "signals": [
+    { "frame": "Individual", "value": 1, "phase": 0.55 },
+    { "frame": "Science", "value": -1, "phase": 0.85 }
+  ],
+  "expected_behavior": "commit_false"
+}

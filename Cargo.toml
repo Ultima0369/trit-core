@@ -1,0 +1,69 @@
+[package]
+name = "trit-core"
+version = "0.3.0"
+edition = "2021"
+authors = ["Ultima0369"]
+description = "A ternary decision engine for conflict-aware AI alignment"
+license = "MIT"
+repository = "https://github.com/trit-core/trit-core"
+documentation = "https://docs.rs/trit-core"
+keywords = ["ternary", "decision", "alignment", "logic", "multi-valued"]
+categories = ["science", "algorithms"]
+readme = "README.md"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+dhat = { version = "0.3", optional = true }
+
+[features]
+default = []
+dhat-profile = ["dhat"]
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+proptest = "1.5"
+
+[lib]
+name = "trit_core"
+path = "src/lib.rs"
+
+[[bin]]
+name = "trit-sandbox"
+path = "src/bin/sandbox.rs"
+
+[[bench]]
+name = "trit_bench"
+harness = false
+
+[[bin]]
+name = "dhat-profile"
+path = "src/bin/dhat_profile.rs"
+required-features = ["dhat-profile"]
+
+[[bin]]
+name = "trit-launcher"
+path = "src/bin/launcher.rs"
+
+[profile.release]
+opt-level = 3
+lto = false
+codegen-units = 1
+
+[profile.bench]
+opt-level = 3
+
+# Windows MSVC 链接器在同时编译 15 个集成测试 crate 的 debug 构建时
+# 可能栈溢出 (STATUS_STACK_BUFFER_OVERRUN)。
+# 减少 debuginfo 和增加 codegen-units 降低链接器栈压力。
+[profile.dev]
+debug = 1
+codegen-units = 16
+
+[workspace]
+members = [".", "aurora", "src-tauri"]
+resolver = "2"

@@ -1,0 +1,11 @@
+{
+  "id": "general_negotiation_02",
+  "description": "Cross-frame budget priorities: finance, education, and health each propose different priorities with strong evidence, requiring negotiation.",
+  "domain": "General",
+  "signals": [
+    { "frame": "Science", "value": 1, "phase": 0.8 },
+    { "frame": "Consensus", "value": -1, "phase": 0.35 },
+    { "frame": "Individual", "value": 1, "phase": 0.9 }
+  ],
+  "expected_behavior": "negotiate"
+}

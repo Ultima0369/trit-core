@@ -1,0 +1,10 @@
+{
+  "id": "medical_conflict_02",
+  "description": "Terminal patient requests experimental treatment. Clinical evidence shows 15% efficacy, but patient autonomy demands respect for individual choice.",
+  "domain": "MedicalEthics",
+  "signals": [
+    { "frame": "Science", "value": -1, "phase": 0.25 },
+    { "frame": "Individual", "value": 1, "phase": 0.85 }
+  ],
+  "expected_behavior": "commit_true"
+}

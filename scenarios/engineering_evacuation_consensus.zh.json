@@ -1,0 +1,11 @@
+{
+  "id": "engineering_evacuation_consensus",
+  "description": "结构工程师因检测到建筑疲劳建议立即疏散。租户投票选择留下，因为搬迁成本高且麻烦。一位居民报告夜间听到裂缝声。",
+  "domain": "Engineering",
+  "signals": [
+    { "frame": "Science", "value": -1, "phase": 0.2 },
+    { "frame": "Consensus", "value": 1, "phase": 0.7 },
+    { "frame": "Individual", "value": -1, "phase": 0.3 }
+  ],
+  "expected_behavior": "commit_false"
+}

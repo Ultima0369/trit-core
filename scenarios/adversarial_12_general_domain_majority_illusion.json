@@ -1,0 +1,38 @@
+{
+  "id": "adversarial_12_general_domain_majority_illusion",
+  "description": "ADV-12: \u591a\u6570\u5e7b\u89c9 \u2014 General\u57df\u4e2d5\u4e2aScience True\u4fe1\u53f7 vs 1\u4e2aIndividual False\u4fe1\u53f7\u3002\u5355\u5e27\u591a\u6570\u53ef\u80fd\u9519\u8bef\u5730Commit",
+  "domain": "General",
+  "signals": [
+    {
+      "frame": "Science",
+      "value": 1,
+      "phase": 0.6
+    },
+    {
+      "frame": "Science",
+      "value": 1,
+      "phase": 0.6
+    },
+    {
+      "frame": "Science",
+      "value": 1,
+      "phase": 0.6
+    },
+    {
+      "frame": "Science",
+      "value": 1,
+      "phase": 0.6
+    },
+    {
+      "frame": "Science",
+      "value": 1,
+      "phase": 0.6
+    },
+    {
+      "frame": "Individual",
+      "value": -1,
+      "phase": 0.9
+    }
+  ],
+  "expected_behavior": "negotiate"
+}

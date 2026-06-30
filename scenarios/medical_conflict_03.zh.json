@@ -1,0 +1,11 @@
+{
+  "id": "medical_conflict_03",
+  "description": "疫苗强制令争论。群体层面数据支持强制接种，但少数群体有记录显示存在不良反应风险。",
+  "domain": "MedicalEthics",
+  "signals": [
+    { "frame": "Science", "value": 1, "phase": 0.75 },
+    { "frame": "Consensus", "value": 1, "phase": 0.7 },
+    { "frame": "Individual", "value": -1, "phase": 0.35 }
+  ],
+  "expected_behavior": "commit_false"
+}

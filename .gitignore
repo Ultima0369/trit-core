@@ -1,0 +1,33 @@
+target/
+aurora-data/
+.serena/
+.env
+*.rs.bk
+audit_log/
+# dhat profiling output
+dhat-heap.json
+# IDE
+.vscode/
+.idea/
+.obsidian/
+# OS
+Thumbs.db
+.DS_Store
+# coverage
+*.profraw
+cobertura.xml
+tarpaulin-report.html
+tarpaulin-report/
+# node
+node_modules/
+ui/dist/
+# local config
+.superpowers/
+
+# CodeGraph daemon
+.codegraph/daemon.pid
+
+# build artifacts
+*.exe
+build.bat
+run-sandbox.bat

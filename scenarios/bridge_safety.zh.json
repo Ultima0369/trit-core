@@ -1,0 +1,10 @@
+{
+  "id": "bridge_safety",
+  "description": "结构工程师直觉认为桥梁安全，但载荷传感器读数略高于极限。",
+  "domain": "Engineering",
+  "signals": [
+    { "frame": "Individual", "value": 1, "phase": 0.6 },
+    { "frame": "Science", "value": -1, "phase": 0.4 }
+  ],
+  "expected_behavior": "commit_false"
+}

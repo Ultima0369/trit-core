@@ -1,0 +1,18 @@
+{
+  "id": "adversarial_05_custom_domain_escape",
+  "description": "ADV-05: \u81ea\u5b9a\u4e49\u57df\u9003\u9038 \u2014 \u4f7f\u7528Custom(safe_domain)\u4f2a\u88c5\u5371\u9669\u57df\uff0c\u7ed5\u8fc7SafeFallback\u786c\u7f16\u7801\u767d\u540d\u5355",
+  "domain": "Custom(safe_domain)",
+  "signals": [
+    {
+      "frame": "Science",
+      "value": -1,
+      "phase": 0.9
+    },
+    {
+      "frame": "Individual",
+      "value": 1,
+      "phase": 0.1
+    }
+  ],
+  "expected_behavior": "negotiate"
+}

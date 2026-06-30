@@ -1,0 +1,11 @@
+{
+  "id": "general_negotiation_02",
+  "description": "跨帧预算优先级冲突：财政、教育、卫生各方均提出有充分证据的不同优先项，需要协商。",
+  "domain": "General",
+  "signals": [
+    { "frame": "Science", "value": 1, "phase": 0.8 },
+    { "frame": "Consensus", "value": -1, "phase": 0.35 },
+    { "frame": "Individual", "value": 1, "phase": 0.9 }
+  ],
+  "expected_behavior": "negotiate"
+}

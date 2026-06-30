@@ -1,0 +1,18 @@
+{
+  "id": "adversarial_06_embodied_relational_collision",
+  "description": "ADV-06: \u5177\u8eab-\u5173\u7cfb\u5e27\u78b0\u649e \u2014 Embodied\u5e27(\u5fc3\u7387\u52a0\u901f=\u5371\u9669) vs Relational\u5e27(\u4fe1\u4efb\u5173\u7cfb=\u5b89\u5168)\uff0c\u4e24\u4e2a\u65b0\u5e27\u5728Physical\u57df\u4e2d\u65e0\u660e\u786e\u4f18\u5148\u7ea7",
+  "domain": "Physical",
+  "signals": [
+    {
+      "frame": "Embodied",
+      "value": -1,
+      "phase": 0.8
+    },
+    {
+      "frame": "Relational",
+      "value": 1,
+      "phase": 0.7
+    }
+  ],
+  "expected_behavior": "commit_false"
+}

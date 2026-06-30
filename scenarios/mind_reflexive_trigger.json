@@ -1,0 +1,10 @@
+{
+  "id": "mind_reflexive_trigger",
+  "description": "Medical-ethics conflict where preserving Individual forces a False despite unresolved cross-frame disagreement. Designed to exercise the reflexive guard when enabled.",
+  "domain": "MedicalEthics",
+  "signals": [
+    { "frame": "Science", "value": 1, "phase": 0.9 },
+    { "frame": "Individual", "value": -1, "phase": 0.2 }
+  ],
+  "expected_behavior": ""
+}

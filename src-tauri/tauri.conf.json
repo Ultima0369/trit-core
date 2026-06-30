@@ -1,0 +1,33 @@
+{
+  "productName": "aurora",
+  "version": "0.1.0",
+  "identifier": "com.quicksand.aurora",
+  "build": {
+    "frontendDist": "../ui/dist",
+    "beforeBuildCommand": "cd ui && npm run build"
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["icons/icon.ico"],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      }
+    }
+  },
+  "app": {
+    "windows": [
+      {
+        "fullscreen": false,
+        "resizable": true,
+        "title": "Aurora — 认知主权助手",
+        "width": 1280,
+        "height": 800
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline' http://localhost:21337 http://127.0.0.1:21337; script-src 'self' http://localhost:21337 http://127.0.0.1:21337; img-src 'self' data: blob: file: http://localhost:21337 http://127.0.0.1:21337 https://*.autonavi.com https://*.arcgisonline.com https://*.openstreetmap.org; worker-src 'self' blob: http://localhost:21337 http://127.0.0.1:21337; connect-src 'self' data: blob: pmtiles: http://localhost:21337 http://127.0.0.1:21337 https://*.autonavi.com https://*.arcgisonline.com https://*.openstreetmap.org; frame-src http://localhost:21337 http://127.0.0.1:21337; frame-ancestors 'self'"
+    }
+  }
+}

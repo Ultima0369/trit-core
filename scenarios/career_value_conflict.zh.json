@@ -1,0 +1,10 @@
+{
+  "id": "career_value_conflict",
+  "description": "用户因长期痛苦想辞职，但家庭共识重视经济稳定。",
+  "domain": "ValueJudgment",
+  "signals": [
+    { "frame": "Individual", "value": -1, "phase": 0.3 },
+    { "frame": "Consensus", "value": 1, "phase": 0.7 }
+  ],
+  "expected_behavior": "hold"
+}

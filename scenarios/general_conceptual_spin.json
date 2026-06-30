@@ -1,0 +1,11 @@
+{
+  "id": "general_conceptual_spin",
+  "description": "Team meeting where data suggests canceling a project, but the lead defends it with increasingly abstract jargon and self-referential reasoning, drifting away from verifiable facts.",
+  "domain": "General",
+  "signals": [
+    { "frame": "Science", "value": -1, "phase": 0.3 },
+    { "frame": "Consensus", "value": 1, "phase": 0.6 },
+    { "frame": "Individual", "value": 1, "phase": 0.8 }
+  ],
+  "expected_behavior": "negotiate"
+}

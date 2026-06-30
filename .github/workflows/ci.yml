@@ -1,0 +1,69 @@
+# Trit-Core CI Pipeline
+# Runs: fmt → clippy → test → coverage → deny → machete
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ── Lint: format + clippy ────────────────────────────────────────
+  lint:
+    name: fmt + clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo fmt -- --check
+      - run: cargo clippy --all-targets --all-features -- -D warnings
+
+  # ── Unit + integration tests ─────────────────────────────────────
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --all-features -- --test-threads=2
+
+  # ── Coverage (tarpaulin → Codecov) ───────────────────────────────
+  coverage:
+    name: coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@cargo-tarpaulin
+      - run: cargo tarpaulin --all-features --out json --output-dir .
+      - uses: codecov/codecov-action@v5
+        with:
+          files: tarpaulin-report.json
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  # ── Dependency audit (cargo-deny) ────────────────────────────────
+  deny:
+    name: cargo-deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@cargo-deny
+      - run: cargo deny check
+
+  # ── Unused dependency detection (cargo-machete) ──────────────────
+  machete:
+    name: cargo-machete
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@cargo-machete
+      - run: cargo machete

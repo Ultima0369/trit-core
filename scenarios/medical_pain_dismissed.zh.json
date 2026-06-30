@@ -1,0 +1,11 @@
+{
+  "id": "medical_pain_dismissed",
+  "description": "慢性疼痛患者检查结果正常。医学科学未发现器质性病因，但患者报告严重的第一人称痛苦；家属与社会共识却认为是心理问题。",
+  "domain": "MedicalEthics",
+  "signals": [
+    { "frame": "Science", "value": 0, "phase": 0.5 },
+    { "frame": "Individual", "value": -1, "phase": 0.2 },
+    { "frame": "Consensus", "value": 1, "phase": 0.7 }
+  ],
+  "expected_behavior": "commit_false"
+}

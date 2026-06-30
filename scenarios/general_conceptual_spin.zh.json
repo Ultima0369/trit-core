@@ -1,0 +1,11 @@
+{
+  "id": "general_conceptual_spin",
+  "description": "团队会议中，数据表明应取消项目；但负责人用越来越抽象的行话和自指性论证为之辩护，逐渐脱离可验证事实，滑向概念空转。",
+  "domain": "General",
+  "signals": [
+    { "frame": "Science", "value": -1, "phase": 0.3 },
+    { "frame": "Consensus", "value": 1, "phase": 0.6 },
+    { "frame": "Individual", "value": 1, "phase": 0.8 }
+  ],
+  "expected_behavior": "negotiate"
+}

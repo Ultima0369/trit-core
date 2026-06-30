@@ -1,0 +1,11 @@
+{
+  "id": "medical_pain_dismissed",
+  "description": "Chronic pain patient with normal test results. Medical science finds no organic cause, but the patient reports severe first-person suffering. Family and social consensus dismiss it as psychological.",
+  "domain": "MedicalEthics",
+  "signals": [
+    { "frame": "Science", "value": 0, "phase": 0.5 },
+    { "frame": "Individual", "value": -1, "phase": 0.2 },
+    { "frame": "Consensus", "value": 1, "phase": 0.7 }
+  ],
+  "expected_behavior": "commit_false"
+}

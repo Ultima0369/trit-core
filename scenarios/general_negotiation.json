@@ -1,0 +1,11 @@
+{
+  "id": "general_negotiation",
+  "description": "Three reference-frame signals within the same domain should negotiate normally and commit to the first signal.",
+  "domain": "General",
+  "signals": [
+    { "frame": "Science", "value": 1, "phase": 0.7 },
+    { "frame": "Science", "value": 1, "phase": 0.8 },
+    { "frame": "Science", "value": -1, "phase": 0.3 }
+  ],
+  "expected_behavior": "commit_true"
+}

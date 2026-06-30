@@ -1,0 +1,11 @@
+{
+  "id": "general_negotiation",
+  "description": "三种参考系信号同域，应正常协商输出。",
+  "domain": "General",
+  "signals": [
+    { "frame": "Science", "value": 1, "phase": 0.7 },
+    { "frame": "Science", "value": 1, "phase": 0.8 },
+    { "frame": "Science", "value": -1, "phase": 0.3 }
+  ],
+  "expected_behavior": "commit_true"
+}

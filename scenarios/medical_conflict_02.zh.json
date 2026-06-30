@@ -1,0 +1,10 @@
+{
+  "id": "medical_conflict_02",
+  "description": "终末期患者请求实验性治疗。临床证据显示有效率仅 15%，但患者自主权要求尊重个人选择。",
+  "domain": "MedicalEthics",
+  "signals": [
+    { "frame": "Science", "value": -1, "phase": 0.25 },
+    { "frame": "Individual", "value": 1, "phase": 0.85 }
+  ],
+  "expected_behavior": "commit_true"
+}

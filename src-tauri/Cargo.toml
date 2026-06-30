@@ -1,0 +1,28 @@
+[package]
+name = "aurora-desktop"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "aurora_desktop_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["devtools"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+aurora = { path = "../aurora" }
+anyhow = "1"
+ureq = { version = "3", features = ["rustls"] }
+flate2 = "1"
+tar = "0.4"
+actix-web = "4"
+actix-rt = "2"
+moka = { version = "0.12", features = ["sync"] }
+reqwest = { version = "0.12", features = ["rustls-tls"] }
+tokio = { version = "1", features = ["full"] }
+actix-cors = "0.7.1"
+percent-encoding = "2"

@@ -1,0 +1,1135 @@
+/* ui/src/aurora.css — Aurora Design System
+ *
+ * Palette: aurora borealis — cold night + electric teal + warm signal
+ * Type: DM Mono (wordmark), Inter (body), JetBrains Mono (data)
+ *
+ * Token naming: --aur-{category}-{variant}
+ */
+
+/* ── Fonts (bundled locally for offline use + Tauri CSP 'self' compliance) ──
+ * Replaces the previous Google Fonts @import, which was blocked by the Tauri
+ * CSP (style-src/font-src do not allow fonts.googleapis.com/gstatic.com) and
+ * silently fell back to system fonts in packaged builds.
+ * Latin-basic subset only; CJK is not in these families (system fallback).
+ * Regenerate with: node scripts/fetch-fonts.mjs
+ */
+@font-face {
+  font-family: 'DM Mono';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url('./assets/fonts/dm-mono-300.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'DM Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./assets/fonts/dm-mono-400.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'DM Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('./assets/fonts/dm-mono-500.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 300 600;
+  font-display: swap;
+  src: url('./assets/fonts/inter.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+  src: url('./assets/fonts/jetbrains-mono.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Design Tokens
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Palette ── */
+  --aur-night:       #0B0E14;
+  --aur-deep:        #141923;
+  --aur-ice:         #1A2030;
+  --aur-ice-hover:   #222B3D;
+  --aur-aurora:      #5EEAD4;
+  --aur-aurora-dim:  rgba(94, 234, 212, 0.12);
+  --aur-aurora-glow: rgba(94, 234, 212, 0.35);
+  --aur-signal:      #F0E68C;
+  --aur-signal-dim:  rgba(240, 230, 140, 0.15);
+  --aur-true:        #5EEAD4;  /* True = aurora (aligned, clear) */
+  --aur-hold:        #F0E68C;  /* Hold = signal (attention, reflect) */
+  --aur-false:       #E57373;  /* False = muted red (reject) */
+  --aur-void:        #8E9CB2;
+  --aur-void-dim:    #5A6678;
+  --aur-white:       #E8ECF1;
+
+  /* ── Typography ── */
+  --font-mono:       'DM Mono', 'Cascadia Code', 'Fira Code', monospace;
+  --font-body:       'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-data:       'JetBrains Mono', 'Cascadia Code', monospace;
+
+  /* ── Type Scale ── */
+  /* --font-scale 由 JS 设置（localStorage 持久化），全局缩放所有 rem 文字 */
+  --font-scale:     1;
+  --text-xs:         calc(0.6875rem * var(--font-scale));   /* 11px */
+  --text-sm:         calc(0.75rem * var(--font-scale));     /* 12px */
+  --text-base:       calc(0.8125rem * var(--font-scale));   /* 13px */
+  --text-md:         calc(0.875rem * var(--font-scale));    /* 14px */
+  --text-lg:         calc(1rem * var(--font-scale));        /* 16px */
+  --text-xl:         calc(1.25rem * var(--font-scale));     /* 20px */
+  --text-2xl:        calc(1.75rem * var(--font-scale));     /* 28px */
+  --text-decision:   calc(3rem * var(--font-scale));        /* 48px — decision word */
+
+  /* ── Spacing ── */
+  --space-1:         0.25rem;
+  --space-2:         0.5rem;
+  --space-3:         0.75rem;
+  --space-4:         1rem;
+  --space-5:         1.25rem;
+  --space-6:         1.5rem;
+
+  /* ── Radii ── */
+  --radius-sm:       3px;
+  --radius-md:       6px;
+  --radius-lg:       10px;
+
+  /* ── Layout ── */
+  --aur-sidebar-w:   280px;
+  --aur-topbar-h:    42px;
+  --aur-statusbar-h: 24px;
+
+  /* ── Motion ── */
+  --ease-out:        cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast:   150ms;
+  --duration-normal: 300ms;
+  --duration-slow:   600ms;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Reset & Base
+   ═══════════════════════════════════════════════════════════════════ */
+
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--aur-night);
+  color: var(--aur-void);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Focus ── */
+:focus-visible {
+  outline: 2px solid var(--aur-aurora);
+  outline-offset: 2px;
+}
+
+/* ── Selection ── */
+::selection {
+  background: var(--aur-aurora-dim);
+  color: var(--aur-aurora);
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--aur-ice);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--aur-ice-hover);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   App Shell — globe backdrop with floating HUD
+   ═══════════════════════════════════════════════════════════════════ */
+
+.aur-app {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--aur-night);
+  display: grid;
+  /* 顶栏 / 内容区 / 状态栏；sidebar 与 content 并列 */
+  grid-template-rows: var(--aur-topbar-h) 1fr var(--aur-statusbar-h);
+  grid-template-columns: var(--aur-sidebar-w) 1fr;
+  grid-template-areas: "header header" "sidebar content" "statusbar statusbar";
+}
+
+.aur-app--hud {
+  position: relative;
+}
+
+/* ── 左侧栏目 ── 借鉴 worldmonitor：图层 + 数据摘要栏目化。 */
+.aur-sidebar {
+  grid-area: sidebar;
+  position: relative;  /* 给 resizer 拖拽条做定位锚 */
+  background: var(--aur-deep);
+  border-right: 1px solid var(--aur-ice);
+  overflow-y: auto;
+  overflow-x: visible;
+  padding: var(--space-3) 0;
+  z-index: 15;
+}
+
+.aur-sidebar-section {
+  padding: 0 var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.aur-sidebar-section + .aur-sidebar-section {
+  border-top: 1px solid var(--aur-ice);
+  padding-top: var(--space-3);
+}
+
+.aur-sidebar-title {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--aur-void-dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: var(--space-2);
+}
+
+.aur-layer-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px 0;
+  cursor: pointer;
+  color: var(--aur-void);
+  font-size: var(--text-sm);
+  user-select: none;
+  min-width: 0;  /* 允许子元素收缩，防止长文本撑爆行 */
+}
+
+.aur-layer-row:hover {
+  color: var(--aur-aurora);
+}
+
+.aur-layer-icon {
+  font-size: var(--text-md);
+  flex-shrink: 0;
+}
+
+.aur-layer-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aur-summary-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 3px 0;
+  color: var(--aur-void);
+  font-size: var(--text-sm);
+}
+
+.aur-summary-sub {
+  margin-left: auto;
+  opacity: 0.7;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.aur-summary-empty {
+  opacity: 0.5;
+  font-size: var(--text-xs);
+  font-style: italic;
+}
+
+.aur-mark-ok {
+  color: #51cf66;
+}
+
+.aur-mark-violated {
+  color: #ff3232;
+}
+
+/* CSS 圆点：替代 ● 字符（字符在 Inter/DM Mono 下比例异常会变形）。
+   用 width/height/border-radius 精确控制，跨字体一致。 */
+.aur-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+.aur-dot--red { background: #ff3232; }
+.aur-dot--orange { background: #ffa500; }
+.aur-dot--yellow { background: #ffff00; }
+
+/* ── Top Bar ── */
+.aur-topbar {
+  grid-area: header;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-4);
+  gap: var(--space-3);
+  background: var(--aur-deep);
+  border-bottom: 1px solid var(--aur-ice);
+  user-select: none;
+  -webkit-app-region: drag;  /* Tauri drag region */
+  z-index: 20;
+}
+
+/* Overlay variant — transparent gradient pressed over the globe */
+.aur-topbar--overlay {
+  background: linear-gradient(to bottom, rgba(11, 14, 20, 0.92), rgba(11, 14, 20, 0.55));
+  border-bottom: 1px solid rgba(26, 32, 48, 0.6);
+  backdrop-filter: blur(8px);
+}
+
+.aur-wordmark {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: var(--text-md);
+  color: var(--aur-aurora);
+  letter-spacing: 0.06em;
+  -webkit-app-region: no-drag;
+}
+
+.aur-topbar-sub {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--aur-void-dim);
+  letter-spacing: 0.08em;
+}
+
+.aur-topbar-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--aur-ice);
+}
+
+.aur-topbar-spacer {
+  flex: 1;
+}
+
+.aur-topbar-decision {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.aur-topbar-decision[data-decision="True"]  { color: var(--aur-true); }
+.aur-topbar-decision[data-decision="Hold"]  { color: var(--aur-hold); }
+.aur-topbar-decision[data-decision="False"] { color: var(--aur-false); }
+
+.aur-esc-hint {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  color: var(--aur-void-dim);
+  opacity: 0.5;
+}
+
+/* ── Content Area — globe/map fills it, HUD floats above ── */
+.aur-globe-area {
+  grid-area: content;
+  position: relative;
+  overflow: hidden;
+  min-width: 200px;
+  min-height: 0;
+}
+
+.aur-globe-area--full {
+  /* grid 已分配区域，不再用 absolute inset —— 避免与 sidebar 宽度硬编码耦合 */
+  position: relative;
+  inset: auto;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Buttons
+   ═══════════════════════════════════════════════════════════════════ */
+
+.aur-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0.3rem 0.75rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out),
+              opacity var(--duration-fast) var(--ease-out);
+  -webkit-app-region: no-drag;
+  white-space: nowrap;
+}
+
+.aur-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.aur-btn--primary {
+  background: var(--aur-aurora);
+  color: var(--aur-night);
+  font-weight: 600;
+}
+
+.aur-btn--primary:hover:not(:disabled) {
+  background: #7EF0DE;
+}
+
+.aur-btn--ghost {
+  background: transparent;
+  border: 1px solid var(--aur-ice);
+  color: var(--aur-void);
+}
+
+.aur-btn--ghost:hover:not(:disabled) {
+  background: var(--aur-ice-hover);
+  color: var(--aur-white);
+}
+
+.aur-btn--icon {
+  background: transparent;
+  border: 1px solid var(--aur-ice);
+  color: var(--aur-void);
+  padding: 0.2rem 0.45rem;
+  font-size: var(--text-md);
+  line-height: 1;
+}
+
+.aur-btn--icon:hover:not(:disabled) {
+  background: var(--aur-ice-hover);
+  color: var(--aur-white);
+}
+
+.aur-btn--small {
+  padding: 0.2rem 0.5rem;
+  font-size: var(--text-xs);
+}
+
+.aur-btn--block {
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  font-size: var(--text-sm);
+}
+
+.aur-sidebar-note {
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--aur-void-dim);
+  line-height: 1.4;
+}
+
+/* 可拖拽分隔条：贴侧边栏右边缘，悬停高亮 */
+.aur-sidebar-resizer {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  width: 4px;
+  height: 100%;
+  cursor: col-resize;
+  background: transparent;
+  z-index: 16;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+.aur-sidebar-resizer:hover,
+.aur-sidebar-resizer:active {
+  background: var(--aur-aurora-glow);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Decision — the signature element
+   ═══════════════════════════════════════════════════════════════════ */
+
+.aur-decision {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-6) 0 var(--space-4);
+  gap: var(--space-1);
+}
+
+.aur-decision__label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--aur-void-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.aur-decision__word {
+  font-family: var(--font-mono);
+  font-size: var(--text-decision);
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  transition: color var(--duration-normal) var(--ease-out);
+}
+
+.aur-decision__word--true {
+  color: var(--aur-true);
+}
+
+.aur-decision__word--hold {
+  color: var(--aur-hold);
+  animation: aur-hold-breathe 3s ease-in-out infinite;
+}
+
+.aur-decision__word--false {
+  color: var(--aur-false);
+}
+
+.aur-decision__sub {
+  font-size: var(--text-sm);
+  color: var(--aur-void-dim);
+}
+
+@keyframes aur-hold-breathe {
+  0%, 100% {
+    text-shadow: 0 0 0 transparent;
+  }
+  50% {
+    text-shadow: 0 0 18px var(--aur-aurora-glow);
+  }
+}
+
+/* Reduced motion: kill the glow */
+@media (prefers-reduced-motion: reduce) {
+  .aur-decision__word--hold {
+    animation: none;
+    text-shadow: none;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Signal Reading (replaces boxy cards)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.aur-reading {
+  margin-bottom: var(--space-4);
+}
+
+.aur-reading__label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--aur-void-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: var(--space-2);
+}
+
+.aur-reading__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  background: var(--aur-deep);
+  border-left: 3px solid var(--aur-ice);
+  margin-bottom: 1px;
+  transition: border-color var(--duration-fast);
+}
+
+.aur-reading__row:hover {
+  border-left-color: var(--aur-void);
+}
+
+.aur-reading__key {
+  font-size: var(--text-sm);
+  color: var(--aur-void);
+}
+
+.aur-reading__val {
+  font-family: var(--font-data);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--aur-white);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ASI Gauge
+   ═══════════════════════════════════════════════════════════════════ */
+
+.aur-gauge {
+  margin-bottom: var(--space-4);
+}
+
+.aur-gauge__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: var(--space-2);
+}
+
+.aur-gauge__label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--aur-void-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.aur-gauge__value {
+  font-family: var(--font-data);
+  font-size: var(--text-xl);
+  font-weight: 500;
+  transition: color var(--duration-normal);
+}
+
+.aur-gauge__value--high { color: var(--aur-true); }
+.aur-gauge__value--mid  { color: var(--aur-hold); }
+.aur-gauge__value--low  { color: var(--aur-false); }
+
+.aur-gauge__track {
+  height: 4px;
+  background: var(--aur-ice);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: var(--space-2);
+}
+
+.aur-gauge__fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.6s var(--ease-out), background var(--duration-normal);
+}
+
+.aur-gauge__fill--high { background: var(--aur-true); }
+.aur-gauge__fill--mid  { background: var(--aur-hold); }
+.aur-gauge__fill--low  { background: var(--aur-false); }
+
+.aur-gauge__detail {
+  display: flex;
+  gap: var(--space-4);
+  font-size: var(--text-xs);
+  color: var(--aur-void-dim);
+}
+
+.aur-gauge__detail strong {
+  font-family: var(--font-data);
+  font-weight: 500;
+  color: var(--aur-void);
+}
+
+.aur-gauge__hint {
+  margin-top: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--aur-void-dim);
+  font-style: italic;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Conflict List
+   ═══════════════════════════════════════════════════════════════════ */
+
+.aur-conflicts {
+  margin-bottom: var(--space-4);
+}
+
+.aur-conflicts__header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.aur-conflicts__label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--aur-void-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.aur-conflicts__count {
+  font-family: var(--font-data);
+  font-size: var(--text-xs);
+  color: var(--aur-hold);
+}
+
+.aur-conflict-card {
+  padding: var(--space-3);
+  background: var(--aur-deep);
+  border-left: 3px solid var(--aur-hold);
+  margin-bottom: var(--space-2);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.aur-conflict-card__type {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--aur-hold);
+  margin-bottom: var(--space-1);
+}
+
+.aur-conflict-card__reason {
+  font-size: var(--text-sm);
+  color: var(--aur-void);
+  margin-bottom: var(--space-1);
+}
+
+.aur-conflict-card__frames {
+  font-family: var(--font-data);
+  font-size: var(--text-xs);
+  color: var(--aur-void-dim);
+  margin-bottom: var(--space-2);
+}
+
+.aur-conflict-card__hint {
+  font-size: var(--text-xs);
+  color: var(--aur-void-dim);
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.aur-conflicts__empty {
+  padding: var(--space-4);
+  background: var(--aur-deep);
+  border-left: 3px solid var(--aur-true);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.aur-conflicts__empty p {
+  font-size: var(--text-sm);
+  color: var(--aur-true);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Reminder Table
+   ═══════════════════════════════════════════════════════════════════ */
+
+.aur-reminders {
+  margin-bottom: var(--space-4);
+}
+
+.aur-reminders__label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--aur-void-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: var(--space-2);
+}
+
+.aur-reminders__empty {
+  font-size: var(--text-sm);
+  color: var(--aur-void-dim);
+}
+
+.aur-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-xs);
+}
+
+.aur-table th {
+  text-align: left;
+  padding: var(--space-1) var(--space-2);
+  color: var(--aur-void-dim);
+  font-weight: 500;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--aur-ice);
+}
+
+.aur-table td {
+  padding: var(--space-2);
+  color: var(--aur-void);
+  border-bottom: 1px solid rgba(26, 32, 48, 0.5);
+}
+
+.aur-table tr.row--shifted { border-left: 3px solid var(--aur-true); }
+.aur-table tr.row--ignored  { border-left: 3px solid var(--aur-false); }
+.aur-table tr.row--pending { border-left: 3px solid var(--aur-hold); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Settings Panel
+   ═══════════════════════════════════════════════════════════════════ */
+
+.aur-settings {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--aur-ice);
+  background: rgba(11, 14, 20, 0.6);
+  flex-shrink: 0;
+}
+
+.aur-settings__section {
+  margin-bottom: var(--space-3);
+}
+
+.aur-settings__section:last-child {
+  margin-bottom: 0;
+}
+
+.aur-settings__title {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--aur-void);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: var(--space-2);
+}
+
+.aur-settings__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-1);
+}
+
+.aur-settings__label {
+  font-size: var(--text-xs);
+  color: var(--aur-void-dim);
+}
+
+.aur-settings__select {
+  background: var(--aur-deep);
+  border: 1px solid var(--aur-ice);
+  border-radius: var(--radius-sm);
+  color: var(--aur-void);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  padding: 0.15rem 0.4rem;
+  cursor: pointer;
+}
+
+.aur-settings__select:focus-visible {
+  outline: 2px solid var(--aur-aurora);
+  outline-offset: 1px;
+}
+
+.aur-settings__input {
+  background: var(--aur-deep);
+  border: 1px solid var(--aur-ice);
+  border-radius: var(--radius-sm);
+  color: var(--aur-void);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  padding: 0.15rem 0.4rem;
+  width: 5rem;
+  text-align: right;
+}
+
+.aur-settings__input:focus-visible {
+  outline: 2px solid var(--aur-aurora);
+  outline-offset: 1px;
+}
+
+/* range 滑块：用 accent-color 统一主题色，最小样式 */
+.aur-settings__range {
+  width: 8rem;
+  accent-color: var(--aur-aurora);
+  cursor: pointer;
+}
+
+/* ── Asset Status ── */
+.aur-asset-category {
+  margin-bottom: var(--space-2);
+}
+
+.aur-asset-category__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-1);
+}
+
+.aur-asset-category__title {
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.aur-asset-category__meta {
+  font-family: var(--font-data);
+  font-size: 0.625rem;
+  color: var(--aur-void-dim);
+}
+
+.aur-asset-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  padding: 0.1rem 0;
+}
+
+.aur-asset-row__name {
+  color: var(--aur-void);
+  flex: 1;
+}
+
+.aur-asset-row__status {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  min-width: 3.5rem;
+  text-align: right;
+}
+
+.aur-asset-row__size {
+  font-family: var(--font-data);
+  font-size: 0.625rem;
+  color: var(--aur-void-dim);
+  min-width: 3.5rem;
+  text-align: right;
+}
+
+.aur-asset-summary {
+  font-size: var(--text-xs);
+  color: var(--aur-void-dim);
+  margin-top: var(--space-2);
+}
+
+.aur-asset-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+/* ── Cache Stats Grid ── */
+.aur-cache-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+}
+
+.aur-cache-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  background: var(--aur-deep);
+  border-radius: var(--radius-sm);
+}
+
+.aur-cache-item__label {
+  font-size: 0.625rem;
+  color: var(--aur-void-dim);
+}
+
+.aur-cache-item__value {
+  font-family: var(--font-data);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--aur-void);
+}
+
+.aur-cache-input {
+  width: 56px;
+  background: var(--aur-deep);
+  border: 1px solid var(--aur-ice);
+  border-radius: var(--radius-sm);
+  color: var(--aur-void);
+  font-family: var(--font-data);
+  font-size: var(--text-xs);
+  padding: 0.15rem 0.3rem;
+  text-align: center;
+}
+
+.aur-cache-input:focus-visible {
+  outline: 2px solid var(--aur-aurora);
+  outline-offset: 1px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Loading
+   ═══════════════════════════════════════════════════════════════════ */
+
+.aur-loading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  color: var(--aur-hold);
+  font-size: var(--text-sm);
+}
+
+.aur-loading__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--aur-hold);
+  animation: aur-pulse 1.2s ease-in-out infinite;
+}
+
+.aur-loading__dot:nth-child(2) { animation-delay: 0.2s; }
+.aur-loading__dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes aur-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+/* ── Empty state ── */
+.aur-empty {
+  padding: var(--space-6) 0;
+  text-align: center;
+  color: var(--aur-void-dim);
+  font-size: var(--text-sm);
+}
+
+/* ── Globe loading overlay ── */
+.aur-globe-loader {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--aur-night);
+  z-index: 999;
+  gap: var(--space-3);
+}
+
+.aur-globe-loader__icon {
+  font-size: 2.5rem;
+  opacity: 0.6;
+}
+
+.aur-globe-loader__text {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--aur-void-dim);
+  letter-spacing: 0.06em;
+}
+
+.aur-globe-loader__credit {
+  position: absolute;
+  bottom: var(--space-6);
+  font-size: 0.625rem;
+  color: var(--aur-void-dim);
+  opacity: 0.5;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Panel title (shared by settings drawer)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.aur-panel-title {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: var(--text-md);
+  color: var(--aur-aurora);
+  letter-spacing: 0.04em;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Settings Drawer
+   ═══════════════════════════════════════════════════════════════════ */
+
+.aur-settings-drawer {
+  position: absolute;
+  top: var(--aur-topbar-h);  /* 紧贴顶栏下沿，避免与 TopBar 按钮组重叠 */
+  right: var(--space-4);
+  width: 360px;
+  max-width: calc(100vw - 2 * var(--space-4));
+  max-height: calc(100vh - var(--aur-topbar-h) - var(--aur-statusbar-h) - var(--space-6));
+  background: rgba(11, 14, 20, 0.95);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--aur-ice);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 30;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  animation: aur-drawer-fade-in var(--duration-fast) var(--ease-out);
+}
+
+@keyframes aur-drawer-fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.aur-settings-drawer__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--aur-ice);
+  flex-shrink: 0;
+}
+
+.aur-settings-drawer__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-3) var(--space-4);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Status Bar — 底部坐标/缩放/比例尺信息层
+   ═══════════════════════════════════════════════════════════════════ */
+.aur-statusbar {
+  grid-area: statusbar;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 0 var(--space-4);
+  background: var(--aur-deep);
+  border-top: 1px solid var(--aur-ice);
+  font-family: var(--font-data);
+  font-size: var(--text-xs);
+  color: var(--aur-void);
+  user-select: none;
+  z-index: 20;
+}
+
+.aur-statusbar__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  white-space: nowrap;
+}
+
+.aur-statusbar__label {
+  color: var(--aur-void-dim);
+}
+
+.aur-statusbar__value {
+  color: var(--aur-aurora);
+  min-width: 4ch;
+}
+
+.aur-statusbar__sep {
+  color: var(--aur-ice);
+}
+
+.aur-statusbar__spacer {
+  flex: 1;
+}
+
+.aur-statusbar__mode {
+  color: var(--aur-signal);
+}
