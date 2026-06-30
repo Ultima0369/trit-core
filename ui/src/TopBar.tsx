@@ -21,6 +21,7 @@ interface Props {
   onToggleView: () => void;
   decision: string | null;
   loading: boolean;
+  onOpenDecision: () => void;
 }
 
 export default function TopBar({
@@ -33,6 +34,7 @@ export default function TopBar({
   onToggleView,
   decision,
   loading,
+  onOpenDecision,
 }: Props) {
   const [globeTexture, setGlobeTexture] = useState<GlobeTexture>('blue-marble');
 
@@ -69,9 +71,15 @@ export default function TopBar({
       <div className="aur-topbar-divider" />
 
       {decision && (
-        <span className="aur-topbar-decision" data-decision={decision}>
+        <button
+          className="aur-topbar-decision aur-topbar-decision--btn"
+          data-decision={decision}
+          onClick={onOpenDecision}
+          disabled={loading}
+          title="查看决策结果"
+        >
           {decision}
-        </span>
+        </button>
       )}
 
       <div className="aur-topbar-spacer" />

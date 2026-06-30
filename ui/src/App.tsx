@@ -6,6 +6,7 @@ import { useState, useCallback, useEffect, useRef, lazy, Suspense } from 'react'
 import Earth from './Earth';
 import TopBar from './TopBar';
 import Overlay from './Overlay';
+import DecisionDrawer from './DecisionDrawer';
 import Sidebar from './Sidebar';
 import StatusBar from './StatusBar';
 import BootScreen from './BootScreen';
@@ -70,6 +71,7 @@ export default function App() {
   });
   const [rotationSpeed, setRotationSpeed] = useState(() => readStored('aurora.rotationSpeed', DEFAULT_ROTATION_SPEED));
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [decisionDrawerOpen, setDecisionDrawerOpen] = useState(false);
   const [view2D, setView2D] = useState(false);
   const [mapLayers, setMapLayers] = useState<MapLayers>(DEFAULT_LAYERS);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -196,6 +198,7 @@ export default function App() {
         onToggleView={() => setView2D(v => !v)}
         decision={data?.decision ?? null}
         loading={loading}
+        onOpenDecision={() => setDecisionDrawerOpen(true)}
       />
 
       {/* 左侧栏目：图层 + 数据摘要（2D/3D 视图都保留） */}
@@ -221,6 +224,14 @@ export default function App() {
 
       {/* 底部状态栏：坐标 / 缩放 / 比例尺 / 视图模式 */}
       <StatusBar coord={coord} mode={view2D ? '2D 地图' : '3D 地球'} />
+
+      {/* 决策结果抽屉：点击顶栏 decision 标签展开 */}
+      <DecisionDrawer
+        open={decisionDrawerOpen}
+        onClose={() => setDecisionDrawerOpen(false)}
+        data={data}
+        loading={loading}
+      />
 
       {/* Settings drawer */}
       <Overlay

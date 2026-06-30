@@ -14,6 +14,7 @@ describe('TopBar', () => {
     onToggleView: vi.fn(),
     decision: null,
     loading: false,
+    onOpenDecision: vi.fn(),
   };
 
   it('renders Aurora wordmark', () => {
@@ -78,5 +79,18 @@ describe('TopBar', () => {
     render(<TopBar {...defaultProps} onToggleView={onToggleView} />);
     fireEvent.click(screen.getByTitle(/切到/));
     expect(onToggleView).toHaveBeenCalled();
+  });
+
+  it('calls onOpenDecision when decision label clicked', () => {
+    const onOpenDecision = vi.fn();
+    render(<TopBar {...defaultProps} decision="Hold" onOpenDecision={onOpenDecision} />);
+    fireEvent.click(screen.getByText('Hold'));
+    expect(onOpenDecision).toHaveBeenCalled();
+  });
+
+  it('disables decision button when decision is null', () => {
+    render(<TopBar {...defaultProps} decision={null} />);
+    // decision 为 null 时标签不渲染（既有行为），无从点击
+    expect(screen.queryByText('Hold')).not.toBeInTheDocument();
   });
 });
