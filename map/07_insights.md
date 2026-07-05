@@ -58,6 +58,7 @@
 |---|---|---|---|
 | [[FUTURE]] | `docs/explanation/insights/FUTURE.md` | 中文 | 已知局限：无形式化验证、无定理证明器、无模型检查。 |
 | [[CONFLICT_CATALOG]] | `docs/explanation/insights/CONFLICT_CATALOG.md` | 中文 | 跨域冲突模式分类：未来仲裁策略设计的参考案例（非学习数据，遵循"不进化"）。 |
+| [[高杠杆]] | `map/高杠杆.md` | 中文 | 三个杠杆机制：真实成本显影、未来回望模拟、注意力主权训练——齿轮、支点、受力面与卡死点。 |
 
 ---
 
