@@ -145,7 +145,7 @@ impl AuroraApp {
             input.user_feels_normal,
             &contact_signals,
         )
-        .map_err(|e| anyhow::anyhow!("analysis link failed: {e}"))?;
+        .map_err(|e| anyhow::anyhow!("analysis link failed [{}/{}]: {e}", e.kind(), e))?;
 
         let db = self.db.lock().expect("db mutex poisoned");
         let attention_outcome = attention::run_attention(
@@ -154,7 +154,7 @@ impl AuroraApp {
             &db,
             &self.contacts,
         )
-        .map_err(|e| anyhow::anyhow!("attention link failed: {e}"))?;
+        .map_err(|e| anyhow::anyhow!("attention link failed [{}/{}]: {e}", e.kind(), e))?;
 
         // Update phase trajectory for stagnation detection (Lever 3).
         if let Ok(mut traj) = self.trajectory.lock() {
@@ -179,7 +179,7 @@ impl AuroraApp {
         let percept = self
             .percept_chain
             .perceive_or_degrade(user_text)
-            .map_err(|e| anyhow::anyhow!("perception failed: {e}"))?;
+            .map_err(|e| anyhow::anyhow!("perception failed [{}/{}]: {e}", e.kind(), e))?;
 
         // Step 1: Analysis with percept signals
         let analysis_report = analysis::run_analysis_from_percept(
@@ -189,7 +189,7 @@ impl AuroraApp {
             &contact_signals,
             &percept.signals,
         )
-        .map_err(|e| anyhow::anyhow!("analysis link failed: {e}"))?;
+        .map_err(|e| anyhow::anyhow!("analysis link failed [{}/{}]: {e}", e.kind(), e))?;
 
         // Step 2: Attention
         let db = self.db.lock().expect("db mutex poisoned");
@@ -199,7 +199,7 @@ impl AuroraApp {
             &db,
             &self.contacts,
         )
-        .map_err(|e| anyhow::anyhow!("attention link failed: {e}"))?;
+        .map_err(|e| anyhow::anyhow!("attention link failed [{}/{}]: {e}", e.kind(), e))?;
 
         // Update phase trajectory for stagnation detection (Lever 3).
         if let Ok(mut traj) = self.trajectory.lock() {
@@ -273,12 +273,12 @@ impl AuroraApp {
     ) -> Result<RetrospectiveDoc> {
         use crate::percept::retrospective::SspScenario;
         let scenario = SspScenario::load(ssp_scenario_path)
-            .map_err(|e| anyhow::anyhow!("failed to load SSP scenario: {e}"))?;
+            .map_err(|e| anyhow::anyhow!("failed to load SSP scenario [{}/{}]: {e}", e.kind(), e))?;
         let prompt = scenario.build_prompt(user_decision);
         let batch = self
             .percept_chain
             .perceive_or_degrade(&prompt)
-            .map_err(|e| anyhow::anyhow!("retrospective perception failed: {e}"))?;
+            .map_err(|e| anyhow::anyhow!("retrospective perception failed [{}/{}]: {e}", e.kind(), e))?;
         // ponytail: build a minimal provider just to construct the doc.
         // The inner FFTProvider is irrelevant — we already have the batch from
         // percept_chain. RetrospectiveProvider exists for the trait impl;

@@ -25,6 +25,21 @@ pub enum PerceptError {
     ConfigError(#[from] ConfigError),
 }
 
+impl PerceptError {
+    /// Machine-readable error kind for frontend discrimination.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            PerceptError::MissingApiKey(_) => "missing_api_key",
+            PerceptError::HttpError(_) => "http_error",
+            PerceptError::ApiError { .. } => "api_error",
+            PerceptError::ParseError(_) => "parse_error",
+            PerceptError::RateLimited { .. } => "rate_limited",
+            PerceptError::AllUnavailable => "all_unavailable",
+            PerceptError::ConfigError(_) => "config_error",
+        }
+    }
+}
+
 /// Errors from the encrypted configuration store.
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {

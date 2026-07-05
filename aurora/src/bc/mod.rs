@@ -64,6 +64,19 @@ impl fmt::Display for BcError {
     }
 }
 
+impl BcError {
+    /// Machine-readable error kind for frontend discrimination.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            BcError::NotFound { .. } => "not_found",
+            BcError::InvalidInput { .. } => "invalid_input",
+            BcError::InvalidState { .. } => "invalid_state",
+            BcError::Domain { .. } => "domain",
+            BcError::Io(_) => "io",
+        }
+    }
+}
+
 impl std::error::Error for BcError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
