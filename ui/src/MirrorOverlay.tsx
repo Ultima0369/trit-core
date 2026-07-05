@@ -142,6 +142,24 @@ export default function MirrorOverlay({ visible, onClose }: MirrorOverlayProps) 
         <div style={{ color: 'var(--aurora-muted, #888)', fontSize: 11 }}>加载中...</div>
       ) : (
         <>
+          {/* Stagnation warning banner */}
+          {snapshot.stagnating && (
+            <div
+              style={{
+                background: 'rgba(220, 53, 69, 0.2)',
+                border: '1px solid var(--aurora-danger, #dc3545)',
+                borderRadius: 4,
+                padding: '6px 8px',
+                marginBottom: 8,
+                fontSize: 10,
+                color: 'var(--aurora-danger, #dc3545)',
+              }}
+            >
+              停滞检测：你的决策相位在过去 {snapshot.trajectory_runs ?? '?'} 轮中未发生有意义的变化。
+              参考系可能已收窄。
+            </div>
+          )}
+
           {/* Human activity */}
           <div style={{ marginBottom: 10 }}>
             <div

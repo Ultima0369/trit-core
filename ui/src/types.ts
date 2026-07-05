@@ -133,6 +133,8 @@ export interface MirrorSnapshot {
   human_activity: MirrorIndicator[];
   planetary_boundaries: MirrorIndicator[];
   generated_at: string;
+  stagnating: boolean | null;
+  trajectory_runs: number | null;
 }
 
 // ── Custom event names (shared between Earth / TopBar / App) ──

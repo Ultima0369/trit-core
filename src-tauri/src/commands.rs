@@ -643,13 +643,19 @@ pub async fn prefetch_tiles(
 ///
 /// 返回人类活动与地球边界指标的并排对比，
 /// 前端渲染为可视化"剪刀差"。
+/// 同时从轨迹中读取停滞检测状态。
 #[tauri::command]
-pub fn get_mirror_snapshot() -> Result<crate::mirror_fetcher::MirrorSnapshot, String> {
+pub fn get_mirror_snapshot(state: State<AppState>) -> Result<crate::mirror_fetcher::MirrorSnapshot, String> {
     let mut snapshot = crate::mirror_fetcher::MirrorFetcher::new().snapshot();
-    // ponytail: SystemTime for generated_at instead of adding chrono dep to src-tauri.
-    // If frontend needs rfc3339, parse this with Date.toISOString() in JS.
     if let Ok(ts) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
         snapshot.generated_at = format!("{}", ts.as_secs());
+    }
+    // Enrich with trajectory stagnation data (Lever 3).
+    if let Ok(app) = state.app.lock() {
+        snapshot.stagnating = Some(app.is_stagnating());
+        snapshot.trajectory_runs = app
+            .trajectory_summary()
+            .map(|s| s.runs);
     }
     Ok(snapshot)
 }

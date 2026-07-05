@@ -49,6 +49,11 @@ pub struct MirrorSnapshot {
     pub planetary_boundaries: Vec<MirrorIndicator>,
     /// ISO 8601 generation timestamp.
     pub generated_at: String,
+    /// Whether the user's decision trajectory shows stagnation (Lever 3).
+    /// None when no trajectory data is available yet.
+    pub stagnating: Option<bool>,
+    /// Number of analysis runs recorded in the trajectory.
+    pub trajectory_runs: Option<u64>,
 }
 
 impl MirrorSnapshot {
@@ -172,6 +177,8 @@ impl MirrorSnapshot {
                 },
             ],
             generated_at: String::from("2024"), // static baseline; Tauri command stamps serve time
+            stagnating: None,
+            trajectory_runs: None,
         }
     }
 }
@@ -229,6 +236,8 @@ mod tests {
         assert_eq!(snapshot.human_activity.len(), 5);
         assert_eq!(snapshot.planetary_boundaries.len(), 5);
         assert!(!snapshot.generated_at.is_empty());
+        assert!(snapshot.stagnating.is_none());
+        assert!(snapshot.trajectory_runs.is_none());
     }
 
     #[test]
