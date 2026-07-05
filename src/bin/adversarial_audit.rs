@@ -38,20 +38,19 @@ fn main() {
     let mut findings: Vec<Finding> = Vec::new();
 
     for scenario in &scenarios {
-        let input = serde_json::to_string(scenario).expect("serialize");
+        // Write scenario to a temp file in scenarios/ dir (sandbox security policy
+        // requires files under the scenarios/ directory).
+        let tmp_path = std::path::Path::new("scenarios")
+            .join(format!(".audit_{}.json", scenario.id));
+        fs::write(&tmp_path, serde_json::to_string(scenario).expect("serialize"))
+            .expect("write temp scenario");
         let output = Command::new(binary)
-            .arg("--stdin")
-            .stdin(std::process::Stdio::piped())
+            .arg("--scenario")
+            .arg(&tmp_path)
+            .env("TRIT_LOG", "off") // suppress tracing JSON logs, get clean output
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
-            .spawn()
-            .and_then(|mut child| {
-                use std::io::Write;
-                if let Some(ref mut stdin) = child.stdin {
-                    stdin.write_all(input.as_bytes())?;
-                }
-                child.wait_with_output()
-            });
+            .output();
 
         match output {
             Ok(out) => {
@@ -109,6 +108,8 @@ fn main() {
                         severity: classify_severity(&scenario.id, &scenario.description),
                     });
                 }
+                // Clean up temp file.
+                let _ = fs::remove_file(&tmp_path);
             }
             Err(e) => {
                 failed += 1;
