@@ -433,7 +433,7 @@ impl SandboxPipeline {
             return final_word;
         }
         let stage_start = Instant::now();
-        let preview = crate::anchor::build_decision_preview(scenario, &final_word);
+        let preview = crate::anchor::build_decision_preview(scenario, &final_word, None);
         let anchor_report = check_all(&self.anchor_constraints, &preview);
         if anchor_report.has_violations() {
             warn!(

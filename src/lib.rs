@@ -114,8 +114,10 @@ pub use adapters::{
     AttentionCmd, CognitiveModule, FeedbackSignal, ModuleInput, ModuleOutput, ShiftTarget,
 };
 pub use anchor::{
-    check_all as check_all_anchors, AnchorConstraint, AnchorError, AnchorReport, AnchorSeverity,
-    AnchorViolation, DataSource, DecisionPreview, EcosystemZone, StaticSource,
+    check_all as check_all_anchors,
+    cost_factor::{CostFactor, CostMetadata, FactorError, JsonFactorLoader, Region, Sector},
+    AnchorConstraint, AnchorError, AnchorReport, AnchorSeverity, AnchorViolation, DataSource,
+    DecisionPreview, EcosystemZone, StaticSource,
 };
 pub use core::{
     algebra::TernaryAlgebra,

@@ -9,15 +9,23 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 fn bench_sine_wave(c: &mut Criterion) {
     c.bench_function("sine_wave_1024", |b| {
-        b.iter(|| sine_wave(black_box(10.0), black_box(1000.0), black_box(1.0), black_box(0.0)))
+        b.iter(|| {
+            sine_wave(
+                black_box(10.0),
+                black_box(1000.0),
+                black_box(1.0),
+                black_box(0.0),
+            )
+        })
     });
 }
 
 fn bench_fft_analysis(c: &mut Criterion) {
     let signal = sine_wave(10.0, 1000.0, 1.0, 0.0);
-    let engine = FftWaveletEngine::new();
+    let ts = aurora::bc::signal_analysis::TimeSeries::new(1000.0, signal).unwrap();
+    let engine = FftWaveletEngine;
     c.bench_function("fft_analyze_1024", |b| {
-        b.iter(|| engine.analyze(black_box(&signal), black_box(1000.0)))
+        b.iter(|| engine.analyze(black_box(&ts)))
     });
 }
 
@@ -40,5 +48,10 @@ fn bench_full_pipeline(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, bench_sine_wave, bench_fft_analysis, bench_full_pipeline);
+criterion_group!(
+    benches,
+    bench_sine_wave,
+    bench_fft_analysis,
+    bench_full_pipeline
+);
 criterion_main!(benches);

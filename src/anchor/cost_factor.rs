@@ -47,8 +47,9 @@ impl CostMetadata {
 }
 
 /// Geographic region for cost factor adjustment.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Deserialize, Serialize)]
 pub enum Region {
+    #[default]
     Global,
     /// Sub-Saharan Africa
     SSA,
@@ -66,15 +67,10 @@ pub enum Region {
     NorthAmerica,
 }
 
-impl Default for Region {
-    fn default() -> Self {
-        Region::Global
-    }
-}
-
 /// Economic sector for cost factor adjustment.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Deserialize, Serialize)]
 pub enum Sector {
+    #[default]
     Generic,
     Agriculture,
     Energy,
@@ -84,12 +80,6 @@ pub enum Sector {
     Finance,
     Healthcare,
     Technology,
-}
-
-impl Default for Sector {
-    fn default() -> Self {
-        Sector::Generic
-    }
 }
 
 /// Maps an environmental or social impact to its monetary cost.
@@ -239,5 +229,115 @@ impl CostFactor for JsonFactorLoader {
 
     fn is_operational(&self) -> bool {
         !self.factors.is_empty()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SEED_JSON: &str = r#"{
+  "description": "test",
+  "factors": [
+    {
+      "impact": "co2",
+      "global_cost_per_unit": 100.0,
+      "unit": "tonne",
+      "regional_multipliers": {"Global": 1.0, "NorthAmerica": 1.5},
+      "sector_multipliers": {"Generic": 1.0, "Energy": 2.0},
+      "confidence": 0.8,
+      "source": "test"
+    },
+    {
+      "impact": "water_consumption",
+      "global_cost_per_unit": 5.0,
+      "unit": "m³",
+      "regional_multipliers": {"Global": 1.0, "MENA": 3.0},
+      "sector_multipliers": {"Generic": 1.0, "Agriculture": 2.0},
+      "confidence": 0.6,
+      "source": "test"
+    }
+  ]
+}"#;
+
+    fn test_loader() -> JsonFactorLoader {
+        JsonFactorLoader::load_from_str(SEED_JSON).unwrap()
+    }
+
+    #[test]
+    fn effective_cost_applies_both_multipliers() {
+        let meta = CostMetadata {
+            impact_name: "co2".into(),
+            global_cost_per_unit: 100.0,
+            unit: "tonne".into(),
+            regional_multiplier: 1.5,
+            sector_multiplier: 2.0,
+            confidence: 0.8,
+            source: "test".into(),
+        };
+        assert_float_eq!(meta.effective_cost(), 300.0);
+    }
+
+    #[test]
+    fn co2_global_generic_returns_baseline() {
+        let loader = test_loader();
+        let meta = loader.co2_cost(Region::Global, Sector::Generic).unwrap();
+        assert_float_eq!(meta.global_cost_per_unit, 100.0);
+        assert_float_eq!(meta.effective_cost(), 100.0);
+    }
+
+    #[test]
+    fn co2_north_america_energy_applies_adjustments() {
+        let loader = test_loader();
+        let meta = loader
+            .co2_cost(Region::NorthAmerica, Sector::Energy)
+            .unwrap();
+        assert_float_eq!(meta.regional_multiplier, 1.5);
+        assert_float_eq!(meta.sector_multiplier, 2.0);
+        assert_float_eq!(meta.effective_cost(), 300.0);
+    }
+
+    #[test]
+    fn water_mena_agriculture_applies_scarcity_multiplier() {
+        let loader = test_loader();
+        let meta = loader
+            .water_cost(Region::MENA, Sector::Agriculture)
+            .unwrap();
+        assert_float_eq!(meta.regional_multiplier, 3.0);
+        assert_float_eq!(meta.effective_cost(), 30.0);
+    }
+
+    #[test]
+    fn missing_factor_returns_none() {
+        let loader = test_loader();
+        assert!(loader
+            .air_pollution_cost(Region::Global, Sector::Generic)
+            .is_none());
+    }
+
+    #[test]
+    fn factor_count_is_correct() {
+        let loader = test_loader();
+        assert_eq!(loader.factor_count(), 2);
+    }
+
+    #[test]
+    fn is_operational_true_when_factors_loaded() {
+        let loader = test_loader();
+        assert!(loader.is_operational());
+    }
+
+    #[test]
+    fn unknown_region_falls_back_to_1_0() {
+        let loader = test_loader();
+        let meta = loader.co2_cost(Region::SSA, Sector::Generic).unwrap();
+        assert_float_eq!(meta.regional_multiplier, 1.0);
+    }
+
+    #[test]
+    fn confidence_is_preserved() {
+        let loader = test_loader();
+        let meta = loader.co2_cost(Region::Global, Sector::Generic).unwrap();
+        assert_float_eq!(meta.confidence, 0.8);
     }
 }

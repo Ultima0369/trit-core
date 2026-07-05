@@ -17,6 +17,7 @@
 //! If any C_i returns `Abort`, the entire decision is rejected.
 //! If any C_i returns `DowngradeToHold`, the ternary result is overridden to Hold.
 
+pub mod cost_factor;
 pub mod ecological_base;
 pub mod flourishing_pool;
 pub mod survival_motives;
@@ -25,6 +26,7 @@ pub mod wellbeing_priority;
 
 use serde::{Deserialize, Serialize};
 
+use crate::anchor::cost_factor::CostMetadata;
 use crate::core::frame::Frame;
 use crate::core::value::TritValue;
 
@@ -71,6 +73,8 @@ pub struct DecisionPreview {
     pub frame: Frame,
     /// The proposed trit value.
     pub trit_value: TritValue,
+    /// True cost metadata for this decision, if a CostFactor is available.
+    pub cost_metadata: Option<CostMetadata>,
 }
 
 impl DecisionPreview {
@@ -84,6 +88,7 @@ impl DecisionPreview {
             ecosystem_impact_zone: None,
             frame: Frame::Meta,
             trit_value: TritValue::Hold,
+            cost_metadata: None,
         }
     }
 }
@@ -257,9 +262,12 @@ pub fn check_all(
 /// anchor constraint pipeline, not to produce meaningful ecological impact
 /// estimates. Replace with real sensor data or calibrated models before
 /// relying on anchor vetoes in production.
+/// When `cost_factor` is provided, populates [`DecisionPreview::cost_metadata`]
+/// with the CO₂-equivalent true cost of the decision.
 pub fn build_decision_preview(
     scenario: &crate::sandbox::ScenarioInput,
     final_word: &crate::core::word::TritWord,
+    cost_factor: Option<&dyn crate::anchor::cost_factor::CostFactor>,
 ) -> DecisionPreview {
     let env = scenario.environmental_context.as_ref();
     let expected_energy_joules = env.map(|ctx| ctx.ambient_arousal * 1e6).unwrap_or(0.0);
@@ -276,6 +284,13 @@ pub fn build_decision_preview(
         }
     });
 
+    let cost_metadata = cost_factor.and_then(|cf| {
+        cf.co2_cost(
+            crate::anchor::cost_factor::Region::Global,
+            crate::anchor::cost_factor::Sector::Generic,
+        )
+    });
+
     DecisionPreview {
         expected_energy_joules,
         expected_carbon_kg,
@@ -284,6 +299,7 @@ pub fn build_decision_preview(
         ecosystem_impact_zone,
         frame: final_word.frame(),
         trit_value: final_word.value(),
+        cost_metadata,
     }
 }
 
