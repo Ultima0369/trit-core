@@ -205,6 +205,32 @@ export default function MirrorOverlay({ visible, onClose }: MirrorOverlayProps) 
             {snapshot.planetary_boundaries.map((indicator, i) => (
               <IndicatorBar key={i} indicator={indicator} />
             ))}
+
+            {/* Scissors gap summary */}
+            <div
+              style={{
+                marginTop: 8,
+                padding: '6px 8px',
+                background: 'rgba(255,255,255,0.05)',
+                borderRadius: 4,
+                fontSize: 10,
+                color: 'var(--aurora-muted, #888)',
+                display: 'flex',
+                justifyContent: 'space-between',
+              }}
+            >
+              <span>
+                边界突破：{snapshot.planetary_boundaries.filter(i => i.exceeded).length}/
+                {snapshot.planetary_boundaries.length}
+              </span>
+              <span style={{ color: 'var(--aurora-danger, #dc3545)' }}>
+                {snapshot.planetary_boundaries.filter(i => i.exceeded).length >= 4
+                  ? '⚠ 多重临界'
+                  : snapshot.planetary_boundaries.filter(i => i.exceeded).length >= 2
+                  ? '● 压力'
+                  : '○ 稳定'}
+              </span>
+            </div>
           </div>
         </>
       )}
