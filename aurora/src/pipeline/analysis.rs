@@ -8,7 +8,7 @@ use crate::bc::signal_analysis::{FftWaveletEngine, FrequencySpectrum, TimeSeries
 use crate::bc::ternary_decision::{DecisionRecord, DecisionSession, TritDecisionEngine};
 use crate::bc::BcError;
 use crate::wavelet::sine_wave;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use truncore::core::{Frame, Phase, PhaseTracker, Trend, TritValue, TritWord};
 
@@ -95,10 +95,24 @@ impl PhaseTrajectory {
             trend_reliable: self.embodied.trend_reliable() && self.decision.trend_reliable(),
         }
     }
+
+    /// True when the trajectory shows stagnation: reliable trend, low velocity,
+    /// and enough data points to be meaningful.
+    ///
+    /// Stagnation = the decision phase hasn't moved meaningfully across multiple
+    /// analysis runs. The user may be stuck in a pattern they're not aware of.
+    pub fn is_stagnating(&self) -> bool {
+        // Need at least 3 runs for a meaningful trend.
+        self.runs >= 3
+            && self.embodied.trend_reliable()
+            && self.decision.trend_reliable()
+            && self.decision.velocity().abs() < 0.02
+            && self.embodied.velocity().abs() < 0.02
+    }
 }
 
 /// Readable summary of phase trajectory.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TrajectorySummary {
     pub runs: u64,
     pub embodied_trend: Trend,
@@ -577,5 +591,37 @@ mod tests {
         let summary = traj.summary();
         assert_eq!(summary.runs, 1);
         assert!(!summary.trend_reliable);
+    }
+
+    #[test]
+    fn is_stagnating_false_with_fewer_than_3_runs() {
+        let spec = SignalSpec {
+            freq: 2.5,
+            sample_rate: 100.0,
+            duration_secs: 1.0,
+            noise_std: 0.0,
+        };
+        let report = run_analysis(&spec, 1.0, true, &[]).unwrap();
+        let mut traj = PhaseTrajectory::new(&report);
+        traj.update(&report); // 2 runs
+        assert!(!traj.is_stagnating());
+    }
+
+    #[test]
+    fn is_stagnating_detects_stable_trajectory() {
+        let spec = SignalSpec {
+            freq: 2.5,
+            sample_rate: 100.0,
+            duration_secs: 1.0,
+            noise_std: 0.0,
+        };
+        let report = run_analysis(&spec, 1.0, true, &[]).unwrap();
+        let mut traj = PhaseTrajectory::new(&report);
+        // Feed the same report 3 more times — should stabilize.
+        traj.update(&report);
+        traj.update(&report);
+        traj.update(&report);
+        // After 4 identical runs, velocity should be near zero.
+        assert!(traj.is_stagnating());
     }
 }

@@ -32,7 +32,7 @@ impl LocalLLMProvider {
             .unwrap_or_else(|| "http://localhost:11434".to_string());
 
         let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(60))
+            .timeout(Duration::from_secs(15)) // ponytail: 15s for local LLM; longer than cloud since local may be CPU-bound
             .build()
             .map_err(PerceptError::HttpError)?;
 

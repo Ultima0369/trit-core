@@ -96,7 +96,7 @@ impl CloudLLMProvider {
 
         let client = reqwest::Client::builder()
             .default_headers(headers)
-            .timeout(Duration::from_secs(30))
+            .timeout(Duration::from_secs(10)) // ponytail: 10s for cloud LLM; degrade faster on timeout
             .build()
             .map_err(PerceptError::HttpError)?;
 

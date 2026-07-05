@@ -20,7 +20,7 @@ use crate::percept::fft::FFTProvider;
 use crate::percept::local::LocalLLMProvider;
 use crate::percept::PerceptChain;
 use crate::percept::{RetrospectiveDoc, RetrospectiveProvider};
-use crate::pipeline::analysis::{self, AnalysisReport, SignalSpec};
+use crate::pipeline::analysis::{self, AnalysisReport, PhaseTrajectory, SignalSpec};
 use crate::pipeline::attention::{self, AttentionOutcome};
 
 /// Input parameters for a single pipeline run.
@@ -47,6 +47,8 @@ pub struct AuroraApp {
     contacts: Vec<ContactProfile>,
     percept_chain: PerceptChain,
     config: Arc<ConfigStore>,
+    /// Accumulated phase trajectory across analysis runs (Lever 3 stagnation detection).
+    trajectory: Mutex<Option<PhaseTrajectory>>,
 }
 
 impl AuroraApp {
@@ -114,6 +116,7 @@ impl AuroraApp {
             contacts: Vec::new(),
             percept_chain: chain,
             config,
+            trajectory: Mutex::new(None),
         })
     }
 
@@ -153,6 +156,14 @@ impl AuroraApp {
         )
         .map_err(|e| anyhow::anyhow!("attention link failed: {e}"))?;
 
+        // Update phase trajectory for stagnation detection (Lever 3).
+        if let Ok(mut traj) = self.trajectory.lock() {
+            match traj.as_mut() {
+                Some(t) => t.update(&analysis_report),
+                None => *traj = Some(PhaseTrajectory::new(&analysis_report)),
+            }
+        }
+
         Self::render_output(analysis_report, attention_outcome)
     }
 
@@ -190,6 +201,14 @@ impl AuroraApp {
         )
         .map_err(|e| anyhow::anyhow!("attention link failed: {e}"))?;
 
+        // Update phase trajectory for stagnation detection (Lever 3).
+        if let Ok(mut traj) = self.trajectory.lock() {
+            match traj.as_mut() {
+                Some(t) => t.update(&analysis_report),
+                None => *traj = Some(PhaseTrajectory::new(&analysis_report)),
+            }
+        }
+
         Self::render_output(analysis_report, attention_outcome)
     }
 
@@ -221,6 +240,25 @@ impl AuroraApp {
         Ok(serde_json::to_string_pretty(&serde_json::Value::Object(
             export,
         ))?)
+    }
+
+    /// Get the current phase trajectory summary (Lever 3 stagnation detection).
+    ///
+    /// Returns `None` if no analysis runs have been recorded yet.
+    /// When `is_stagnating` is true, the user's decision pattern hasn't
+    /// meaningfully changed across recent runs — the mirror should reflect this.
+    pub fn trajectory_summary(&self) -> Option<crate::pipeline::analysis::TrajectorySummary> {
+        let traj = self.trajectory.lock().ok()?;
+        traj.as_ref().map(|t| t.summary())
+    }
+
+    /// Whether the decision trajectory shows stagnation (Lever 3).
+    pub fn is_stagnating(&self) -> bool {
+        self.trajectory
+            .lock()
+            .ok()
+            .and_then(|t| t.as_ref().map(|t| t.is_stagnating()))
+            .unwrap_or(false)
     }
 
     /// Run a future retrospective simulation (Lever 2).

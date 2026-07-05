@@ -236,6 +236,7 @@ pub fn run() {
             commands::get_geo_events,
             commands::export_user_data,
             commands::get_mirror_snapshot,
+            commands::get_trajectory,
         ])
         .setup(|app| {
             logger::log("setup", "INFO", "Tauri setup 回调开始");

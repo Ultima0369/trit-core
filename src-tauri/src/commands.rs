@@ -1,7 +1,7 @@
 //! Tauri command handlers — bridge between frontend invoke() and Aurora pipeline.
 
 use aurora::app::{AnalysisInput, AuroraApp};
-use aurora::pipeline::analysis::SignalSpec;
+use aurora::pipeline::analysis::{SignalSpec, TrajectorySummary};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use tauri::State;
@@ -652,4 +652,15 @@ pub fn get_mirror_snapshot() -> Result<crate::mirror_fetcher::MirrorSnapshot, St
         snapshot.generated_at = format!("{}", ts.as_secs());
     }
     Ok(snapshot)
+}
+
+/// 获取相位轨迹摘要（Lever 3 — 停滞检测）。
+///
+/// 返回跨多次分析运行的相位轨迹。当 is_stagnating 为 true 时，
+/// 用户的决策模式在多轮运行中未产生有意义的变化。
+#[tauri::command]
+pub fn get_trajectory(state: State<AppState>) -> Result<TrajectorySummary, String> {
+    let app = state.app.lock().map_err(|e| format!("lock error: {e}"))?;
+    app.trajectory_summary()
+        .ok_or_else(|| "尚无轨迹数据 — 请先运行至少一次分析".into())
 }

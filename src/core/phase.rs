@@ -1,3 +1,4 @@
+use serde::Serialize;
 use thiserror::Error;
 
 /// Phase: continuous tendency `0.0..1.0`.
@@ -232,7 +233,7 @@ impl PhaseTracker {
 }
 
 /// Direction of Phase movement over time.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum Trend {
     /// Moving toward True (velocity > +ε).
     TowardTrue,
