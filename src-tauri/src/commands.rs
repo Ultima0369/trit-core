@@ -638,3 +638,18 @@ pub async fn prefetch_tiles(
 
     Ok(format!("预取任务已启动 (~{} 个瓦片)", total_tiles))
 }
+
+/// 获取停滞镜像快照（Lever 3）。
+///
+/// 返回人类活动与地球边界指标的并排对比，
+/// 前端渲染为可视化"剪刀差"。
+#[tauri::command]
+pub fn get_mirror_snapshot() -> Result<crate::mirror_fetcher::MirrorSnapshot, String> {
+    let mut snapshot = crate::mirror_fetcher::MirrorFetcher::new().snapshot();
+    // ponytail: SystemTime for generated_at instead of adding chrono dep to src-tauri.
+    // If frontend needs rfc3339, parse this with Date.toISOString() in JS.
+    if let Ok(ts) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+        snapshot.generated_at = format!("{}", ts.as_secs());
+    }
+    Ok(snapshot)
+}

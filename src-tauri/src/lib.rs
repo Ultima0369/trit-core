@@ -5,6 +5,7 @@ mod data_sources;
 mod l1_cache;
 mod l2_cache;
 mod logger;
+mod mirror_fetcher;
 mod proxy_server;
 mod tile_downloader;
 mod tile_sources;
@@ -234,6 +235,7 @@ pub fn run() {
             commands::get_anchor_status,
             commands::get_geo_events,
             commands::export_user_data,
+            commands::get_mirror_snapshot,
         ])
         .setup(|app| {
             logger::log("setup", "INFO", "Tauri setup 回调开始");
