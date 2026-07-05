@@ -33,7 +33,7 @@
 
 | 日期 | 决策 | 文档 |
 |------|------|------|
-| 2026-07-05 | 三杠杆全通 + 停滞检测 + 剪刀差可视化。M2 (超时 90s→25s) + M3 (PhaseTrajectory 接入) 修复。MirrorOverlay 含停滞警告条幅 + 边界突破计数。SspScenario 提取 build_prompt。UI 类型匹配 Rust 1:1。19 commits，824 tests，clippy zero。 | 本轮对话 |
+| 2026-07-05 | 23 commits：三杠杆全通 + M2/M3/M4 审计修复 + 对抗审计 12/12 + CO2 L2 缓存接入 + run_retrospective Tauri 命令 + 剪刀差可视化 + 停滞检测 UI 集成。826 tests，clippy zero。 | 本轮对话 |
 | 2026-07-01 | Tauri 桌面打包验证通过 — `cargo tauri build` 产出 NSIS `aurora_0.1.0_x64-setup.exe` (13M) + MSI (15M) + 裸 exe (27M)，release 编译 2m20s 零错误。19 个 Tauri 命令注册齐全（run_analysis_pipeline/get_anchor_status/get_geo_events/export_user_data 等），应用非空壳。M1 Exit Criteria "桌面应用可打包安装" 硬指标达成。 | 本轮对话 |
 | 2026-07-01 | 决策结果抽屉完成 — 顶栏 decision 标签可点击 → 抽屉展示 phase/asi/signals/conflicts。Esc 键优先关设置抽屉，其次关决策抽屉，最后退出应用。冲突项布局借鉴 worldmonitor renderSignal（左色条+badge）。8 提交，41 UI 测试，终审 Ready to merge。 | 本轮对话 |
 | 2026-06-30 | M1 数据持久化 + 导出完成 — 对齐 M1 Exit Criteria "数据导出"硬指标 + CHARTER "不剥夺"底线。AuroraApp 加 `export_data_json()` (5 表通用反射导出, 2 单测)。桌面应用 DB 从 in-memory 改为落盘 `aurora_data_dir/aurora.db` (持久化失败回落 in-memory)。新增 `export_user_data` Tauri 命令，前端 Blob+a[download] 下载 (零新插件依赖)。Sidebar 加"导出我的数据"按钮。 | 本轮对话 |
