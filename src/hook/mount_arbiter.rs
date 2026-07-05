@@ -138,6 +138,14 @@ pub fn default_modules_for(scenario: ScenarioType) -> Vec<ModuleId> {
 /// 3. Computes the diff (mount / unmount)
 /// 4. Resolves resource conflicts
 /// 5. Applies the diff to the registry
+///
+/// # Implementation Status
+///
+/// The MountArbiter and ModuleRegistry are fully implemented and tested,
+/// but not yet wired into [`SandboxPipeline`](crate::sandbox::SandboxPipeline).
+/// The pipeline currently manages modules directly via `Option<AttentionScheduler>`
+/// and `Option<SelfKnowledge>` fields. Dynamic module mounting is gated on
+/// multi-scenario pipeline support (future milestone).
 #[derive(Debug)]
 pub struct MountArbiter {
     /// Total resource budget available (normalized).

@@ -247,8 +247,16 @@ pub fn check_all(
 /// Build a [`DecisionPreview`] from a scenario input and proposed final word.
 ///
 /// Moved from `src/sandbox/pipeline.rs` — this is anchor-layer logic,
-/// not pipeline logic. In MVP, environmental impact is inferred
-/// heuristically from the scenario's `EnvironmentalContext`.
+/// not pipeline logic.
+///
+/// # Heuristic Placeholders (MVP)
+///
+/// The multipliers below (`ambient_arousal * 1e6` → joules, `* 1e3` → CO2 kg,
+/// `social_density * 1e6` → affected population) are **order-of-magnitude
+/// placeholders** with no physical calibration. They exist to exercise the
+/// anchor constraint pipeline, not to produce meaningful ecological impact
+/// estimates. Replace with real sensor data or calibrated models before
+/// relying on anchor vetoes in production.
 pub fn build_decision_preview(
     scenario: &crate::sandbox::ScenarioInput,
     final_word: &crate::core::word::TritWord,

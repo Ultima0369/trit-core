@@ -81,11 +81,24 @@ impl TritValue {
 impl From<i8> for TritValue {
     /// Convert i8 to TritValue. Unknown cannot be created from i8 —
     /// use `TritValue::Unknown` directly when the input is out-of-distribution.
+    ///
+    /// Values outside {-1, 0, 1} are silently clamped to `Hold`. This is
+    /// intentional for wire-format compatibility (many protocols use i8),
+    /// but callers parsing untrusted input should prefer
+    /// [`TritValue::from_i8_strict`] which rejects out-of-range values.
     fn from(v: i8) -> Self {
         match v {
             1 => TritValue::True,
             -1 => TritValue::False,
-            _ => TritValue::Hold,
+            0 => TritValue::Hold,
+            other => {
+                // ponytail: silent clamp for wire-format compat; from_i8_strict for validation
+                tracing::debug!(
+                    value = other,
+                    "TritValue::from<i8> clamping out-of-range value to Hold"
+                );
+                TritValue::Hold
+            }
         }
     }
 }

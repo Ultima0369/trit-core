@@ -267,9 +267,17 @@ impl AuroraApp {
 /// TEXT→string, REAL→number, BLOB→hex string）。
 fn dump_table(conn: &rusqlite::Connection, table: &str) -> Result<serde_json::Value> {
     use rusqlite::types::Value as V;
-    // 表名来自硬编码白名单（export_data_json），无注入风险；但 defense-in-depth
-    // 仍校验为合法标识符。
-    if !table.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+    // Defense-in-depth: whitelist of known table names. Even though callers
+    // (export_data_json) use a hardcoded array, this guard prevents SQL
+    // injection if a new caller passes user-controlled table names.
+    const ALLOWED_TABLES: &[&str] = &[
+        "contacts",
+        "communication_events",
+        "frame_annotations",
+        "annotation_history",
+        "audit_log",
+    ];
+    if !ALLOWED_TABLES.contains(&table) {
         anyhow::bail!("invalid table name: {table}");
     }
     let mut stmt = conn.prepare(&format!("SELECT * FROM {table}"))?;

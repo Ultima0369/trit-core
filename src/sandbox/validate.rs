@@ -76,11 +76,12 @@ pub fn validate_signal(index: usize, signal: &SignalInput) -> Result<(), Sandbox
         });
     }
     // Meta frame is system-internal (output of cross-frame conflict resolution).
-    // External signal inputs may use concrete decision frames plus the
-    // first-person reference frames introduced by the mind-engineering extension.
+    // External signal inputs may use all concrete decision frames including the
+    // first-person and extended reference frames (GeoEco, Developmental, Role,
+    // Environmental) introduced by the mind-engineering extension.
     match signal.frame.as_str() {
         "Science" | "Individual" | "Consensus" | "Absolute" | "FirstPerson" | "Embodied"
-        | "Relational" => Ok(()),
+        | "Relational" | "GeoEco" | "Developmental" | "Role" | "Environmental" => Ok(()),
         f => Err(SandboxError::InvalidFrame {
             index,
             reason: format!("unknown frame '{}'", f),

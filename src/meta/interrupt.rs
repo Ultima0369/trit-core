@@ -8,11 +8,20 @@ use std::collections::VecDeque;
 pub const MAX_INTERRUPT_LOG: usize = 10_000;
 
 /// A recorded meta-level conflict event.
+///
+/// Frame pairs are stored as typed fields (not parsed from the reason string)
+/// when the interrupt originates from a cross-frame operation (TAND/TOR).
+/// Use [`MetaInterrupt::frames`] to extract them — it prefers the typed fields
+/// and falls back to string parsing for backward compatibility.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MetaInterrupt {
     pub conflict: ConflictType,
     pub reason: String,
     pub timestamp: chrono::DateTime<chrono::Utc>,
+    /// The first frame in a FrameMismatch conflict, if known.
+    pub frame_a: Option<Frame>,
+    /// The second frame in a FrameMismatch conflict, if known.
+    pub frame_b: Option<Frame>,
 }
 
 impl MetaInterrupt {
@@ -22,11 +31,13 @@ impl MetaInterrupt {
             conflict,
             reason,
             timestamp: chrono::Utc::now(),
+            frame_a: None,
+            frame_b: None,
         }
     }
 
     /// Create a FrameMismatch interrupt from a frame pair.
-    /// Uses pre-sized String allocation instead of `format!()`.
+    /// Stores the frame pair both as typed fields and in the reason string.
     #[inline]
     pub fn with_frames(op: &'static str, frame_a: Frame, frame_b: Frame) -> Self {
         let reason = Self::build_frame_mismatch_reason(op, &frame_a, &frame_b);
@@ -34,6 +45,8 @@ impl MetaInterrupt {
             conflict: ConflictType::FrameMismatch,
             reason,
             timestamp: chrono::Utc::now(),
+            frame_a: Some(frame_a),
+            frame_b: Some(frame_b),
         }
     }
 
@@ -44,6 +57,8 @@ impl MetaInterrupt {
             conflict,
             reason: reason.into(),
             timestamp: chrono::DateTime::UNIX_EPOCH,
+            frame_a: None,
+            frame_b: None,
         }
     }
 
@@ -53,16 +68,26 @@ impl MetaInterrupt {
             conflict: ConflictType::PolicyViolation(violation),
             reason,
             timestamp: chrono::Utc::now(),
+            frame_a: None,
+            frame_b: None,
         }
     }
 
-    /// Extract the two frame names from a FrameMismatch reason.
+    /// Extract the two frame names from this interrupt.
     ///
-    /// Reason format (see [`build_frame_mismatch_reason`]):
-    /// `"{op} conflict: {frame_a} vs {frame_b}"`.
+    /// Prefers the typed `frame_a`/`frame_b` fields when available (all
+    /// interrupts created via [`MetaInterrupt::with_frames`]). Falls back
+    /// to string parsing of the reason for backward compatibility with
+    /// interrupts created before the typed fields were added.
+    ///
     /// Returns `("Unknown", "Unknown")` if the reason does not match
-    /// (e.g. non-FrameMismatch interrupts, or a malformed reason).
+    /// (e.g. non-FrameMismatch interrupts with no typed frames).
     pub fn frames(&self) -> (String, String) {
+        // Prefer typed fields when available
+        if let (Some(a), Some(b)) = (self.frame_a, self.frame_b) {
+            return (a.to_string(), b.to_string());
+        }
+        // Fallback: string parsing for backward compatibility
         let Some(vs_part) = self.reason.split(" conflict: ").nth(1) else {
             return ("Unknown".into(), "Unknown".into());
         };
