@@ -668,9 +668,13 @@ pub fn get_mirror_snapshot(state: State<AppState>) -> Result<crate::mirror_fetch
     // Enrich with trajectory stagnation data (Lever 3).
     if let Ok(app) = state.app.lock() {
         snapshot.stagnating = Some(app.is_stagnating());
-        snapshot.trajectory_runs = app
-            .trajectory_summary()
-            .map(|s| s.runs);
+        if let Some(summary) = app.trajectory_summary() {
+            snapshot.trajectory_runs = Some(summary.runs);
+            snapshot.embodied_trend = Some(format!("{:?}", summary.embodied_trend));
+            snapshot.embodied_velocity = Some(summary.embodied_velocity);
+            snapshot.decision_trend = Some(format!("{:?}", summary.decision_trend));
+            snapshot.decision_velocity = Some(summary.decision_velocity);
+        }
     }
     Ok(snapshot)
 }

@@ -54,6 +54,12 @@ pub struct MirrorSnapshot {
     pub stagnating: Option<bool>,
     /// Number of analysis runs recorded in the trajectory.
     pub trajectory_runs: Option<u64>,
+    /// Embodied phase velocity (trend direction and speed).
+    pub embodied_trend: Option<String>,
+    pub embodied_velocity: Option<f64>,
+    /// Decision phase velocity.
+    pub decision_trend: Option<String>,
+    pub decision_velocity: Option<f64>,
 }
 
 impl MirrorSnapshot {
@@ -179,6 +185,10 @@ impl MirrorSnapshot {
             generated_at: String::from("2024"), // static baseline; Tauri command stamps serve time
             stagnating: None,
             trajectory_runs: None,
+            embodied_trend: None,
+            embodied_velocity: None,
+            decision_trend: None,
+            decision_velocity: None,
         }
     }
 }

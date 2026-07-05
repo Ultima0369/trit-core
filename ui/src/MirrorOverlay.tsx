@@ -160,6 +160,37 @@ export default function MirrorOverlay({ visible, onClose }: MirrorOverlayProps) 
             </div>
           )}
 
+          {/* Trajectory trend (when data available, not stagnating) */}
+          {!snapshot.stagnating && snapshot.trajectory_runs && snapshot.trajectory_runs >= 2 && (
+            <div
+              style={{
+                background: 'rgba(255,255,255,0.05)',
+                borderRadius: 4,
+                padding: '6px 8px',
+                marginBottom: 8,
+                fontSize: 10,
+                color: 'var(--aurora-muted, #888)',
+                display: 'flex',
+                justifyContent: 'space-between',
+              }}
+            >
+              <span>相位轨迹 ({snapshot.trajectory_runs} 轮)</span>
+              <span>
+                具身:{' '}
+                <span style={{ color: snapshot.embodied_trend?.includes('TowardTrue') ? '#0dcaf0' : snapshot.embodied_trend?.includes('TowardFalse') ? '#dc3545' : '#888' }}>
+                  {snapshot.embodied_velocity != null ? (snapshot.embodied_velocity > 0 ? '↑' : snapshot.embodied_velocity < 0 ? '↓' : '→') : '?'}
+                  {' '}{Math.abs(snapshot.embodied_velocity ?? 0).toFixed(3)}
+                </span>
+                {' · '}
+                决策:{' '}
+                <span style={{ color: snapshot.decision_trend?.includes('TowardTrue') ? '#0dcaf0' : snapshot.decision_trend?.includes('TowardFalse') ? '#dc3545' : '#888' }}>
+                  {snapshot.decision_velocity != null ? (snapshot.decision_velocity > 0 ? '↑' : snapshot.decision_velocity < 0 ? '↓' : '→') : '?'}
+                  {' '}{Math.abs(snapshot.decision_velocity ?? 0).toFixed(3)}
+                </span>
+              </span>
+            </div>
+          )}
+
           {/* Human activity */}
           <div style={{ marginBottom: 10 }}>
             <div

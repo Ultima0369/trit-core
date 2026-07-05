@@ -135,6 +135,10 @@ export interface MirrorSnapshot {
   generated_at: string;
   stagnating: boolean | null;
   trajectory_runs: number | null;
+  embodied_trend: string | null;
+  embodied_velocity: number | null;
+  decision_trend: string | null;
+  decision_velocity: number | null;
 }
 
 // ── Custom event names (shared between Earth / TopBar / App) ──
