@@ -122,3 +122,122 @@ pub trait CostFactor: Send + Sync {
     /// Whether this implementation has any real data (vs all defaults).
     fn is_operational(&self) -> bool;
 }
+
+/// Error type for factor loading failures.
+#[derive(Debug, thiserror::Error)]
+pub enum FactorError {
+    #[error("failed to read factor data: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("failed to parse factor JSON: {0}")]
+    Parse(#[from] serde_json::Error),
+    #[error("unknown impact: '{0}'")]
+    UnknownImpact(String),
+}
+
+/// JSON-backed CostFactor implementation.
+///
+/// Loads factor data from a JSON file structured per the True Price
+/// Foundation monetisation methodology. Factors are keyed by impact
+/// type and contain global baselines + regional/sector adjustment
+/// multipliers.
+pub struct JsonFactorLoader {
+    factors: Vec<FactorEntry>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct FactorFile {
+    #[allow(dead_code)]
+    description: String,
+    factors: Vec<FactorEntry>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct FactorEntry {
+    impact: String,
+    global_cost_per_unit: f64,
+    unit: String,
+    regional_multipliers: std::collections::HashMap<String, f64>,
+    sector_multipliers: std::collections::HashMap<String, f64>,
+    confidence: f64,
+    source: String,
+}
+
+impl JsonFactorLoader {
+    /// Load factor data from a JSON file path.
+    pub fn load(path: &std::path::Path) -> Result<Self, FactorError> {
+        let data = std::fs::read_to_string(path)?;
+        let file: FactorFile = serde_json::from_str(&data)?;
+        Ok(Self {
+            factors: file.factors,
+        })
+    }
+
+    /// Load from an embedded JSON string (for tests and wasm targets).
+    pub fn load_from_str(json: &str) -> Result<Self, FactorError> {
+        let file: FactorFile = serde_json::from_str(json)?;
+        Ok(Self {
+            factors: file.factors,
+        })
+    }
+
+    fn find(&self, impact: &str) -> Option<&FactorEntry> {
+        self.factors.iter().find(|f| f.impact == impact)
+    }
+
+    fn build_metadata(entry: &FactorEntry, region: Region, sector: Sector) -> CostMetadata {
+        let region_key = format!("{region:?}");
+        let sector_key = format!("{sector:?}");
+        let regional_multiplier = entry
+            .regional_multipliers
+            .get(&region_key)
+            .copied()
+            .unwrap_or(1.0);
+        let sector_multiplier = entry
+            .sector_multipliers
+            .get(&sector_key)
+            .copied()
+            .unwrap_or(1.0);
+        CostMetadata {
+            impact_name: entry.impact.clone(),
+            global_cost_per_unit: entry.global_cost_per_unit,
+            unit: entry.unit.clone(),
+            regional_multiplier,
+            sector_multiplier,
+            confidence: entry.confidence,
+            source: entry.source.clone(),
+        }
+    }
+}
+
+impl CostFactor for JsonFactorLoader {
+    fn co2_cost(&self, region: Region, sector: Sector) -> Option<CostMetadata> {
+        self.find("co2")
+            .map(|e| Self::build_metadata(e, region, sector))
+    }
+
+    fn water_cost(&self, region: Region, sector: Sector) -> Option<CostMetadata> {
+        self.find("water_consumption")
+            .map(|e| Self::build_metadata(e, region, sector))
+    }
+
+    fn land_cost(&self, region: Region, sector: Sector) -> Option<CostMetadata> {
+        self.find("land_use")
+            .map(|e| Self::build_metadata(e, region, sector))
+    }
+
+    fn air_pollution_cost(&self, _region: Region, _sector: Sector) -> Option<CostMetadata> {
+        None
+    }
+
+    fn water_pollution_cost(&self, _region: Region, _sector: Sector) -> Option<CostMetadata> {
+        None
+    }
+
+    fn factor_count(&self) -> usize {
+        self.factors.len()
+    }
+
+    fn is_operational(&self) -> bool {
+        !self.factors.is_empty()
+    }
+}
