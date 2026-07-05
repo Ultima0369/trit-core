@@ -712,3 +712,28 @@ pub fn run_retrospective(
     app.run_retrospective_from_json(json, &user_decision)
         .map_err(|e| format!("retrospective failed: {e}"))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn all_ssp_scenarios_parse() {
+        let jsons = [
+            include_str!("../../scenarios/ssp/ssp1_sustainability.json"),
+            include_str!("../../scenarios/ssp/ssp2_middle_road.json"),
+            include_str!("../../scenarios/ssp/ssp3_regional_rivalry.json"),
+            include_str!("../../scenarios/ssp/ssp4_inequality.json"),
+            include_str!("../../scenarios/ssp/ssp5_fossil_fueled.json"),
+        ];
+        for json in &jsons {
+            let scenario: aurora::SspScenario =
+                serde_json::from_str(json).expect("SSP scenario should parse");
+            assert!(!scenario.ssp_pathway.is_empty());
+            assert!(scenario.lookback_year == 2066);
+            let prompt = scenario.build_prompt("test decision");
+            assert!(prompt.contains("2066"));
+            assert!(prompt.contains("test decision"));
+        }
+    }
+}
