@@ -16,6 +16,7 @@ struct Args {
     hold_final: bool,
     trace_phase: bool,
     self_knowledge: bool,
+    cost_data: Option<String>,
 }
 
 impl Args {
@@ -28,6 +29,7 @@ impl Args {
         let mut hold_final = false;
         let mut trace_phase = false;
         let mut self_knowledge = false;
+        let mut cost_data = None;
 
         let mut args = std::env::args().skip(1).peekable();
         while let Some(arg) = args.next() {
@@ -46,6 +48,13 @@ impl Args {
                 "--hold-final" => hold_final = true,
                 "--trace-phase" => trace_phase = true,
                 "--self-knowledge" => self_knowledge = true,
+                "--cost-data" => {
+                    cost_data = Some(
+                        args.next()
+                            .ok_or("--cost-data requires a path to a JSON cost factor file")?
+                            .to_string(),
+                    );
+                }
                 "-h" | "--help" => {
                     print_usage();
                     std::process::exit(0);
@@ -65,6 +74,7 @@ impl Args {
             hold_final,
             trace_phase,
             self_knowledge,
+            cost_data,
         })
     }
 }
@@ -90,6 +100,7 @@ Execution options:
       --hold-final         Treat Hold as the final answer (do not auto-question)
       --trace-phase        Output phase shift trajectory in diagnostics
       --self-knowledge     Enable receiver-state inference from self-knowledge
+      --cost-data <path>    Load true cost factors from a JSON file (embeds into anchor check)
   -h, --help               Print this help message
 
 Environment:
@@ -189,6 +200,13 @@ fn run_with_error_context(args: &Args) -> Result<SandboxOutput, SandboxError> {
         pipeline = pipeline.with_self_knowledge(
             trit_core::adapters::self_knowledge::SelfKnowledge::with_human_defaults(),
         );
+    }
+    if let Some(ref cost_path) = args.cost_data {
+        let loader = trit_core::anchor::cost_factor::JsonFactorLoader::load(
+            std::path::Path::new(cost_path),
+        )
+        .map_err(|e| SandboxError::Io(format!("Failed to load cost data '{}': {}", cost_path, e)))?;
+        pipeline = pipeline.with_cost_factor(Box::new(loader));
     }
 
     let (output, diagnostics) = pipeline.run_with_diagnostics(&scenario)?;

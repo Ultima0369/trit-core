@@ -40,6 +40,8 @@ pub struct SandboxPipeline {
     pub(crate) hold_final: bool,
     /// Anchor constraints checked before every decision.
     pub(crate) anchor_constraints: Vec<Box<dyn AnchorConstraint>>,
+    /// True cost factor for populating DecisionPreview::cost_metadata.
+    pub(crate) cost_factor: Option<Box<dyn crate::anchor::cost_factor::CostFactor>>,
     /// Hardware-aware compute budget for depth gating.
     pub(crate) budget: ComputeBudget,
     /// Harmonic clock for temporal context.
@@ -90,6 +92,7 @@ impl SandboxPipeline {
             clock: HarmonicClock::deliberative(),
             calibration_log: CalibrationLog::default(),
             feedback: None,
+            cost_factor: None,
         }
     }
 
@@ -170,6 +173,15 @@ impl SandboxPipeline {
     /// Attach a feedback loop for practice testing (Layer 5).
     pub fn with_feedback(mut self, feedback: FeedbackLoop) -> Self {
         self.feedback = Some(feedback);
+        self
+    }
+
+    /// Attach a true cost factor for anchor check enrichment.
+    pub fn with_cost_factor(
+        mut self,
+        cf: Box<dyn crate::anchor::cost_factor::CostFactor>,
+    ) -> Self {
+        self.cost_factor = Some(cf);
         self
     }
 
@@ -433,7 +445,11 @@ impl SandboxPipeline {
             return final_word;
         }
         let stage_start = Instant::now();
-        let preview = crate::anchor::build_decision_preview(scenario, &final_word, None);
+        let preview = crate::anchor::build_decision_preview(
+            scenario,
+            &final_word,
+            self.cost_factor.as_deref(),
+        );
         let anchor_report = check_all(&self.anchor_constraints, &preview);
         if anchor_report.has_violations() {
             warn!(
