@@ -1,10 +1,20 @@
 {
   "id": "ssp3_regional_rivalry",
-  "description": "SSP3 Regional Rivalry — Resurgent nationalism, trade wars, and concerns about competitiveness push countries toward regional blocs. High challenges to mitigation and adaptation.",
+  "description": "SSP3 Regional Rivalry — resurgent nationalism, trade barriers, slow tech diffusion, high population in developing regions. 2066: ~4.5°C warming, fragmented carbon markets, severe biodiversity loss.",
   "domain": "Environmental",
+  "ssp_pathway": "SSP3",
+  "lookback_year": 2066,
+  "decision_prompt": "Consider a major infrastructure investment today. From 2066, looking back: this decision was made in an era of fragmentation that deepened.",
   "signals": [
     { "frame": "GeoEco", "value": -1, "phase": 0.9 },
     { "frame": "Consensus", "value": -1, "phase": 0.7 }
   ],
+  "projected_signals_2066": {
+    "co2_ppm": 620,
+    "global_temp_anomaly_c": 4.5,
+    "biodiversity_intactness": 0.38,
+    "renewable_share": 0.30,
+    "population_billion": 10.5
+  },
   "expected_behavior": "commit_false"
 }

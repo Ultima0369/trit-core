@@ -1,10 +1,20 @@
 {
   "id": "ssp5_fossil_fueled",
-  "description": "SSP5 Fossil-Fueled Development — Rapid technological progress and human capital development are fueled by continued fossil resource exploitation. High challenges to mitigation, low challenges to adaptation.",
+  "description": "SSP5 Fossil-Fueled Development — rapid technological progress and human capital development fueled by continued fossil resource exploitation. 2066: ~5.0°C warming, high adaptive capacity but severe mitigation failure.",
   "domain": "Environmental",
+  "ssp_pathway": "SSP5",
+  "lookback_year": 2066,
+  "decision_prompt": "Consider a major infrastructure investment today. From 2066, looking back: this decision prioritized economic growth over climate constraints.",
   "signals": [
     { "frame": "GeoEco", "value": -1, "phase": 0.95 },
     { "frame": "Science", "value": 1, "phase": 0.8 }
   ],
+  "projected_signals_2066": {
+    "co2_ppm": 680,
+    "global_temp_anomaly_c": 5.0,
+    "biodiversity_intactness": 0.30,
+    "renewable_share": 0.25,
+    "population_billion": 8.0
+  },
   "expected_behavior": "commit_false"
 }

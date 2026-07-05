@@ -1,10 +1,20 @@
 {
   "id": "ssp1_sustainability",
-  "description": "SSP1 Sustainability — The world shifts gradually toward a more sustainable path. Low challenges to mitigation and adaptation. Global commons are managed cooperatively.",
+  "description": "SSP1 Sustainability — low population growth, high education, rapid tech shift toward renewables, strong international cooperation. 2066: global temp anomaly ~2.0°C, CO2 price $400/tonne, biodiversity recovering in 40% of biomes.",
   "domain": "Environmental",
+  "ssp_pathway": "SSP1",
+  "lookback_year": 2066,
+  "decision_prompt": "Consider a major infrastructure investment today. From 2066, looking back: this decision accelerated the green transition.",
   "signals": [
     { "frame": "GeoEco", "value": 1, "phase": 0.85 },
-    { "frame": "Consensus", "value": 1, "phase": 0.8 }
+    { "frame": "Consensus", "value": 1, "phase": 0.80 }
   ],
+  "projected_signals_2066": {
+    "co2_ppm": 440,
+    "global_temp_anomaly_c": 2.0,
+    "biodiversity_intactness": 0.72,
+    "renewable_share": 0.85,
+    "population_billion": 8.5
+  },
   "expected_behavior": "commit_true"
 }

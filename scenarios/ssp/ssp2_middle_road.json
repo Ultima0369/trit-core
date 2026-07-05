@@ -1,10 +1,20 @@
 {
   "id": "ssp2_middle_road",
-  "description": "SSP2 Middle of the Road — The world follows a path where social, economic, and technological trends do not shift markedly from historical patterns. Moderate challenges to mitigation and adaptation.",
+  "description": "SSP2 Middle of the Road — trends continue. Moderate population growth, incremental tech progress, uneven policy. 2066: ~3.0°C warming, CO2 price $150/tonne, biodiversity declining slowly.",
   "domain": "Environmental",
+  "ssp_pathway": "SSP2",
+  "lookback_year": 2066,
+  "decision_prompt": "Consider a major infrastructure investment today. From 2066, looking back: this decision maintained the status quo trajectory.",
   "signals": [
     { "frame": "GeoEco", "value": -1, "phase": 0.5 },
     { "frame": "Consensus", "value": 0, "phase": 0.5 }
   ],
+  "projected_signals_2066": {
+    "co2_ppm": 520,
+    "global_temp_anomaly_c": 3.0,
+    "biodiversity_intactness": 0.55,
+    "renewable_share": 0.50,
+    "population_billion": 9.5
+  },
   "expected_behavior": "commit_false"
 }

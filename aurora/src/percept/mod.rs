@@ -31,6 +31,7 @@ pub mod cloud;
 pub mod error;
 pub mod fft;
 pub mod local;
+pub mod retrospective;
 pub mod types;
 
 pub use chain::PerceptChain;
@@ -38,6 +39,7 @@ pub use cloud::CloudLLMProvider;
 pub use error::{ConfigError, PerceptError};
 pub use fft::FFTProvider;
 pub use local::LocalLLMProvider;
+pub use retrospective::{RetrospectiveDoc, RetrospectiveProvider, SspScenario};
 pub use types::PerceptBatch;
 
 /// Unified abstraction for all external perception sources.

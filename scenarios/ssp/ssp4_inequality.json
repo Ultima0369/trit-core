@@ -1,10 +1,20 @@
 {
   "id": "ssp4_inequality",
-  "description": "SSP4 Inequality — Highly unequal investments in human capital and increasing disparities. A small knowledge-intensive elite benefits while a larger low-income group struggles.",
+  "description": "SSP4 Inequality — widening gap between rich and poor, high-tech enclaves vs low-tech peripheries, stratified adaptation. 2066: ~3.5°C warming, dual economies, climate apartheid risks.",
   "domain": "Environmental",
+  "ssp_pathway": "SSP4",
+  "lookback_year": 2066,
+  "decision_prompt": "Consider a major infrastructure investment today. From 2066, looking back: this decision was made in a world of widening inequality.",
   "signals": [
     { "frame": "GeoEco", "value": -1, "phase": 0.6 },
     { "frame": "Individual", "value": 1, "phase": 0.4 }
   ],
+  "projected_signals_2066": {
+    "co2_ppm": 560,
+    "global_temp_anomaly_c": 3.5,
+    "biodiversity_intactness": 0.45,
+    "renewable_share": 0.40,
+    "population_billion": 9.0
+  },
   "expected_behavior": "commit_false"
 }
