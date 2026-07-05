@@ -82,16 +82,20 @@ impl Clone for Database {
     fn clone(&self) -> Self {
         // Open a fresh connection to the same database file.
         // WAL mode allows multiple concurrent readers/writers.
+        //
+        // NOTE: Clone for in-memory databases is UNSUPPORTED because each
+        // SQLite :memory: connection is independent — cloning would create
+        // a new empty database and silently lose all data. Callers must use
+        // `&Database` borrowing instead (see SqliteAuditLog::new).
         if self.path == *":memory:" {
-            // In-memory databases can't be shared — open a new one.
-            // This means clone() on in-memory DBs creates an empty DB.
-            // For Tauri, we'll use a file-based DB.
-            Database::open_in_memory().expect("failed to clone in-memory database")
-        } else {
-            Database::open(&self.path).unwrap_or_else(|_| {
-                panic!("failed to clone database connection to {:?}", self.path)
-            })
+            panic!(
+                "Database::clone() is not supported for in-memory databases. \
+                 Use &Database borrowing (e.g. SqliteAuditLog::new(&db)) instead."
+            );
         }
+        Database::open(&self.path).unwrap_or_else(|_| {
+            panic!("failed to clone database connection to {:?}", self.path)
+        })
     }
 }
 

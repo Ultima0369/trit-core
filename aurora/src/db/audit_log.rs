@@ -10,27 +10,36 @@ use crate::bc::BcError;
 use crate::db::Database;
 
 /// SQLite-backed audit log.
-pub struct SqliteAuditLog {
-    db: Database,
+///
+/// Borrows the database connection rather than owning it — avoids the
+/// `Arc<Mutex<Database>>.clone()` anti-pattern that opens a new WAL
+/// connection per pipeline run.
+pub struct SqliteAuditLog<'db> {
+    db: &'db Database,
 }
 
-impl SqliteAuditLog {
-    /// Create a new SQLite-backed audit log from an existing Database.
-    pub fn new(db: Database) -> Self {
+impl<'db> SqliteAuditLog<'db> {
+    /// Create a new SQLite-backed audit log borrowing an existing Database.
+    pub fn new(db: &'db Database) -> Self {
         Self { db }
     }
 
-    /// Create an in-memory audit log for testing.
+    /// Create a test-only in-memory audit log that owns its database.
+    ///
+    /// This leaks the `Database` allocation to satisfy the borrow lifetime.
+    /// Acceptable only in tests — the process dies after the test completes.
+    #[cfg(test)]
     pub fn new_in_memory() -> Result<Self, BcError> {
         let db = Database::open_in_memory().map_err(|e| BcError::Domain {
             bc: "AuditTrail".into(),
             message: e.to_string(),
         })?;
-        Ok(Self { db })
+        let leaked: &'db Database = Box::leak(Box::new(db));
+        Ok(Self { db: leaked })
     }
 }
 
-impl SqliteAuditLog {
+impl SqliteAuditLog<'_> {
     /// Record a new audit entry.
     pub fn record(&mut self, entry: AuditEntry) -> Result<(), BcError> {
         let snapshot_json = entry.decision_snapshot.as_ref().map(|s| {

@@ -143,11 +143,11 @@ impl AuroraApp {
         )
         .map_err(|e| anyhow::anyhow!("analysis link failed: {e}"))?;
 
-        let db = self.db.lock().expect("db mutex poisoned").clone();
+        let db = self.db.lock().expect("db mutex poisoned");
         let attention_outcome = attention::run_attention(
             &analysis_report.decision,
             &analysis_report.decision.input_signals,
-            db,
+            &*db,
             &self.contacts,
         )
         .map_err(|e| anyhow::anyhow!("attention link failed: {e}"))?;
@@ -180,11 +180,11 @@ impl AuroraApp {
         .map_err(|e| anyhow::anyhow!("analysis link failed: {e}"))?;
 
         // Step 2: Attention
-        let db = self.db.lock().expect("db mutex poisoned").clone();
+        let db = self.db.lock().expect("db mutex poisoned");
         let attention_outcome = attention::run_attention(
             &analysis_report.decision,
             &analysis_report.decision.input_signals,
-            db,
+            &*db,
             &self.contacts,
         )
         .map_err(|e| anyhow::anyhow!("attention link failed: {e}"))?;

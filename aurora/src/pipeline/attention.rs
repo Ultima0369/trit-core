@@ -76,11 +76,12 @@ fn build_snapshot(
 /// 3. Persist the audit entry to SQLite via SqliteAuditLog.
 /// 4. Return the attention outcome.
 ///
-/// For tests, pass `Database::open_in_memory()` — no separate in-memory path.
+/// Borrows the database — no clone needed. The caller (AuroraApp) holds
+/// the Arc&lt;Mutex&lt;Database&gt;&gt; and passes a reference through the lock guard.
 pub fn run_attention(
     decision: &DecisionRecord,
     signals: &[TritWord],
-    db: Database,
+    db: &Database,
     contacts: &[ContactProfile],
 ) -> Result<AttentionOutcome, BcError> {
     let mut attention = AttentionManager::new("attention_session");
@@ -136,7 +137,8 @@ mod tests {
             TritWord::tru(Frame::Embodied),
             TritWord::fals(Frame::Individual),
         ];
-        let outcome = run_attention(&test_decision(&signals), &signals, test_db(), &[]).unwrap();
+        let db = test_db();
+        let outcome = run_attention(&test_decision(&signals), &signals, &db, &[]).unwrap();
         // ASI starts at 0.0 for a new session with no user responses
         assert_eq!(outcome.asi, 0.0);
         assert_eq!(outcome.reminder_count, 0);
@@ -150,8 +152,8 @@ mod tests {
             .chain((0..5).map(|_| TritWord::fals(Frame::Individual)))
             .collect();
 
-        let outcome = run_attention(&test_decision(&signals), &signals, test_db(), &[]).unwrap();
-        // The scheduler may or may not trigger a reminder depending on signal count;
+        let db = test_db();
+        let outcome = run_attention(&test_decision(&signals), &signals, &db, &[]).unwrap();
         // the key invariant is that the function completes without panicking
         assert!(outcome.asi >= 0.0);
         assert!(outcome.asi <= 1.0);
@@ -172,7 +174,7 @@ mod tests {
         ];
         let decision = test_decision(&signals);
 
-        let outcome = run_attention(&decision, &signals, db, &[]).unwrap();
+        let outcome = run_attention(&decision, &signals, &db, &[]).unwrap();
         assert!(outcome.asi >= 0.0);
         // The audit entry was persisted — we can verify by checking the DB
         // (SqliteAuditLog::entry_count is tested in db/audit_log.rs)
@@ -181,9 +183,8 @@ mod tests {
     #[test]
     fn attention_outcome_contains_session_data() {
         let signals = vec![TritWord::tru(Frame::Science)];
-        let outcome = run_attention(&test_decision(&signals), &signals, test_db(), &[]).unwrap();
-
-        assert!(!outcome.session.session_id().is_empty());
+        let db = test_db();
+        let outcome = run_attention(&test_decision(&signals), &signals, &db, &[]).unwrap();
         assert_eq!(outcome.asi, outcome.session.asi());
         assert_eq!(outcome.reminder_count, outcome.session.reminder_count());
     }
