@@ -1,6 +1,44 @@
-//! Benchmark placeholder for Aurora.
+//! Aurora benchmarks — wavelet analysis, decision pipeline, attention scheduling.
 //!
-//! Real benchmarks will be added once the wavelet engine and decision pipeline
-//! are implemented.
+//! Run with: `cargo bench -p aurora`
 
-fn main() {}
+use aurora::bc::signal_analysis::FftWaveletEngine;
+use aurora::pipeline::analysis::{run_analysis, SignalSpec};
+use aurora::wavelet::synthetic::sine_wave;
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
+
+fn bench_sine_wave(c: &mut Criterion) {
+    c.bench_function("sine_wave_1024", |b| {
+        b.iter(|| sine_wave(black_box(10.0), black_box(1000.0), black_box(1.0), black_box(0.0)))
+    });
+}
+
+fn bench_fft_analysis(c: &mut Criterion) {
+    let signal = sine_wave(10.0, 1000.0, 1.0, 0.0);
+    let engine = FftWaveletEngine::new();
+    c.bench_function("fft_analyze_1024", |b| {
+        b.iter(|| engine.analyze(black_box(&signal), black_box(1000.0)))
+    });
+}
+
+fn bench_full_pipeline(c: &mut Criterion) {
+    let spec = SignalSpec {
+        freq: 10.0,
+        sample_rate: 1000.0,
+        duration_secs: 1.0,
+        noise_std: 0.0,
+    };
+    c.bench_function("run_analysis_medical", |b| {
+        b.iter(|| {
+            run_analysis(
+                black_box(&spec),
+                black_box(0.5),
+                black_box(true),
+                black_box(&[]),
+            )
+        })
+    });
+}
+
+criterion_group!(benches, bench_sine_wave, bench_fft_analysis, bench_full_pipeline);
+criterion_main!(benches);

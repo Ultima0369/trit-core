@@ -1,6 +1,6 @@
 {
   "id": "mind_reflexive_trigger",
-  "description": "Medical-ethics conflict where preserving Individual forces a False despite unresolved cross-frame disagreement. Designed to exercise the reflexive guard when enabled.",
+  "description": "Medical-ethics conflict where preserving Individual forces a False despite unresolved cross-frame disagreement. Designed to exercise the reflexive guard when --reflexive is enabled. expected_behavior is left empty because the result depends on CLI flags (commit_false without --reflexive, hold with --reflexive).",
   "domain": "MedicalEthics",
   "signals": [
     { "frame": "Science", "value": 1, "phase": 0.9 },

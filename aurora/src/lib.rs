@@ -1,10 +1,9 @@
 //! Aurora: a local-first cognitive sovereignty tool built on Trit-Core.
 //!
-//! This crate is currently at the M0 proof-of-concept stage. The immediate
-//! goal is an end-to-end Rust CLI that takes synthetic communication-frequency
-//! data, extracts a base frequency via wavelet analysis, feeds it into
-//! Trit-Core for a ternary decision (Embodied vs Individual), and renders the
-//! result as static HTML.
+//! This crate is currently at the **M2 stage**: end-to-end Rust CLI and Tauri
+//! desktop shell with wavelet analysis, ternary decision pipeline, attention
+//! scheduling with SQLite persistence, LLM perception chain, and HTML/JSON
+//! presentation rendering. See [`MASTER_PLAN.md`] for the full roadmap.
 //!
 //! `#![deny(unsafe_code)]` is enforced crate-wide per CHARTER engineering discipline.
 //! The `config::dpapi` module is the only exception — it uses `#[allow(unsafe_code)]`

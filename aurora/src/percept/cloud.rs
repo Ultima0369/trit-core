@@ -243,6 +243,14 @@ impl CloudLLMProvider {
             "Individual" => Frame::Individual,
             "Consensus" => Frame::Consensus,
             "Absolute" => Frame::Absolute,
+            "FirstPerson" => Frame::FirstPerson,
+            "Embodied" => Frame::Embodied,
+            "Relational" => Frame::Relational,
+            "GeoEco" => Frame::GeoEco,
+            "Developmental" => Frame::Developmental,
+            "Role" => Frame::Role,
+            "Environmental" => Frame::Environmental,
+            // Meta is system-internal — LLM should not produce it
             _ => {
                 tracing::warn!(frame = frame_str, "unknown frame from LLM, skipping signal");
                 return None;

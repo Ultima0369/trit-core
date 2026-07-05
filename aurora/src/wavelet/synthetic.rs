@@ -7,7 +7,10 @@
 /// * `freq` - signal frequency in Hz
 /// * `sample_rate` - samples per second
 /// * `duration_secs` - total signal duration in seconds
-/// * `noise_std` - standard deviation of deterministic pseudo-noise (0.0 for clean signal)
+/// * `noise_std` - standard deviation of deterministic pseudo-noise (0.0 for clean signal).
+///   The "noise" uses `sin(i * 0.37123948234)` — it is deterministic and periodic, not random.
+///   This keeps tests reproducible. For stochastic noise, use a proper PRNG seeded from
+///   the test RNG or system entropy.
 pub fn sine_wave(freq: f64, sample_rate: f64, duration_secs: f64, noise_std: f64) -> Vec<f64> {
     // Guard against negative/non-finite args: a negative product would cast to
     // a huge usize and OOM on with_capacity. Non-positive or non-finite → empty.

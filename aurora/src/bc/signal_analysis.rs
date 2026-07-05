@@ -153,6 +153,9 @@ impl FftWaveletEngine {
             power: 1.0,
         }];
 
+        // ponytail: quality gated on sample count only. For production, consider
+        // incorporating the FFT peak magnitude as a signal-to-noise proxy:
+        // if peak power is low relative to total spectral power, quality degrades.
         let quality = if signal.samples.len() < 30 {
             SignalQuality::Poor
         } else if signal.samples.len() < 100 {
