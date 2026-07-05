@@ -116,6 +116,25 @@ export interface GeoEvent {
 
 export type GlobeTexture = 'blue-marble' | 'topographic';
 
+// ── Stagnation Mirror (Lever 3) ────────────────────────────
+
+export interface MirrorIndicator {
+  label: string;
+  value: number;
+  unit: string;
+  side: 'human' | 'planetary';
+  trend: 'up' | 'down' | 'stable';
+  updated_at: string;
+  exceeded: boolean | null;
+  threshold: number | null;
+}
+
+export interface MirrorSnapshot {
+  human_activity: MirrorIndicator[];
+  planetary_boundaries: MirrorIndicator[];
+  generated_at: string;
+}
+
 // ── Custom event names (shared between Earth / TopBar / App) ──
 
 export const EVENTS = {
