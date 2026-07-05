@@ -6,7 +6,7 @@
 // currentColor).
 
 import { useState, useEffect } from 'react';
-import { Play, RotateCw, Maximize, Minimize, Settings, Map, Globe2, Layers } from 'lucide-react';
+import { Play, RotateCw, Maximize, Minimize, Settings, Map, Globe2, Layers, Eye } from 'lucide-react';
 import type { GlobeTexture } from './types';
 import { EVENTS } from './types';
 
@@ -22,6 +22,9 @@ interface Props {
   decision: string | null;
   loading: boolean;
   onOpenDecision: () => void;
+  /** Whether the stagnation mirror is visible. */
+  mirrorVisible: boolean;
+  onToggleMirror: () => void;
 }
 
 export default function TopBar({
@@ -35,6 +38,8 @@ export default function TopBar({
   decision,
   loading,
   onOpenDecision,
+  mirrorVisible,
+  onToggleMirror,
 }: Props) {
   const [globeTexture, setGlobeTexture] = useState<GlobeTexture>('blue-marble');
 
@@ -115,6 +120,14 @@ export default function TopBar({
         title={isFullscreen ? '退出全屏 (F11)' : '全屏 (F11)'}
       >
         {isFullscreen ? <Minimize size={15} /> : <Maximize size={15} />}
+      </button>
+
+      <button
+        className={`aur-btn aur-btn--ghost aur-btn--small${mirrorVisible ? ' aur-btn--active' : ''}`}
+        onClick={onToggleMirror}
+        title={mirrorVisible ? '隐藏停滞镜' : '停滞镜'}
+      >
+        <Eye size={15} />
       </button>
 
       <button

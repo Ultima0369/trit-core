@@ -7,6 +7,7 @@ import Earth from './Earth';
 import TopBar from './TopBar';
 import Overlay from './Overlay';
 import DecisionDrawer from './DecisionDrawer';
+import MirrorOverlay from './MirrorOverlay';
 import Sidebar from './Sidebar';
 import StatusBar from './StatusBar';
 import BootScreen from './BootScreen';
@@ -77,6 +78,7 @@ export default function App() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [coord, setCoord] = useState<MapCoord>({ lng: null, lat: null, zoom: null, scale: null });
   const [pipelineRequest, setPipelineRequest] = useState(DEFAULT_PIPELINE_REQUEST);
+  const [mirrorVisible, setMirrorVisible] = useState(false);
 
   // 启动过场状态机（cesiumReady/earthEntering/bootDone + 60s 兜底）收口到 hook。
   const boot = useBootFlow();
@@ -201,6 +203,8 @@ export default function App() {
         decision={data?.decision ?? null}
         loading={loading}
         onOpenDecision={() => setDecisionDrawerOpen(true)}
+        mirrorVisible={mirrorVisible}
+        onToggleMirror={() => setMirrorVisible(v => !v)}
       />
 
       {/* 左侧栏目：图层 + 数据摘要（2D/3D 视图都保留） */}
@@ -210,6 +214,10 @@ export default function App() {
           is-entering = 初始小尺寸+裁剪态（被 BootScreen 盖住）；
           earthEntering 触发时移除该 class → CSS 过渡放大到全屏（地球登场）。 */}
       <div className={`aur-globe-area aur-globe-area--full${(!boot.earthEntering && !boot.bootDone) ? ' is-entering' : ''}`}>
+        <MirrorOverlay
+          visible={mirrorVisible}
+          onClose={() => setMirrorVisible(false)}
+        />
         {view2D ? (
           <Suspense fallback={<div style={{ color: '#fff' }}>加载 2D 地图…</div>}>
             <MapPanel flavor="light" layers={mapLayers} onCoordChange={setCoord} />
