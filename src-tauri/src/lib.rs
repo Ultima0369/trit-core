@@ -237,6 +237,7 @@ pub fn run() {
             commands::export_user_data,
             commands::get_mirror_snapshot,
             commands::get_trajectory,
+            commands::run_retrospective,
         ])
         .setup(|app| {
             logger::log("setup", "INFO", "Tauri setup 回调开始");

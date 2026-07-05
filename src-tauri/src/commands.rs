@@ -643,12 +643,27 @@ pub async fn prefetch_tiles(
 ///
 /// 返回人类活动与地球边界指标的并排对比，
 /// 前端渲染为可视化"剪刀差"。
-/// 同时从轨迹中读取停滞检测状态。
+/// 同时从轨迹中读取停滞检测状态，从 L2 缓存读取真实 CO₂ 读数。
 #[tauri::command]
 pub fn get_mirror_snapshot(state: State<AppState>) -> Result<crate::mirror_fetcher::MirrorSnapshot, String> {
     let mut snapshot = crate::mirror_fetcher::MirrorFetcher::new().snapshot();
     if let Ok(ts) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
         snapshot.generated_at = format!("{}", ts.as_secs());
+    }
+    // Hydrate CO₂ from L2 cache (populated by get_anchor_status background fetch).
+    if let Some(cached) =
+        crate::data_sources::read_cache::<f64>(&state.l2, crate::data_sources::CO2_CACHE_KEY)
+    {
+        for indicator in &mut snapshot.planetary_boundaries {
+            if indicator.label == "CO₂ Concentration" {
+                indicator.value = cached.data;
+                indicator.updated_at = if cached.stale {
+                    format!("{} (stale)", indicator.updated_at)
+                } else {
+                    indicator.updated_at.clone()
+                };
+            }
+        }
     }
     // Enrich with trajectory stagnation data (Lever 3).
     if let Ok(app) = state.app.lock() {
@@ -669,4 +684,20 @@ pub fn get_trajectory(state: State<AppState>) -> Result<TrajectorySummary, Strin
     let app = state.app.lock().map_err(|e| format!("lock error: {e}"))?;
     app.trajectory_summary()
         .ok_or_else(|| "尚无轨迹数据 — 请先运行至少一次分析".into())
+}
+
+/// 运行未来回望模拟（Lever 2）。
+///
+/// 加载 SSP 路径场景，构建 2066 年回望提示词，通过感知链运行并返回回望文档。
+#[tauri::command]
+pub fn run_retrospective(
+    state: State<AppState>,
+    ssp_pathway: String,
+    user_decision: String,
+) -> Result<aurora::percept::RetrospectiveDoc, String> {
+    let app = state.app.lock().map_err(|e| format!("lock error: {e}"))?;
+    let path = std::path::Path::new("scenarios/ssp")
+        .join(format!("{}.json", ssp_pathway));
+    app.run_retrospective(&path, &user_decision)
+        .map_err(|e| format!("retrospective failed: {e}"))
 }
