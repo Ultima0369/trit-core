@@ -692,16 +692,23 @@ pub fn get_trajectory(state: State<AppState>) -> Result<TrajectorySummary, Strin
 
 /// 运行未来回望模拟（Lever 2）。
 ///
-/// 加载 SSP 路径场景，构建 2066 年回望提示词，通过感知链运行并返回回望文档。
+/// 根据 SSP 路径名称选择对应场景（编译期嵌入），构建 2066 年回望提示词，
+/// 通过感知链运行并返回回望文档。
 #[tauri::command]
 pub fn run_retrospective(
     state: State<AppState>,
     ssp_pathway: String,
     user_decision: String,
-) -> Result<aurora::percept::RetrospectiveDoc, String> {
+) -> Result<aurora::RetrospectiveDoc, String> {
     let app = state.app.lock().map_err(|e| format!("lock error: {e}"))?;
-    let path = std::path::Path::new("scenarios/ssp")
-        .join(format!("{}.json", ssp_pathway));
-    app.run_retrospective(&path, &user_decision)
+    let json = match ssp_pathway.as_str() {
+        "ssp1_sustainability" => include_str!("../../scenarios/ssp/ssp1_sustainability.json"),
+        "ssp2_middle_road" => include_str!("../../scenarios/ssp/ssp2_middle_road.json"),
+        "ssp3_regional_rivalry" => include_str!("../../scenarios/ssp/ssp3_regional_rivalry.json"),
+        "ssp4_inequality" => include_str!("../../scenarios/ssp/ssp4_inequality.json"),
+        "ssp5_fossil_fueled" => include_str!("../../scenarios/ssp/ssp5_fossil_fueled.json"),
+        other => return Err(format!("unknown SSP pathway: {other}. Valid: ssp1_sustainability, ssp2_middle_road, ssp3_regional_rivalry, ssp4_inequality, ssp5_fossil_fueled")),
+    };
+    app.run_retrospective_from_json(json, &user_decision)
         .map_err(|e| format!("retrospective failed: {e}"))
 }

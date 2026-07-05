@@ -274,15 +274,20 @@ impl AuroraApp {
         use crate::percept::retrospective::SspScenario;
         let scenario = SspScenario::load(ssp_scenario_path)
             .map_err(|e| anyhow::anyhow!("failed to load SSP scenario [{}/{}]: {e}", e.kind(), e))?;
+        self.run_retrospective_from_scenario(&scenario, user_decision)
+    }
+
+    /// Run retrospective from an already-loaded SspScenario.
+    fn run_retrospective_from_scenario(
+        &self,
+        scenario: &crate::percept::retrospective::SspScenario,
+        user_decision: &str,
+    ) -> Result<RetrospectiveDoc> {
         let prompt = scenario.build_prompt(user_decision);
         let batch = self
             .percept_chain
             .perceive_or_degrade(&prompt)
             .map_err(|e| anyhow::anyhow!("retrospective perception failed [{}/{}]: {e}", e.kind(), e))?;
-        // ponytail: build a minimal provider just to construct the doc.
-        // The inner FFTProvider is irrelevant — we already have the batch from
-        // percept_chain. RetrospectiveProvider exists for the trait impl;
-        // for direct use, SspScenario::build_prompt + to_doc_from_batch is sufficient.
         Ok(RetrospectiveDoc {
             pathway: scenario.ssp_pathway.clone(),
             lookback_year: scenario.lookback_year,
@@ -292,6 +297,21 @@ impl AuroraApp {
             confidence: batch.confidence,
             projected: scenario.projected_signals_2066.clone(),
         })
+    }
+
+    /// Run retrospective from an SSP scenario JSON string (embed-friendly).
+    ///
+    /// This is the preferred method for Tauri commands — it doesn't require
+    /// filesystem access and works regardless of CWD.
+    pub fn run_retrospective_from_json(
+        &self,
+        ssp_json: &str,
+        user_decision: &str,
+    ) -> Result<RetrospectiveDoc> {
+        let scenario: crate::percept::retrospective::SspScenario =
+            serde_json::from_str(ssp_json)
+                .map_err(|e| anyhow::anyhow!("parse SSP scenario JSON: {e}"))?;
+        self.run_retrospective_from_scenario(&scenario, user_decision)
     }
 
     /// Render analysis + attention into HTML and JSON output.

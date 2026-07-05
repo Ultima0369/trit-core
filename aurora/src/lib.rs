@@ -62,3 +62,7 @@ pub mod config;
 // other aurora consumers can build anchor snapshots for display without a
 // direct trit-core dependency.
 pub use truncore::anchor;
+
+// Re-export key types for Tauri commands and external consumers.
+pub use percept::{RetrospectiveDoc, SspScenario};
+pub use pipeline::analysis::TrajectorySummary;
