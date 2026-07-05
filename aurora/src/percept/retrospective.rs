@@ -339,4 +339,24 @@ mod tests {
         let provider = RetrospectiveProvider::new(Box::new(inner), scenario);
         assert!(provider.available());
     }
+
+    #[test]
+    fn ssp_build_prompt_contains_pathway_and_year() {
+        let scenario = test_scenario();
+        let prompt = scenario.build_prompt("Should I build the dam?");
+        assert!(prompt.contains("2066"));
+        assert!(prompt.contains("SSP1"));
+        assert!(prompt.contains("Should I build the dam?"));
+        assert!(prompt.contains("440 ppm"));
+    }
+
+    #[test]
+    fn ssp_scenario_load_from_file() {
+        // ponytail: tests run from workspace root, path is relative to there.
+        let path = std::path::Path::new("../scenarios/ssp/ssp1_sustainability.json");
+        let scenario = SspScenario::load(path).unwrap();
+        assert_eq!(scenario.ssp_pathway, "SSP1");
+        assert_eq!(scenario.lookback_year, 2066);
+        assert!(scenario.projected_signals_2066.is_some());
+    }
 }
