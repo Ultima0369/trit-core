@@ -33,7 +33,7 @@
 
 | 日期 | 决策 | 文档 |
 |------|------|------|
-| 2026-07-05 | CostFactor 集成 DecisionPreview + L8 场景补齐 — `build_decision_preview` 接受 `Option<&dyn CostFactor>` 填充 `cost_metadata`。Region/Sector 枚举 derive Default（clippy 修复）。Aurora bench 修复（FftWaveletEngine 单元结构体 + TimeSeries API）。4 个新场景覆盖 Organizational/Relational/Cognitive/Environmental 域（从 0 场景到各 ≥1）。809 tests, clippy clean。 | 本轮对话 |
+| 2026-07-05 | CostFactor 集成 DecisionPreview + L8 (4 场景补齐) + SSP1-5 模板 + sandbox --cost-data CLI 标志。7 commits, 808 tests, clippy zero warnings。 | 本轮对话 |
 | 2026-07-01 | Tauri 桌面打包验证通过 — `cargo tauri build` 产出 NSIS `aurora_0.1.0_x64-setup.exe` (13M) + MSI (15M) + 裸 exe (27M)，release 编译 2m20s 零错误。19 个 Tauri 命令注册齐全（run_analysis_pipeline/get_anchor_status/get_geo_events/export_user_data 等），应用非空壳。M1 Exit Criteria "桌面应用可打包安装" 硬指标达成。 | 本轮对话 |
 | 2026-07-01 | 决策结果抽屉完成 — 顶栏 decision 标签可点击 → 抽屉展示 phase/asi/signals/conflicts。Esc 键优先关设置抽屉，其次关决策抽屉，最后退出应用。冲突项布局借鉴 worldmonitor renderSignal（左色条+badge）。8 提交，41 UI 测试，终审 Ready to merge。 | 本轮对话 |
 | 2026-06-30 | M1 数据持久化 + 导出完成 — 对齐 M1 Exit Criteria "数据导出"硬指标 + CHARTER "不剥夺"底线。AuroraApp 加 `export_data_json()` (5 表通用反射导出, 2 单测)。桌面应用 DB 从 in-memory 改为落盘 `aurora_data_dir/aurora.db` (持久化失败回落 in-memory)。新增 `export_user_data` Tauri 命令，前端 Blob+a[download] 下载 (零新插件依赖)。Sidebar 加"导出我的数据"按钮。 | 本轮对话 |
