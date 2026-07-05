@@ -1,0 +1,10 @@
+{
+  "id": "environmental_wetland_development",
+  "description": "Developer proposes commercial construction on wetland; GeoEco assessment flags irreversible ecological damage.",
+  "domain": "Environmental",
+  "signals": [
+    { "frame": "GeoEco", "value": -1, "phase": 0.9 },
+    { "frame": "Consensus", "value": 1, "phase": 0.4 }
+  ],
+  "expected_behavior": "commit_false"
+}

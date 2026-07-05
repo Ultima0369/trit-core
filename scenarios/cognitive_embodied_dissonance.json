@@ -1,0 +1,10 @@
+{
+  "id": "cognitive_embodied_dissonance",
+  "description": "Strategic analysis says invest; embodied gut feeling warns of hidden risk. Cognitive domain preserves Embodied frame as tiebreaker.",
+  "domain": "Cognitive",
+  "signals": [
+    { "frame": "Science", "value": 1, "phase": 0.5 },
+    { "frame": "Embodied", "value": -1, "phase": 0.4 }
+  ],
+  "expected_behavior": "commit_false"
+}

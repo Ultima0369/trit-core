@@ -1,0 +1,10 @@
+{
+  "id": "organizational_restructure_conflict",
+  "description": "CTO proposes architectural rewrite; Engineering VP insists on incremental improvement. Two organizational roles with conflicting frames.",
+  "domain": "Organizational",
+  "signals": [
+    { "frame": "Role", "value": 1, "phase": 0.8 },
+    { "frame": "Consensus", "value": -1, "phase": 0.6 }
+  ],
+  "expected_behavior": "hold"
+}

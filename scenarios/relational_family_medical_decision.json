@@ -1,0 +1,10 @@
+{
+  "id": "relational_family_medical_decision",
+  "description": "Elderly parent's Relational frame (prefers home care with family) conflicts with medical recommendation (Science frame advises nursing facility).",
+  "domain": "Relational",
+  "signals": [
+    { "frame": "Relational", "value": 1, "phase": 0.7 },
+    { "frame": "Science", "value": -1, "phase": 0.6 }
+  ],
+  "expected_behavior": "commit_true"
+}
