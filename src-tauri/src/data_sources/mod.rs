@@ -37,10 +37,7 @@ pub struct Cached<T> {
 }
 
 /// 读缓存。无缓存返回 None；有缓存返回数据 + stale 标记。
-pub fn read_cache<T: serde::de::DeserializeOwned>(
-    l2: &L2Cache,
-    key: &str,
-) -> Option<Cached<T>> {
+pub fn read_cache<T: serde::de::DeserializeOwned>(l2: &L2Cache, key: &str) -> Option<Cached<T>> {
     let bytes = l2.get(key)?;
     if bytes.len() < HEADER_LEN {
         return None;
@@ -94,7 +91,11 @@ pub async fn refresh_all(l2: &L2Cache) {
     crate::logger::log(
         "data-sources",
         "INFO",
-        &format!("CO2 缓存: {}", co2.map(|v| format!("{v} ppm")).unwrap_or_else(|| "采集失败".into())),
+        &format!(
+            "CO2 缓存: {}",
+            co2.map(|v| format!("{v} ppm"))
+                .unwrap_or_else(|| "采集失败".into())
+        ),
     );
     let ucdp = ucdp::fetch_geo_events(l2).await;
     crate::logger::log(
@@ -131,7 +132,8 @@ pub fn spawn_refresh_loop(l2: Arc<L2Cache>, shutdown: Arc<AtomicBool>) {
                 rt.block_on(refresh_all(&l2));
                 // 分段 sleep 以便响应 shutdown。
                 let mut slept = 0u64;
-                while slept < CACHE_TTL.as_secs() && !shutdown.load(std::sync::atomic::Ordering::SeqCst)
+                while slept < CACHE_TTL.as_secs()
+                    && !shutdown.load(std::sync::atomic::Ordering::SeqCst)
                 {
                     std::thread::sleep(Duration::from_secs(5));
                     slept += 5;

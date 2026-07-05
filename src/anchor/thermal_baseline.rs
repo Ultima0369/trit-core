@@ -240,7 +240,10 @@ mod tests {
         let baseline = ThermalBaseline::safe();
         let readings = baseline.snapshot();
         assert_eq!(readings.len(), 3);
-        assert!(readings.iter().all(|r| !r.violated), "safe baseline should have no violations");
+        assert!(
+            readings.iter().all(|r| !r.violated),
+            "safe baseline should have no violations"
+        );
         // CO2 safe value 415 < ceiling 450
         let co2 = &readings[1];
         assert!((co2.value - 415.0).abs() < 1e-9);
@@ -252,6 +255,9 @@ mod tests {
         let baseline = ThermalBaseline::exceeded();
         let readings = baseline.snapshot();
         // exceeded: OLR 3.0 > 2.5, CO2 460 > 450, imbalance 1.5 > 1.0 — all violated
-        assert!(readings.iter().all(|r| r.violated), "exceeded baseline should flag all sensors");
+        assert!(
+            readings.iter().all(|r| r.violated),
+            "exceeded baseline should flag all sensors"
+        );
     }
 }

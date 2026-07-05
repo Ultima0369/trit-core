@@ -42,7 +42,9 @@ pub fn encrypt(plain: &[u8]) -> Result<Vec<u8>, ConfigError> {
     // value must not cause from_raw_parts to read gigabytes.
     const MAX_DPAPI_BLOB: usize = 16 * 1024 * 1024;
     if data_out.cbData as usize > MAX_DPAPI_BLOB {
-        unsafe { windows_sys::Win32::Foundation::LocalFree(data_out.pbData as *mut std::ffi::c_void) };
+        unsafe {
+            windows_sys::Win32::Foundation::LocalFree(data_out.pbData as *mut std::ffi::c_void)
+        };
         return Err(ConfigError::Dpapi(format!(
             "CryptProtectData returned oversized blob: {} bytes",
             data_out.cbData
@@ -88,7 +90,9 @@ pub fn decrypt(cipher: &[u8]) -> Result<Vec<u8>, ConfigError> {
 
     const MAX_DPAPI_BLOB: usize = 16 * 1024 * 1024;
     if data_out.cbData as usize > MAX_DPAPI_BLOB {
-        unsafe { windows_sys::Win32::Foundation::LocalFree(data_out.pbData as *mut std::ffi::c_void) };
+        unsafe {
+            windows_sys::Win32::Foundation::LocalFree(data_out.pbData as *mut std::ffi::c_void)
+        };
         return Err(ConfigError::Dpapi(format!(
             "CryptUnprotectData returned oversized blob: {} bytes",
             data_out.cbData

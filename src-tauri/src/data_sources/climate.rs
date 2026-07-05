@@ -77,7 +77,11 @@ pub async fn fetch_climate_readings(l2: &L2Cache) -> Vec<ClimateReading> {
                 });
             }
             None => {
-                crate::logger::log("climate", "WARN", &format!("站点 {} 温度采集失败，跳过", name));
+                crate::logger::log(
+                    "climate",
+                    "WARN",
+                    &format!("站点 {} 温度采集失败，跳过", name),
+                );
             }
         }
     }
@@ -148,7 +152,11 @@ fn parse_co2_ppm(text: &str) -> Option<f64> {
     // rfind 从末尾找首个数据行（跳过注释/空行），避免遍历全部行。
     text.lines()
         .rfind(|l| !l.trim_start().starts_with('#') && !l.trim().is_empty())
-        .and_then(|l| l.split_whitespace().nth(3).and_then(|s| s.parse::<f64>().ok()))
+        .and_then(|l| {
+            l.split_whitespace()
+                .nth(3)
+                .and_then(|s| s.parse::<f64>().ok())
+        })
 }
 
 /// 返回 (today-30d, today) 的 YYYY-MM-DD 字符串。

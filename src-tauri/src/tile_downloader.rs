@@ -75,36 +75,47 @@ impl TileDownloader {
                     tokio::time::sleep(backoff).await;
                 }
                 match self.client.get(&url).send().await {
-                    Ok(response) if response.status().is_success() => match response.bytes().await {
-                        Ok(bytes) => {
-                            let len = bytes.len();
-                            self.downloaded.fetch_add(1, Ordering::Relaxed);
-                            crate::logger::log(
-                                "tile_dl",
-                                "INFO",
-                                &format!(
-                                    "✓ {} 来自 {} ({} bytes){}",
-                                    tile_key(z, x, y),
-                                    source.name,
-                                    len,
-                                    if attempt > 0 { format!(" (重试 {} 次)", attempt) } else { String::new() }
-                                ),
-                            );
-                            return Some(bytes.to_vec());
+                    Ok(response) if response.status().is_success() => {
+                        match response.bytes().await {
+                            Ok(bytes) => {
+                                let len = bytes.len();
+                                self.downloaded.fetch_add(1, Ordering::Relaxed);
+                                crate::logger::log(
+                                    "tile_dl",
+                                    "INFO",
+                                    &format!(
+                                        "✓ {} 来自 {} ({} bytes){}",
+                                        tile_key(z, x, y),
+                                        source.name,
+                                        len,
+                                        if attempt > 0 {
+                                            format!(" (重试 {} 次)", attempt)
+                                        } else {
+                                            String::new()
+                                        }
+                                    ),
+                                );
+                                return Some(bytes.to_vec());
+                            }
+                            Err(e) => {
+                                crate::logger::log(
+                                    "tile_dl",
+                                    "WARN",
+                                    &format!("响应体错误 {}: {}", source.name, e),
+                                );
+                            }
                         }
-                        Err(e) => {
-                            crate::logger::log(
-                                "tile_dl",
-                                "WARN",
-                                &format!("响应体错误 {}: {}", source.name, e),
-                            );
-                        }
-                    },
+                    }
                     Ok(response) => {
                         crate::logger::log(
                             "tile_dl",
                             "WARN",
-                            &format!("{} HTTP {} (attempt {})", source.name, response.status(), attempt + 1),
+                            &format!(
+                                "{} HTTP {} (attempt {})",
+                                source.name,
+                                response.status(),
+                                attempt + 1
+                            ),
                         );
                     }
                     Err(e) => {
@@ -252,7 +263,10 @@ impl TileDownloader {
             let url = source.build_url(z, x, y);
             for attempt in 0..=MAX_RETRIES {
                 if attempt > 0 {
-                    tokio::time::sleep(Duration::from_millis(BASE_BACKOFF_MS * (1 << (attempt - 1)))).await;
+                    tokio::time::sleep(Duration::from_millis(
+                        BASE_BACKOFF_MS * (1 << (attempt - 1)),
+                    ))
+                    .await;
                 }
                 match self.client.get(&url).send().await {
                     Ok(response) if response.status().is_success() => {

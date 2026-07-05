@@ -169,7 +169,11 @@ pub fn run() {
     // （M1 Exit Criteria "数据导出"的前提 + CHARTER "不剥夺"底线）。
     // 持久化失败回落 in-memory，不阻塞启动。
     let db_path = aurora_dir.join("aurora.db");
-    logger::log("init", "INFO", &format!("初始化 AuroraApp (DB: {})...", db_path.display()));
+    logger::log(
+        "init",
+        "INFO",
+        &format!("初始化 AuroraApp (DB: {})...", db_path.display()),
+    );
     let aurora_app = match AuroraApp::new(Some(&db_path)) {
         Ok(app) => {
             logger::log("init", "INFO", "AuroraApp 初始化完成 (持久化 DB)");
@@ -187,7 +191,11 @@ pub fn run() {
                     app
                 }
                 Err(e2) => {
-                    logger::log("init", "ERROR", &format!("AuroraApp in-memory 也失败: {e2}"));
+                    logger::log(
+                        "init",
+                        "ERROR",
+                        &format!("AuroraApp in-memory 也失败: {e2}"),
+                    );
                     server_shutdown.store(true, Ordering::SeqCst);
                     let _ = server_handle.join();
                     eprintln!("Fatal: AuroraApp init failed: {e2}");

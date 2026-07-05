@@ -93,9 +93,8 @@ impl Clone for Database {
                  Use &Database borrowing (e.g. SqliteAuditLog::new(&db)) instead."
             );
         }
-        Database::open(&self.path).unwrap_or_else(|_| {
-            panic!("failed to clone database connection to {:?}", self.path)
-        })
+        Database::open(&self.path)
+            .unwrap_or_else(|_| panic!("failed to clone database connection to {:?}", self.path))
     }
 }
 

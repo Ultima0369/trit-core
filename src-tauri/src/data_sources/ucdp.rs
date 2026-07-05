@@ -118,11 +118,7 @@ pub async fn fetch_geo_events(l2: &L2Cache) -> Vec<GeoEvent> {
     events
 }
 
-async fn fetch_page(
-    client: &reqwest::Client,
-    version: &str,
-    page: usize,
-) -> Option<Vec<UcdpRow>> {
+async fn fetch_page(client: &reqwest::Client, version: &str, page: usize) -> Option<Vec<UcdpRow>> {
     let url = format!(
         "https://ucdpapi.pcr.uu.se/api/gedevents/{}?pagesize={}&page={}",
         version, PAGE_SIZE, page

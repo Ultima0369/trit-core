@@ -67,12 +67,18 @@ impl CloudLLMProvider {
 
         let mut headers = reqwest::header::HeaderMap::new();
         if is_anthropic {
-            headers.insert("x-api-key", api_key.parse().map_err(|e| {
-                PerceptError::ParseError(format!("invalid api key header value: {e}"))
-            })?);
-            headers.insert("anthropic-version", "2023-06-01".parse().map_err(|e| {
-                PerceptError::ParseError(format!("invalid anthropic-version header: {e}"))
-            })?);
+            headers.insert(
+                "x-api-key",
+                api_key.parse().map_err(|e| {
+                    PerceptError::ParseError(format!("invalid api key header value: {e}"))
+                })?,
+            );
+            headers.insert(
+                "anthropic-version",
+                "2023-06-01".parse().map_err(|e| {
+                    PerceptError::ParseError(format!("invalid anthropic-version header: {e}"))
+                })?,
+            );
         } else {
             headers.insert(
                 "authorization",
@@ -81,9 +87,12 @@ impl CloudLLMProvider {
                 })?,
             );
         }
-        headers.insert("content-type", "application/json".parse().map_err(|e| {
-            PerceptError::ParseError(format!("invalid content-type header: {e}"))
-        })?);
+        headers.insert(
+            "content-type",
+            "application/json".parse().map_err(|e| {
+                PerceptError::ParseError(format!("invalid content-type header: {e}"))
+            })?,
+        );
 
         let client = reqwest::Client::builder()
             .default_headers(headers)

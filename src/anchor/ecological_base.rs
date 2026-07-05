@@ -249,7 +249,10 @@ mod tests {
         let eco = EcologicalBase::safe();
         let readings = eco.snapshot();
         assert_eq!(readings.len(), 3);
-        assert!(readings.iter().all(|r| !r.violated), "safe ecology should have no violations");
+        assert!(
+            readings.iter().all(|r| !r.violated),
+            "safe ecology should have no violations"
+        );
         // BII safe value 0.85 > threshold 0.75
         let bii = &readings[0];
         assert!((bii.value - 0.85).abs() < 1e-9);
@@ -261,7 +264,10 @@ mod tests {
         let eco = EcologicalBase::degraded();
         let readings = eco.snapshot();
         // degraded: BII 0.60 < 0.75, sink 0.40 < 0.50, pH 7.90 < 7.95 — all violated
-        assert!(readings.iter().all(|r| r.violated), "degraded ecology should flag all sensors");
+        assert!(
+            readings.iter().all(|r| r.violated),
+            "degraded ecology should flag all sensors"
+        );
     }
 
     #[test]

@@ -217,7 +217,9 @@ impl AuroraApp {
         for table in tables {
             export.insert(table.to_string(), dump_table(conn, table)?);
         }
-        Ok(serde_json::to_string_pretty(&serde_json::Value::Object(export))?)
+        Ok(serde_json::to_string_pretty(&serde_json::Value::Object(
+            export,
+        ))?)
     }
 
     /// Render analysis + attention into HTML and JSON output.
@@ -304,9 +306,9 @@ fn sql_value_to_json(v: rusqlite::types::Value) -> serde_json::Value {
         V::Real(r) => serde_json::json!(r),
         V::Text(s) => serde_json::Value::String(s),
         // BLOB → 十六进制字符串（用户表无 BLOB 列，此处仅 defense-in-depth）。
-        V::Blob(b) => serde_json::Value::String(
-            b.iter().map(|byte| format!("{byte:02x}")).collect(),
-        ),
+        V::Blob(b) => {
+            serde_json::Value::String(b.iter().map(|byte| format!("{byte:02x}")).collect())
+        }
     }
 }
 
@@ -331,7 +333,11 @@ mod tests {
             assert!(obj.contains_key(table), "missing table {table}");
             let t = obj.get(table).unwrap();
             assert!(t.get("columns").is_some(), "{table} missing columns");
-            assert_eq!(t["rows"].as_array().unwrap().len(), 0, "{table} should be empty");
+            assert_eq!(
+                t["rows"].as_array().unwrap().len(),
+                0,
+                "{table} should be empty"
+            );
         }
     }
 

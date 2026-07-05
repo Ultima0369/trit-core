@@ -465,7 +465,9 @@ pub async fn get_anchor_status(
     let co2_ppm = if degraded {
         415.0
     } else {
-        crate::data_sources::climate::fetch_co2_ppm(&state.l2).await.unwrap_or(415.0)
+        crate::data_sources::climate::fetch_co2_ppm(&state.l2)
+            .await
+            .unwrap_or(415.0)
     };
 
     let thermal = if degraded {
@@ -511,9 +513,7 @@ pub async fn get_anchor_status(
 /// 借鉴 worldmonitor 的 UCDP 链路：坐标 + 暴力类型 + 死伤，前端按类型分色、
 /// 按死伤缩放半径。trit-core 本地直采 + L2 缓存，失败返回空。
 #[tauri::command]
-pub async fn get_geo_events(
-    state: State<'_, AppState>,
-) -> Result<Vec<GeoEventResponse>, String> {
+pub async fn get_geo_events(state: State<'_, AppState>) -> Result<Vec<GeoEventResponse>, String> {
     let events = crate::data_sources::ucdp::fetch_geo_events(&state.l2).await;
     Ok(events
         .iter()
@@ -536,7 +536,8 @@ pub async fn get_geo_events(
 #[tauri::command]
 pub fn export_user_data(state: State<AppState>) -> Result<String, String> {
     let app = state.app.lock().map_err(|e| format!("lock error: {e}"))?;
-    app.export_data_json().map_err(|e| format!("export error: {e}"))
+    app.export_data_json()
+        .map_err(|e| format!("export error: {e}"))
 }
 
 /// 预取指定区域的瓦片（后台队列）。
