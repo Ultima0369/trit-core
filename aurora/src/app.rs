@@ -19,7 +19,7 @@ use crate::percept::cloud::CloudLLMProvider;
 use crate::percept::fft::FFTProvider;
 use crate::percept::local::LocalLLMProvider;
 use crate::percept::PerceptChain;
-use crate::percept::{RetrospectiveDoc, RetrospectiveProvider};
+use crate::percept::RetrospectiveDoc;
 use crate::pipeline::analysis::{self, AnalysisReport, PhaseTrajectory, SignalSpec};
 use crate::pipeline::attention::{self, AttentionOutcome};
 
@@ -271,26 +271,27 @@ impl AuroraApp {
         ssp_scenario_path: &Path,
         user_decision: &str,
     ) -> Result<RetrospectiveDoc> {
-        let scenario = crate::percept::retrospective::RetrospectiveProvider::load_scenario(
-            ssp_scenario_path,
-        )
-        .map_err(|e| anyhow::anyhow!("failed to load SSP scenario: {e}"))?;
-        // ponytail: use FFT provider as inner since we only need the prompt
-        // formatting and delegation structure. The actual LLM call happens
-        // through percept_chain, not the inner provider.
-        let inner = crate::percept::fft::FFTProvider::new(SignalSpec {
-            freq: 2.0,
-            sample_rate: 100.0,
-            duration_secs: 1.0,
-            noise_std: 0.0,
-        });
-        let provider = RetrospectiveProvider::new(Box::new(inner), scenario);
-        let prompt = provider.build_prompt(user_decision);
+        use crate::percept::retrospective::SspScenario;
+        let scenario = SspScenario::load(ssp_scenario_path)
+            .map_err(|e| anyhow::anyhow!("failed to load SSP scenario: {e}"))?;
+        let prompt = scenario.build_prompt(user_decision);
         let batch = self
             .percept_chain
             .perceive_or_degrade(&prompt)
             .map_err(|e| anyhow::anyhow!("retrospective perception failed: {e}"))?;
-        Ok(provider.to_doc(&batch))
+        // ponytail: build a minimal provider just to construct the doc.
+        // The inner FFTProvider is irrelevant — we already have the batch from
+        // percept_chain. RetrospectiveProvider exists for the trait impl;
+        // for direct use, SspScenario::build_prompt + to_doc_from_batch is sufficient.
+        Ok(RetrospectiveDoc {
+            pathway: scenario.ssp_pathway.clone(),
+            lookback_year: scenario.lookback_year,
+            decision_prompt: scenario.decision_prompt.clone(),
+            signal_count: batch.signals.len(),
+            source: batch.source.clone(),
+            confidence: batch.confidence,
+            projected: scenario.projected_signals_2066.clone(),
+        })
     }
 
     /// Render analysis + attention into HTML and JSON output.

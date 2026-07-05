@@ -38,6 +38,62 @@ pub struct SspScenario {
     pub projected_signals_2066: Option<ProjectedSignals>,
 }
 
+impl SspScenario {
+    /// Load an SSP scenario from a JSON file path.
+    pub fn load(path: &std::path::Path) -> Result<Self, PerceptError> {
+        let data = std::fs::read_to_string(path)
+            .map_err(|e| PerceptError::ParseError(format!("read SSP scenario: {e}")))?;
+        serde_json::from_str(&data)
+            .map_err(|e| PerceptError::ParseError(format!("parse SSP scenario: {e}")))
+    }
+
+    /// Build the future-retrospective prompt for the given user decision.
+    ///
+    /// This is the core of Lever 2: it frames the user's decision from the
+    /// perspective of the lookback year (default 2066), embedding the SSP
+    /// pathway's projected physical state.
+    pub fn build_prompt(&self, raw: &str) -> String {
+        let projected = self
+            .projected_signals_2066
+            .as_ref()
+            .map(|p| {
+                format!(
+                    "Projected {year} physical state:\n\
+                     - CO2: {co2} ppm\n\
+                     - Global temperature anomaly: +{temp}°C\n\
+                     - Biodiversity intactness index: {bio}\n\
+                     - Renewable energy share: {ren}%\n\
+                     - Global population: {pop} billion",
+                    year = self.lookback_year,
+                    co2 = p.co2_ppm,
+                    temp = p.global_temp_anomaly_c,
+                    bio = p.biodiversity_intactness,
+                    ren = p.renewable_share * 100.0,
+                    pop = p.population_billion
+                )
+            })
+            .unwrap_or_default();
+
+        format!(
+            "You are a retrospective analyst writing from the year {year}.\n\
+             SSP pathway: {ssp}\n\
+             Scenario: {desc}\n\
+             {projected}\n\n\
+             Context: {prompt}\n\n\
+             From the perspective of {year}, analyze the following decision and \
+             extract ternary signals (Frame, Value, Phase) that a future observer \
+             would perceive about today's choice. Return ONLY structured signals, \
+             no narrative.\n\n\
+             User input: {raw}",
+            year = self.lookback_year,
+            ssp = self.ssp_pathway,
+            desc = self.description,
+            projected = projected,
+            prompt = self.decision_prompt,
+        )
+    }
+}
+
 /// Projected physical quantities for the lookback year.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ProjectedSignals {
@@ -86,54 +142,17 @@ impl RetrospectiveProvider {
     }
 
     /// Build the retrospective prompt for the inner LLM.
+    /// Delegates to [`SspScenario::build_prompt`].
     pub fn build_prompt(&self, raw: &str) -> String {
-        let projected = self
-            .scenario
-            .projected_signals_2066
-            .as_ref()
-            .map(|p| {
-                format!(
-                    "Projected {year} physical state:\n\
-                     - CO2: {co2} ppm\n\
-                     - Global temperature anomaly: +{temp}°C\n\
-                     - Biodiversity intactness index: {bio}\n\
-                     - Renewable energy share: {ren}%\n\
-                     - Global population: {pop} billion",
-                    year = self.scenario.lookback_year,
-                    co2 = p.co2_ppm,
-                    temp = p.global_temp_anomaly_c,
-                    bio = p.biodiversity_intactness,
-                    ren = p.renewable_share * 100.0,
-                    pop = p.population_billion
-                )
-            })
-            .unwrap_or_default();
-
-        format!(
-            "You are a retrospective analyst writing from the year {year}.\n\
-             SSP pathway: {ssp}\n\
-             Scenario: {desc}\n\
-             {projected}\n\n\
-             Context: {prompt}\n\n\
-             From the perspective of {year}, analyze the following decision and \
-             extract ternary signals (Frame, Value, Phase) that a future observer \
-             would perceive about today's choice. Return ONLY structured signals, \
-             no narrative.\n\n\
-             User input: {raw}",
-            year = self.scenario.lookback_year,
-            ssp = self.scenario.ssp_pathway,
-            desc = self.scenario.description,
-            projected = projected,
-            prompt = self.scenario.decision_prompt,
-        )
+        self.scenario.build_prompt(raw)
     }
 
     /// Load an SSP scenario from a JSON file path.
+    ///
+    /// Also available as [`SspScenario::load`] for use without constructing
+    /// a RetrospectiveProvider.
     pub fn load_scenario(path: &std::path::Path) -> Result<SspScenario, PerceptError> {
-        let data = std::fs::read_to_string(path)
-            .map_err(|e| PerceptError::ParseError(format!("read SSP scenario: {e}")))?;
-        serde_json::from_str(&data)
-            .map_err(|e| PerceptError::ParseError(format!("parse SSP scenario: {e}")))
+        SspScenario::load(path)
     }
 
     /// The loaded SSP scenario (for inspection / serialization).
