@@ -1,3 +1,4 @@
+use crate::anchor::cost_factor::CostMetadata;
 use crate::anchor::AnchorReport;
 use crate::core::word::TritWord;
 use crate::meta::{ArbitrationResult, MetaInterrupt};
@@ -59,6 +60,9 @@ pub struct SandboxDiagnostics {
     /// Optional feedback signal from Layer 5 practice testing.
     #[serde(skip)]
     pub feedback_signal: Option<crate::feedback::FeedbackSignal>,
+    /// True cost metadata from anchor check (populated when --cost-data is used).
+    #[serde(skip)]
+    pub cost_metadata: Option<CostMetadata>,
 }
 
 impl SandboxDiagnostics {

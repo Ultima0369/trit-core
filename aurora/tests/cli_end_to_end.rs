@@ -2,10 +2,12 @@
 //!
 //! Updated for M1 BC architecture: uses two independent pipeline links
 //! (analysis + attention) with BC presentation renderer.
+//!
+//! M2 update: CLI uses subcommands — `aurora pipeline` for the original path.
 
 use std::process::Command;
 
-// ── Existing tests ─────────────────────────────────────────────────────────
+// ── pipeline subcommand tests ────────────────────────────────────────
 
 #[test]
 fn cli_generates_html_report() {
@@ -18,6 +20,7 @@ fn cli_generates_html_report() {
             "--bin",
             "aurora",
             "--",
+            "pipeline",
             "--input",
             "examples/synthetic_2hz.json",
             "--output",
@@ -58,6 +61,7 @@ fn cli_prints_json_without_output_flag() {
             "--bin",
             "aurora",
             "--",
+            "pipeline",
             "--input",
             "examples/synthetic_2hz.json",
             "--user-feels-normal",
@@ -97,8 +101,6 @@ fn contacts_end_to_end_via_cli() {
     let output_path = dir.join("report.html");
 
     // Run aurora CLI — resolve from workspace root
-    // When running via `cargo test`, CARGO_MANIFEST_DIR points to the package dir.
-    // The binary is at workspace_root/target/debug/aurora[.exe]
     let manifest_dir = std::path::PathBuf::from(
         std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into()),
     );
@@ -115,6 +117,7 @@ fn contacts_end_to_end_via_cli() {
     );
 
     let output = std::process::Command::new(&binary)
+        .arg("pipeline")
         .arg("--input")
         .arg(&input_path)
         .arg("--data-source")

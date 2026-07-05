@@ -1,8 +1,20 @@
-//! Critical thinking adapter — logical consistency and counterfactual reasoning.
+//! Logical consistency check — contradiction detection and frame-count penalty.
 //!
-//! Verifies boundary conditions, detects logical gaps, and generates
-//! counterfactuals. When too many frames are in play, confidence drops
-//! because the reasoning surface is too large to verify exhaustively.
+//! Verifies boundary conditions, detects contradictory signal pairs (same frame,
+//! opposite values, both high phase), and penalizes confidence when too many
+//! distinct frames stretch the reasoning surface beyond exhaustive verification.
+//!
+//! ## What this is NOT (ponytail audit finding I)
+//!
+//! This module does NOT perform counterfactual reasoning, challenge its own
+//! assumptions, or generate alternative decision paths. The name
+//! "CriticalThinking" was aspirational. The module performs:
+//!
+//! 1. O(n²) contradiction scan: same frame, opposite computable values, both phase > 0.7
+//! 2. Frame-count penalty: ≥3 distinct frames → -0.3 confidence; ≥4 → FrameMismatch interrupt
+//! 3. Confidence floor: max(0.2, 0.9 - frame_penalty - contradiction_penalty)
+//!
+//! Rename to `LogicalConsistencyCheck` to reflect the actual behavior.
 
 use crate::adapters::{adapter_lifecycle, CognitiveModule, ModuleInput, ModuleOutput};
 use crate::core::TritValue;
@@ -11,30 +23,30 @@ use crate::hook::HookContext;
 use crate::meta::{ConflictType, MetaInterrupt, PolicyViolation};
 
 /// Cognitive module for critical thinking and boundary verification.
-pub struct CriticalThinking {
+pub struct LogicalConsistencyCheck {
     state: ModuleState,
 }
 
-impl CriticalThinking {
+impl LogicalConsistencyCheck {
     /// Create a new critical thinking module.
     pub fn new() -> Self {
-        CriticalThinking {
+        LogicalConsistencyCheck {
             state: ModuleState::Idle,
         }
     }
 }
 
-impl Default for CriticalThinking {
+impl Default for LogicalConsistencyCheck {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl CognitiveModule for CriticalThinking {
+impl CognitiveModule for LogicalConsistencyCheck {
     adapter_lifecycle!();
 
     fn id(&self) -> ModuleId {
-        ModuleId::CriticalThinking
+        ModuleId::LogicalConsistencyCheck
     }
 
     fn name(&self) -> &'static str {
@@ -148,7 +160,7 @@ mod tests {
 
     #[test]
     fn empty_input_returns_hold() {
-        let mut m = CriticalThinking::new();
+        let mut m = LogicalConsistencyCheck::new();
         let input = ModuleInput {
             signals: vec![],
             interrupts: vec![],
@@ -160,7 +172,7 @@ mod tests {
 
     #[test]
     fn single_frame_no_contradictions() {
-        let mut m = CriticalThinking::new();
+        let mut m = LogicalConsistencyCheck::new();
         let input = ModuleInput {
             signals: vec![
                 word(Frame::Science, TritValue::True, 0.6),
@@ -176,7 +188,7 @@ mod tests {
 
     #[test]
     fn contradictory_signals_detected() {
-        let mut m = CriticalThinking::new();
+        let mut m = LogicalConsistencyCheck::new();
         let input = ModuleInput {
             signals: vec![
                 word(Frame::Science, TritValue::True, 0.9),
@@ -192,7 +204,7 @@ mod tests {
 
     #[test]
     fn many_frames_reduces_confidence() {
-        let mut m = CriticalThinking::new();
+        let mut m = LogicalConsistencyCheck::new();
         let input = ModuleInput {
             signals: vec![
                 word(Frame::Science, TritValue::True, 0.5),
@@ -213,14 +225,14 @@ mod tests {
 
     #[test]
     fn module_id_and_name() {
-        let m = CriticalThinking::new();
-        assert_eq!(m.id(), ModuleId::CriticalThinking);
+        let m = LogicalConsistencyCheck::new();
+        assert_eq!(m.id(), ModuleId::LogicalConsistencyCheck);
         assert_eq!(m.name(), "critical_thinking");
     }
 
     #[test]
     fn lifecycle() {
-        let mut m = CriticalThinking::new();
+        let mut m = LogicalConsistencyCheck::new();
         assert_eq!(m.state(), ModuleState::Idle);
         m.on_unmount();
         assert_eq!(m.state(), ModuleState::Completed);

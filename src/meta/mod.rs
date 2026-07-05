@@ -4,7 +4,7 @@
 // - frame_mask: O(1) bitmask for frame presence checks
 // - domain: Domain enum, ResolutionPolicy, ArbitrationResult, PolicyError
 // - interrupt: MetaInterrupt, ConflictType, MetaMonitor
-// - rules: CustomRule, JsonRuleLoader, RuleError
+// - rules: CustomRule, FallbackBehavior, load_rule, load_rule_json, apply_rule
 // - safe_fallback: IEC 61508 safety-preserving override
 
 mod domain;
@@ -15,8 +15,11 @@ mod safe_fallback;
 
 // Re-export public API
 pub use domain::{ArbitrationResult, Domain, DomainParseError, PolicyError, ResolutionPolicy};
-pub use interrupt::{ConflictType, MetaInterrupt, MetaMonitor, PolicyViolation, MAX_INTERRUPT_LOG};
-pub use rules::{CustomRule, FallbackBehavior, JsonRuleLoader, RuleError};
+pub use interrupt::{
+    CognitiveOffload, ConflictType, HoldReason, MetaInterrupt, MetaMonitor, PolicyViolation,
+    SourceConflict, MAX_INTERRUPT_LOG,
+};
+pub use rules::{apply_rule, load_rule, load_rule_json, CustomRule, FallbackBehavior, RuleError};
 pub use safe_fallback::SafeFallback;
 
 #[cfg(test)]

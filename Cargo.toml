@@ -65,5 +65,5 @@ debug = 1
 codegen-units = 16
 
 [workspace]
-members = [".", "aurora", "src-tauri"]
+members = [".", "aurora", "src-tauri", "dataforge"]
 resolver = "2"

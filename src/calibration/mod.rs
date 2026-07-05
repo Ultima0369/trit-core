@@ -1,7 +1,7 @@
 //! Calibration log: decision history for feedback-driven learning.
 //!
 //! Records every pipeline run as a [`CalibrationEntry`] in a fixed-size
-//! ring buffer. The log is consumed by [`SelfKnowledge`](crate::adapters::self_knowledge::SelfKnowledge)
+//! ring buffer. The log is consumed by [`ResponsePatternCache`](crate::adapters::self_knowledge::ResponsePatternCache)
 //! to calibrate response patterns, and by [`AttentionScheduler`](crate::adapters::bandwidth_scheduler::AttentionScheduler)
 //! to adjust bandwidth over time.
 //!

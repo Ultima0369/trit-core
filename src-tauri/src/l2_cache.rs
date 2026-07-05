@@ -53,8 +53,8 @@ impl L2Cache {
 
     /// 从磁盘读取瓦片。
     ///
-    /// 命中时更新文件 atime 用于 LRU 驱逐决策。
-    /// atime 更新在后台线程异步执行，不阻塞当前请求。
+    /// 命中时同步更新文件 atime 用于 LRU 驱逐决策。
+    /// file_touch（open + set_times）是 ~0.5ms 操作，比 spawn 线程更轻。
     pub fn get(&self, key: &str) -> Option<Vec<u8>> {
         // 读锁：与并发 get/put 共享，仅 clear 持写锁时阻塞
         let _guard = self.clear_lock.read().unwrap_or_else(|e| e.into_inner());
@@ -62,11 +62,8 @@ impl L2Cache {
         match fs::read(&path) {
             Ok(data) if !data.is_empty() => {
                 self.hits.fetch_add(1, Ordering::Relaxed);
-                // 异步更新 atime — 不阻塞瓦片服务（guard 已随作用域释放）
-                let path_clone = path.clone();
-                std::thread::spawn(move || {
-                    let _ = file_touch(&path_clone);
-                });
+                // ponytail: 同步 touch — open+set_times ≪ spawn 线程开销
+                let _ = file_touch(&path);
                 Some(data)
             }
             _ => {

@@ -254,8 +254,8 @@ Aurora 是 Trit-Core 的**上层应用**，不是替代品。
 | 层级 | Trit-Core（基础） | Aurora（扩展，已合入同一 enum） |
 |------|-----------|--------|
 | 核心代数 | 三值逻辑（TAND/TOR/TNOT） | 使用 Trit-Core 的代数 |
-| 参考系 Frame | 8 个：Science/Individual/Consensus/Absolute/Meta/FirstPerson/Embodied/Relational | +4 个：GeoEco/Developmental/Role/Environmental（共 12 个，见 `src/core/frame.rs`，ADR-004 已实现） |
-| 仲裁域 Domain | 6 个：Physical/Engineering/MedicalEthics/ValueJudgment/General/Custom | +4 个：Organizational/Relational/Cognitive/Environmental（共 10 个，见 `src/meta/domain.rs`） |
+| 参考系 Frame | 8 个：Science/Individual/Consensus/Absolute/Meta/FirstPerson/Embodied/Relational | +5 个：GeoEco/Developmental/Role/Environmental/Instrumental（共 13 个，见 `src/core/frame.rs`，ADR-004 + ADR-005 已实现） |
+| 仲裁域 Domain | 6 个：Physical/Engineering/MedicalEthics/ValueJudgment/General/Custom | +5 个：Organizational/Relational/Cognitive/Environmental/Climate（共 11 个，见 `src/meta/domain.rs`） |
 | 安全模型 | SafeFallback + MetaMonitor | 集成 SecurityMode 四态：Service/Refusal/Awareness/Transparency（Refusal 阻断运算，其余不阻断） |
 | 应用层 | 无 | 数据采集、小波分析、可视化、告警 |
 | 用户界面 | CLI | 桌面应用（Tauri）+ 可选 Web 仪表板 |

@@ -2,7 +2,8 @@ use crate::core::frame::Frame;
 use crate::core::value::TritValue;
 use crate::core::word::TritWord;
 use crate::meta::frame_mask::FrameMask;
-use crate::meta::rules::{CustomRule, JsonRuleLoader};
+use crate::meta::rules::{apply_rule, CustomRule};
+use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use thiserror::Error;
 use tracing::{debug, info};
@@ -10,7 +11,7 @@ use tracing::{debug, info};
 /// Domain rules for conflict resolution.
 /// Each domain defines which frame has priority and whether
 /// forced resolution (hard collapse) is allowed.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Domain {
     /// Hard science constraints: Science priority, forced collapse.
     Physical,
@@ -32,6 +33,14 @@ pub enum Domain {
     Cognitive,
     /// Environmental adaptation: prioritize geo-ecological frame when present.
     Environmental,
+    /// Climate science: Instrumental priority, multi-source Science → Hold.
+    ///
+    /// Climate decisions involve physical measurements (CO2 ppm, temperature
+    /// anomalies, ice coverage) that are Instrumental — not Science (theory).
+    /// When instrumental measurements conflict with scientific models, the
+    /// measurement takes priority. When multiple scientific sources disagree
+    /// and no instrumental measurement resolves the conflict → Hold.
+    Climate,
 }
 
 /// Error type for policy arbitration failures.
@@ -64,6 +73,7 @@ impl FromStr for Domain {
             "Relational" => Ok(Domain::Relational),
             "Cognitive" => Ok(Domain::Cognitive),
             "Environmental" => Ok(Domain::Environmental),
+            "Climate" => Ok(Domain::Climate),
             d if d.starts_with("Custom(") => {
                 let name = d
                     .strip_prefix("Custom(")
@@ -94,6 +104,7 @@ impl std::fmt::Display for Domain {
             Domain::Relational => write!(f, "Relational"),
             Domain::Cognitive => write!(f, "Cognitive"),
             Domain::Environmental => write!(f, "Environmental"),
+            Domain::Climate => write!(f, "Climate"),
         }
     }
 }
@@ -161,6 +172,7 @@ impl ResolutionPolicy {
             Domain::Relational => self.arbitrate_relational(inputs, &mask),
             Domain::Cognitive => self.arbitrate_cognitive(inputs, &mask),
             Domain::Environmental => self.arbitrate_environmental(inputs, &mask),
+            Domain::Climate => self.arbitrate_climate(inputs, &mask),
         };
         info!(?result, "arbitration completed");
         Ok(result)
@@ -224,6 +236,47 @@ impl ResolutionPolicy {
         }
     }
 
+    /// Climate: Instrumental priority, Individual excluded, multi-source Science → Hold.
+    ///
+    /// - Instrumental measurements (CO2 ppm, temperature anomaly) take priority
+    ///   over Science claims (climate models, theoretical projections).
+    /// - Individual frame signals (subjective experience of weather) do NOT
+    ///   participate in climate arbitration — personal feeling about temperature
+    ///   is not a climate measurement.
+    /// - When Science frames conflict without Instrumental resolution → Hold.
+    /// - When GeoEco frame is present (ecosystem-level context), preserve it.
+    fn arbitrate_climate(&self, inputs: &[TritWord], mask: &FrameMask) -> ArbitrationResult {
+        // Instrumental overrides Science — measurement over theory.
+        if mask.has(&Frame::Instrumental) {
+            // When multiple Instrumental sources disagree, refuse to pick one.
+            let instrumental_signals: Vec<&TritWord> = inputs
+                .iter()
+                .filter(|t| t.frame() == Frame::Instrumental)
+                .collect();
+            if instrumental_signals.len() > 1 {
+                let first_val = instrumental_signals[0].value();
+                let all_agree = instrumental_signals.iter().all(|t| t.value() == first_val);
+                if !all_agree {
+                    return ArbitrationResult::Hold;
+                }
+            }
+            return Self::preserve_frame(inputs, Frame::Instrumental);
+        }
+        // GeoEco context is second priority.
+        if mask.has(&Frame::GeoEco) {
+            return Self::preserve_frame(inputs, Frame::GeoEco);
+        }
+        // Science alone, with multiple frames → Hold (theory without measurement).
+        if mask.has(&Frame::Science) {
+            if mask.count() > 1 {
+                return ArbitrationResult::Negotiate;
+            }
+            return Self::commit_frame(inputs, Frame::Science);
+        }
+        // No recognized frame → Hold.
+        ArbitrationResult::Hold
+    }
+
     /// Custom domain: delegate to loaded rule, or default to Negotiate.
     fn arbitrate_custom(
         &self,
@@ -233,7 +286,7 @@ impl ResolutionPolicy {
     ) -> ArbitrationResult {
         if let Some(ref rule) = self.custom_rule {
             info!(custom_domain = %name, rule = %rule.name, "custom domain arbitration using loaded rule");
-            return JsonRuleLoader::apply(rule, inputs);
+            return apply_rule(rule, inputs);
         }
         info!(custom_domain = %name, "custom domain arbitration: no rule loaded, defaulting to Negotiate");
         ArbitrationResult::Negotiate
@@ -623,5 +676,38 @@ mod tests {
         ];
         let result = policy.arbitrate(&inputs).unwrap();
         assert_eq!(result, ArbitrationResult::Hold);
+    }
+
+    #[test]
+    fn climate_instrumental_agreement_preserves() {
+        // Two Instrumental signals that agree → Preserve.
+        let policy = ResolutionPolicy::new(Domain::Climate);
+        let inputs = vec![
+            TritWord::tru(Frame::Instrumental),
+            TritWord::tru(Frame::Instrumental),
+        ];
+        let result = policy.arbitrate(&inputs).unwrap();
+        assert!(matches!(result, ArbitrationResult::Preserve(_)));
+    }
+
+    #[test]
+    fn climate_instrumental_conflict_holds() {
+        // Two Instrumental signals that disagree → Hold.
+        let policy = ResolutionPolicy::new(Domain::Climate);
+        let inputs = vec![
+            TritWord::tru(Frame::Instrumental),
+            TritWord::fals(Frame::Instrumental),
+        ];
+        let result = policy.arbitrate(&inputs).unwrap();
+        assert_eq!(result, ArbitrationResult::Hold);
+    }
+
+    #[test]
+    fn climate_single_instrumental_preserves() {
+        // One Instrumental signal → Preserve directly.
+        let policy = ResolutionPolicy::new(Domain::Climate);
+        let inputs = vec![TritWord::tru(Frame::Instrumental)];
+        let result = policy.arbitrate(&inputs).unwrap();
+        assert!(matches!(result, ArbitrationResult::Preserve(_)));
     }
 }

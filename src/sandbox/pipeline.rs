@@ -4,7 +4,7 @@ use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::adapters::bandwidth_scheduler::AttentionScheduler;
 use crate::adapters::reflexive_audit::{ReflexiveAlert, ReflexiveAuditor};
-use crate::adapters::self_knowledge::SelfKnowledge;
+use crate::adapters::self_knowledge::ResponsePatternCache;
 use crate::adapters::{AttentionCmd, ShiftTarget};
 use crate::anchor::{check_all, AnchorConstraint};
 use crate::budget::ComputeBudget;
@@ -34,14 +34,14 @@ pub struct SandboxPipeline {
     pub(crate) dry_run: bool,
     pub(crate) decision_engine: crate::core::decision_engine::DecisionEngine,
     pub(crate) attention: Option<AttentionScheduler>,
-    pub(crate) self_knowledge: Option<SelfKnowledge>,
+    pub(crate) self_knowledge: Option<ResponsePatternCache>,
     pub(crate) holder_config: Option<HolderConfig>,
     pub(crate) trace_phase: bool,
     pub(crate) hold_final: bool,
     /// Anchor constraints checked before every decision.
     pub(crate) anchor_constraints: Vec<Box<dyn AnchorConstraint>>,
     /// True cost factor for populating DecisionPreview::cost_metadata.
-    pub(crate) cost_factor: Option<Box<dyn crate::anchor::cost_factor::CostFactor>>,
+    pub(crate) cost_factor: Option<crate::anchor::cost_factor::JsonFactorLoader>,
     /// Hardware-aware compute budget for depth gating.
     pub(crate) budget: ComputeBudget,
     /// Harmonic clock for temporal context.
@@ -77,8 +77,55 @@ impl Default for SandboxPipeline {
 }
 
 impl SandboxPipeline {
-    /// Create a new pipeline.
+    /// Create a new pipeline with all anchor constraints mounted.
+    ///
+    /// Anchor constraints are the non-negotiable veto layer (Layer 1). They
+    /// are mounted by default — every decision passes through them. Use
+    /// [`SandboxPipeline::without_anchors`] to create a pipeline without them
+    /// (for testing or when explicitly disabling the veto layer).
     pub fn new() -> Self {
+        Self::with_anchors()
+    }
+
+    /// Create a pipeline with all five anchor constraints mounted.
+    ///
+    /// This is the default. The five constraints are:
+    /// - ThermalBaseline (OLR anomaly, CO2, energy imbalance)
+    /// - SurvivalMotives (hunger, thirst, safety, belonging)
+    /// - FlourishingPool (autonomy, creativity, connection, transcendence)
+    /// - EcologicalBase (biodiversity, sink capacity, ocean pH)
+    /// - WellbeingPriority (intergenerational justice, non-human life, irreversible damage)
+    pub fn with_anchors() -> Self {
+        let anchors: Vec<Box<dyn AnchorConstraint>> = vec![
+            Box::new(crate::anchor::thermal_baseline::ThermalBaseline::safe()),
+            Box::new(crate::anchor::survival_motives::SurvivalMotives::new()),
+            Box::new(crate::anchor::flourishing_pool::FlourishingPool::new()),
+            Box::new(crate::anchor::ecological_base::EcologicalBase::safe()),
+            Box::new(crate::anchor::wellbeing_priority::WellbeingPriority::new()),
+        ];
+        Self {
+            dry_run: false,
+            decision_engine: crate::core::decision_engine::DecisionEngine::new(),
+            attention: None,
+            self_knowledge: None,
+            holder_config: None,
+            trace_phase: false,
+            hold_final: false,
+            anchor_constraints: anchors,
+            budget: ComputeBudget::conservative(),
+            clock: HarmonicClock::deliberative(),
+            calibration_log: CalibrationLog::default(),
+            feedback: None,
+            cost_factor: None,
+        }
+    }
+
+    /// Create a pipeline without any anchor constraints.
+    ///
+    /// Use this for testing or benchmarking where the veto layer should be
+    /// explicitly bypassed. The default [`SandboxPipeline::new`] includes all
+    /// five anchor constraints.
+    pub fn without_anchors() -> Self {
         Self {
             dry_run: false,
             decision_engine: crate::core::decision_engine::DecisionEngine::new(),
@@ -121,7 +168,7 @@ impl SandboxPipeline {
     }
 
     /// Attach a self-knowledge model.
-    pub fn with_self_knowledge(mut self, knowledge: SelfKnowledge) -> Self {
+    pub fn with_self_knowledge(mut self, knowledge: ResponsePatternCache) -> Self {
         self.self_knowledge = Some(knowledge);
         self
     }
@@ -177,10 +224,7 @@ impl SandboxPipeline {
     }
 
     /// Attach a true cost factor for anchor check enrichment.
-    pub fn with_cost_factor(
-        mut self,
-        cf: Box<dyn crate::anchor::cost_factor::CostFactor>,
-    ) -> Self {
+    pub fn with_cost_factor(mut self, cf: crate::anchor::cost_factor::JsonFactorLoader) -> Self {
         self.cost_factor = Some(cf);
         self
     }
@@ -265,7 +309,7 @@ impl SandboxPipeline {
             &mut diagnostics,
         );
 
-        // Stage 13: calibrate — record entry + update SelfKnowledge patterns
+        // Stage 13: calibrate — record entry + update ResponsePatternCache patterns
         self.stage_calibrate(scenario, &final_word, &mut diagnostics);
 
         // Stage 14: feedback loop (Layer 5)
@@ -385,7 +429,7 @@ impl SandboxPipeline {
         // Stage 10: self-knowledge inference
         let stage_start = Instant::now();
         let receiver_estimate = self.self_knowledge.as_ref().map(|k| {
-            let estimate = k.infer_receiver_state(final_word);
+            let estimate = k.lookup_pattern(final_word);
             diagnostics.record_receiver_estimate(estimate.clone());
             estimate
         });
@@ -441,15 +485,15 @@ impl SandboxPipeline {
         mut final_word: TritWord,
         diagnostics: &mut SandboxDiagnostics,
     ) -> TritWord {
+        // Populate cost metadata even when no anchor constraints are configured.
+        let preview =
+            crate::anchor::build_decision_preview(scenario, &final_word, self.cost_factor.as_ref());
+        diagnostics.cost_metadata = preview.cost_metadata.clone();
+
         if self.anchor_constraints.is_empty() {
             return final_word;
         }
         let stage_start = Instant::now();
-        let preview = crate::anchor::build_decision_preview(
-            scenario,
-            &final_word,
-            self.cost_factor.as_deref(),
-        );
         let anchor_report = check_all(&self.anchor_constraints, &preview);
         if anchor_report.has_violations() {
             warn!(
@@ -485,7 +529,32 @@ impl SandboxPipeline {
         output
     }
 
-    /// Stage 13: calibrate — record a CalibrationEntry and feed back into SelfKnowledge.
+    /// Stage 13: calibrate — record a CalibrationEntry and feed back into ResponsePatternCache.
+    ///
+    /// ## Reflexivity boundary (ponytail audit finding G)
+    ///
+    /// This calibration loop is **internally closed**: the pipeline's own output
+    /// (frame, value, phase, interrupt_count) is fed back into
+    /// [`ResponsePatternCache::calibrate_from_result`], which adjusts stored
+    /// patterns by ±0.05 phase. Those adjusted patterns then influence future
+    /// decisions via [`ResponsePatternCache::lookup_pattern`].
+    ///
+    /// **There is no external signal in this loop.** The system calibrates
+    /// against its own output — not against ground truth, not against
+    /// real-world outcomes, not against independent annotation. Over time,
+    /// patterns converge to their initial defaults (the human-authored
+    /// `with_human_defaults()` seed values), not to any external truth.
+    ///
+    /// **Two paths to fix this:**
+    /// 1. **External calibration path**: feed independently annotated outcomes
+    ///    (e.g., human-labeled correctness, real-world event data) into
+    ///    `calibrate_from_result` instead of the pipeline's own output.
+    /// 2. **Adversarial calibration**: compare decisions from two independent
+    ///    engine instances with different initial seeds — divergence signals
+    ///    the calibration is self-reinforcing.
+    ///
+    /// Until one of these paths is implemented, treat the calibration log
+    /// as an internal consistency record, not as evidence of learning.
     fn stage_calibrate(
         &mut self,
         scenario: &ScenarioInput,
@@ -512,7 +581,7 @@ impl SandboxPipeline {
         };
         self.calibration_log.record(entry);
 
-        // Feed back into SelfKnowledge if present
+        // Feed back into ResponsePatternCache if present
         if let Some(ref mut knowledge) = self.self_knowledge {
             knowledge.calibrate_from_result(
                 final_word.frame(),
@@ -586,6 +655,16 @@ impl SandboxPipeline {
         } else {
             None
         };
+        // When the decision is Hold, build a CognitiveOffload to explain why.
+        let cognitive_offload = if final_word.value() == TritValue::Hold {
+            Some(Self::build_cognitive_offload(
+                scenario,
+                final_word,
+                diagnostics,
+            ))
+        } else {
+            None
+        };
         SandboxOutput {
             scenario_id: sanitize_log_field(&scenario.id),
             final_value: format!("{:?}", final_word.value()),
@@ -603,7 +682,143 @@ impl SandboxPipeline {
             attention_cmd: diagnostics.attention_cmd.clone(),
             receiver_estimate: diagnostics.receiver_estimate.clone(),
             hold_state,
+            cost_metadata: diagnostics.cost_metadata.clone(),
+            cognitive_offload,
         }
+    }
+
+    /// Build a CognitiveOffload from the pipeline's diagnostic state.
+    ///
+    /// Maps interrupt types to HoldReasons, extracts conflicting frames
+    /// as SourceConflicts, and suggests what data would help resolve
+    /// the impasse.
+    fn build_cognitive_offload(
+        scenario: &ScenarioInput,
+        _final_word: &TritWord,
+        diagnostics: &SandboxDiagnostics,
+    ) -> crate::meta::CognitiveOffload {
+        use crate::meta::{CognitiveOffload, HoldReason, SourceConflict};
+
+        // Determine the primary hold reason from interrupts and anchor state.
+        let reason = if diagnostics
+            .anchor_report
+            .as_ref()
+            .map(|r| r.has_violations())
+            .unwrap_or(false)
+        {
+            HoldReason::AnchorViolation
+        } else if diagnostics
+            .interrupts
+            .iter()
+            .any(|i| matches!(i.conflict, crate::meta::ConflictType::FrameMismatch))
+        {
+            HoldReason::FrameMismatch
+        } else if diagnostics
+            .interrupts
+            .iter()
+            .any(|i| matches!(i.conflict, crate::meta::ConflictType::ExplainImpulse))
+        {
+            HoldReason::InsufficientData
+        } else if diagnostics.interrupts.is_empty() {
+            HoldReason::DomainBoundary
+        } else {
+            HoldReason::Other("unresolved conflict".into())
+        };
+
+        // Build source conflicts from interrupt frame pairs.
+        let mut conflicts: Vec<SourceConflict> = diagnostics
+            .interrupts
+            .iter()
+            .filter_map(|i| {
+                let (a, b) = i.frames();
+                if a == "Meta" || b == "Meta" {
+                    return None;
+                }
+                Some(SourceConflict {
+                    source_a: a,
+                    source_b: b,
+                    description: i.reason.clone(),
+                    disputed_claim: String::new(),
+                })
+            })
+            .collect();
+
+        // When there are no interrupts but the domain is Climate and the
+        // conflict comes from the arbiter rejecting multi-source disagreement,
+        // build SourceConflict entries directly from the scenario signals.
+        if conflicts.is_empty() && scenario.domain == "Climate" {
+            let instrumental: Vec<&SignalInput> = scenario
+                .signals
+                .iter()
+                .filter(|s| s.frame == "Instrumental")
+                .collect();
+            if instrumental.len() > 1 {
+                let first_val = instrumental[0].value;
+                let all_same = instrumental.iter().all(|s| s.value == first_val);
+                if !all_same {
+                    // Group by value for a concise conflict description.
+                    let tru_count = instrumental.iter().filter(|s| s.value == 1).count();
+                    let fals_count = instrumental.iter().filter(|s| s.value == -1).count();
+                    conflicts.push(SourceConflict {
+                        source_a: format!("{tru_count} instrument readings (True/below-threshold)"),
+                        source_b: format!(
+                            "{fals_count} instrument readings (False/above-threshold)"
+                        ),
+                        description: "instrumental sources disagree on the signal value".into(),
+                        disputed_claim: "environmental measurement".into(),
+                    });
+                }
+            }
+        }
+
+        // Suggest what variables would help resolve the impasse.
+        let mut missing = Vec::new();
+        let mut help = Vec::new();
+
+        match reason {
+            HoldReason::FrameMismatch => {
+                missing.push("independent verification from a third frame".into());
+                help.push(
+                    "add a signal from an independent perspective to break the frame tie".into(),
+                );
+            }
+            HoldReason::InsufficientData => {
+                missing.push("additional data points for the disputed claim".into());
+                help.push("provide more observations or measurements in the same domain".into());
+            }
+            HoldReason::DomainBoundary => {
+                let domain = &scenario.domain;
+                if domain == "Climate" {
+                    // Climate Hold without interrupts means instrumental sources disagree
+                    // or no recognized frame was present — the arbiter refused to pick.
+                    missing
+                        .push("instrumental readings from independent measurement stations".into());
+                    help.push(
+                        "multiple instrumental sources disagree; add a third measurement to break the tie, or provide a geo-ecological context signal"
+                            .into(),
+                    );
+                } else {
+                    missing.push(format!("cross-domain evidence for domain '{}'", domain));
+                    help.push(format!(
+                        "this domain ('{}') requires signals with clear frame alignment; try adding more domain-specific inputs",
+                        domain
+                    ));
+                }
+            }
+            HoldReason::AnchorViolation => {
+                missing.push("anchor-safe alternative that satisfies all constraints".into());
+                help.push("adjust inputs so that no anchor constraint is violated".into());
+            }
+            _ => {
+                help.push("provide additional context or reduce signal ambiguity".into());
+            }
+        }
+
+        let mut offload = CognitiveOffload::new(reason)
+            .with_missing(missing)
+            .with_help(help);
+        offload.conflicting_sources = conflicts;
+        offload
     }
 
     /// Compute the HoldState to attach to a Hold output.
@@ -613,7 +828,10 @@ impl SandboxPipeline {
         }
         self.holder_config
             .as_ref()
-            .map(|c| c.hold_state_for(domain))
+            .map(|c| {
+                let d: crate::meta::Domain = domain.parse().unwrap_or(crate::meta::Domain::General);
+                c.hold_state_for(&d)
+            })
             .unwrap_or_else(HoldState::final_hold)
     }
 
@@ -633,7 +851,7 @@ impl SandboxPipeline {
     }
 
     /// Access the self-knowledge model (for integration tests).
-    pub fn self_knowledge_ref(&self) -> Option<&SelfKnowledge> {
+    pub fn self_knowledge_ref(&self) -> Option<&ResponsePatternCache> {
         self.self_knowledge.as_ref()
     }
 }

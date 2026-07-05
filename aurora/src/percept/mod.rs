@@ -31,6 +31,7 @@ pub mod cloud;
 pub mod error;
 pub mod fft;
 pub mod local;
+pub mod prism;
 pub mod retrospective;
 pub mod types;
 
@@ -39,6 +40,7 @@ pub use cloud::CloudLLMProvider;
 pub use error::{ConfigError, PerceptError};
 pub use fft::FFTProvider;
 pub use local::LocalLLMProvider;
+pub use prism::{PrismEngine, SourceProfile, SourceWeights};
 pub use retrospective::{RetrospectiveDoc, RetrospectiveProvider, SspScenario};
 pub use types::PerceptBatch;
 

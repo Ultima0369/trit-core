@@ -13,7 +13,7 @@
 | 源码文件 | 职责 | 对应文档 |
 |---|---|---|
 | `src/core/value.rs` | `TritValue` enum（4 状态：True/Hold/False/Unknown） | [[CONCEPTS]] §1, [[001-ternary-logic]], [[003-ternary-over-binary]] |
-| `src/core/frame.rs` | `Frame` enum（5 变体：Science/Individual/Consensus/Absolute/Meta）+ `FrameRegistry` | [[CONCEPTS]] §2, [[004-geoeco-frame]] |
+| `src/core/frame.rs` | `Frame` enum（13 变体：Science/Individual/Consensus/Absolute/Meta/FirstPerson/Embodied/Relational/GeoEco/Developmental/Role/Environmental/Instrumental） | [[CONCEPTS]] §2, [[004-geoeco-frame]], [[005-instrumental-frame]] |
 | `src/core/phase.rs` | `Phase` struct（[0.0, 1.0]）+ `Commitment` enum | [[CONCEPTS]] §3, [[PHASE_ARITHMETIC]], [[002-phase-arithmetic]] |
 | `src/core/algebra.rs` | `TernaryAlgebra`（TAND/TOR/TNOT + 热路径 + `t_and_n` 批量） | [[CONCEPTS]] §1.4, [[PHASE_ARITHMETIC]] |
 | `src/core/word.rs` | `TritWord`（值 + 帧 + 相位，字段私有，构造器强制不变量） | [[CONCEPTS]] §4, [[api]] |
@@ -154,41 +154,25 @@
 | 源码位置 | 职责 | 对应文档 |
 |---|---|---|
 | `aurora/src/main.rs` | CLI 入口 | [[CLI_REFERENCE]], [[QUICKSTART]], [[CTO_ROADMAP]] |
-| `aurora/src/lib.rs` | 库入口：wavelet / decision / cli / pipeline / render | [[CTO_ROADMAP]] |
+| `aurora/src/lib.rs` | 库入口：pipeline / percept / cli / bc | [[CTO_ROADMAP]] |
 | `aurora/src/cli.rs` | 命令行参数（clap derive） | [[CLI_REFERENCE]], [[PIPELINE_DESIGN]] |
-| `aurora/src/pipeline.rs` | 端到端管道：合成信号 → 小波 → 三值 → 报告 | [[PIPELINE_DESIGN]], [[CTO_ROADMAP]] |
-| `aurora/src/wavelet/synthetic.rs` | 合成正弦波生成器（可控噪声） | [[WAVELET_ANALYSIS]], [[WAVELET_ENGINE_SPEC]] |
-| `aurora/src/wavelet/detect.rs` | 基频检测（FFT 基，M1 引入 CWT） | [[WAVELET_ANALYSIS]], [[WAVELET_ENGINE_SPEC]], [[002-wavelet-over-fft]] |
-| `aurora/src/wavelet/mod.rs` | 小波模块导出 | [[WAVELET_ANALYSIS]] |
-| `aurora/src/decision/adapter.rs` | 基频 → TritWord（Embodied/Individual 映射） | [[TRIT_CORE_INTEGRATION_SPEC]] |
-| `aurora/src/decision/conflict.rs` | 跨域冲突检测 → Hold + MetaInterrupt | [[CONFLICT_CATALOG]], [[SECURITY_MODEL]] |
-| `aurora/src/decision/mod.rs` | 决策模块导出 | [[TRIT_CORE_INTEGRATION_SPEC]] |
-| `aurora/src/render/json.rs` | JSON 决策报告 | [[UI_SPEC]], [[api]] |
-| `aurora/src/render/html.rs` | HTML 报告渲染（ASI 仪表 + 冲突面板 + 提醒历史） | [[UI_SPEC]], [[CTO_ROADMAP]] |
-| `aurora/src/render/mod.rs` | 渲染模块导出 | [[UI_SPEC]] |
-| `aurora/src/ingest/mod.rs` | DataSource trait + IngestManager（采集抽象层） | [[DATA_INGESTION_SPEC]], [[CTO_ROADMAP]] |
-| `aurora/src/ingest/json_fallback.rs` | JSON fallback 数据源 | [[DATA_INGESTION_SPEC]] |
-| `aurora/src/ingest/mail_abstract.rs` | 邮件采集抽象层（M1 桩） | [[DATA_INGESTION_SPEC]] |
-| `aurora/src/attention/mod.rs` | AttentionSession + AttentionManager（注意力调度闭环 + ASI） | [[ATTENTION_CAPITALISM]], [[CTO_ROADMAP]] |
-| `aurora/tests/smoke.rs` | 冒烟测试 | [[TESTING_STRATEGY]] |
-| `aurora/tests/wavelet_detect.rs` | 小波检测单元测试 | [[WAVELET_ENGINE_SPEC]] |
-| `aurora/tests/decision_conflict.rs` | 决策冲突单元测试 | [[TRIT_CORE_INTEGRATION_SPEC]] |
-| `aurora/tests/cli_end_to_end.rs` | CLI 端到端测试（含 ASI + 冲突 + 提醒验证） | [[PIPELINE_DESIGN]] |
-| `aurora/tests/ethics_gates.rs` | 10 个伦理门禁测试（不可跳过） | [[009-ethics-hardening]], [[TECH_REVIEW_CHECKLIST]] |
-| `aurora/tests/ingest_json.rs` | JSON fallback 数据源测试 | [[DATA_INGESTION_SPEC]] |
-| `aurora/tests/attention_session.rs` | 注意力会话测试（ASI 计算） | [[CTO_ROADMAP]] |
-| `aurora/tests/render_attention.rs` | 注意力图谱渲染测试 | [[UI_SPEC]] |
-| `aurora/benches/aurora_bench.rs` | Aurora 性能基准 | [[BENCHMARK]] |
+| `aurora/src/pipeline/analysis.rs` | 分析链路：SignalSpec → FFT → TritWord → TernaryDecision | [[PIPELINE_DESIGN]], [[CTO_ROADMAP]] |
+| `aurora/src/pipeline/attention.rs` | 注意力链路：TritWord[] → AttentionScheduler → AuditTrail → SQLite | [[PIPELINE_DESIGN]] |
+| `aurora/src/percept/chain.rs` | PerceptChain：LLM → 结构化降级（感知信号分解） | [[LLM_PERCEPTION_LAYER]] |
+| `aurora/src/percept/prism.rs` | PrismEngine：RawSignal → TritWord 分解 | [[LLM_PERCEPTION_LAYER]] |
+| `aurora/src/bc/` | 6 个限界上下文（M1 BC 架构） | [[ARCHITECTURE]] |
+| `aurora/src/db/` | SQLite 数据层（rusqlite） | [[DATA_MODEL]], [[007-sqlite-over-postgres]] |
+| `aurora/src/wavelet/` | 合成信号生成 + FFT 基频检测 | [[WAVELET_ANALYSIS]], [[WAVELET_ENGINE_SPEC]] |
+| `aurora/src/ingest/` | JSON fallback 数据源 | [[DATA_INGESTION_SPEC]] |
 
 ---
 
-## Aurora 预留代码（M1-M4，尚未实现）
+## Aurora 预留代码（M1-M4，进行中）
 
 | 源码位置 | 职责 | 对应文档 |
 |---|---|---|
-| `src-tauri/` | Tauri GUI 框架（M1） | [[006-tauri-over-electron]], [[UI_SPEC]], [[CTO_ROADMAP]] §M1 |
-| `aurora/src/db/` | SQLite 数据层（M1） | [[DATA_MODEL]], [[007-sqlite-over-postgres]] |
-| `aurora/src/security/` | SecurityMode 落地与审计日志（M1） | [[SECURITY_MODEL]], [[009-ethics-hardening]] |
+| `src-tauri/` | Tauri GUI 框架（M1，桌面打包已验证） | [[006-tauri-over-electron]], [[UI_SPEC]], [[CTO_ROADMAP]] §M1 |
+| `dataforge/` | 互联网数据采集 crate（5 数据源 + L2 缓存，M2 完成） | [[CTO_ROADMAP]] §M2 |
 
 ---
 

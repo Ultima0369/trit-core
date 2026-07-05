@@ -76,10 +76,11 @@ pub enum Frame {
     Developmental,
     Role,
     Environmental,
+    Instrumental,
 }
 ```
 
-12 variants (see `src/core/frame.rs`). Trit-Core base 8 + Aurora extension 4 (ADR-004, implemented). `Meta` is system-internal, not valid for external signal input.
+13 variants (see `src/core/frame.rs`). Trit-Core base 8 + Aurora extension 5 (ADR-004 + ADR-005, implemented). `Meta` is system-internal, not valid for external signal input.
 
 Implements `Display`, `FromStr`, `Clone`, `Copy`, `Debug`, `PartialEq`, `Eq`, `Hash`.
 
@@ -87,13 +88,9 @@ Implements `Display`, `FromStr`, `Clone`, `Copy`, `Debug`, `PartialEq`, `Eq`, `H
 
 Returned when `Frame::from_str` receives an unknown frame name.
 
-### `FrameRegistry` (struct)
+### `FrameMask` (struct, `pub(crate)`)
 
-Tracks active frames in a session:
-- `fn new() -> Self`
-- `fn register(&mut self, frame: Frame)`
-- `fn is_registered(&self, frame: &Frame) -> bool`
-- `fn iter(&self) -> impl Iterator<Item = &Frame>`
+Frame presence tracked as `u16` bitmask. See `src/meta/frame_mask.rs`. No public `FrameRegistry` struct exists — use `FrameMask::from_inputs(&[TritWord])` for frame presence checks.
 
 ### `TritWord` (struct)
 
@@ -164,10 +161,11 @@ pub enum Domain {
     Relational,
     Cognitive,
     Environmental,
+    Climate,
 }
 ```
 
-10 variants (see `src/meta/domain.rs`). Trit-Core base 6 + Aurora extension 4 (ADR-004, implemented).
+11 variants (see `src/meta/domain.rs`). Trit-Core base 6 + Aurora extension 5 (ADR-004 + ADR-005, implemented).
 
 ### `ResolutionPolicy` (struct)
 

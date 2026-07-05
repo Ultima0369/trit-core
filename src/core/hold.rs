@@ -7,6 +7,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::meta::Domain;
+
 /// Finality classification of a `Hold` result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 pub enum HoldFinality {
@@ -89,9 +91,10 @@ impl Default for HoldState {
 /// Configuration for how Hold states are produced across domains.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct HolderConfig {
-    /// Domains for which a Hold is treated as final by default.
+    /// Domains where Hold is always final — the question window is
+    /// suppressed for these domains even when `auto_question_after_ms > 0`.
     #[serde(default)]
-    pub hold_is_final_by_domain: Vec<String>,
+    pub hold_is_final_by_domain: Vec<Domain>,
     /// Default window (in milliseconds) after which an awaiting Hold is
     /// automatically considered final if no question arrives.
     #[serde(default)]
@@ -108,17 +111,16 @@ impl HolderConfig {
     }
 
     /// Mark Hold as final for the named domain.
-    pub fn with_final_domain(mut self, domain: impl Into<String>) -> Self {
-        let name = domain.into();
-        if !self.hold_is_final_by_domain.contains(&name) {
-            self.hold_is_final_by_domain.push(name);
+    pub fn with_final_domain(mut self, domain: Domain) -> Self {
+        if !self.hold_is_final_by_domain.contains(&domain) {
+            self.hold_is_final_by_domain.push(domain);
         }
         self
     }
 
     /// Returns the HoldState to use for a Hold produced in `domain`.
-    pub fn hold_state_for(&self, domain: &str) -> HoldState {
-        if self.hold_is_final_by_domain.contains(&domain.to_string()) {
+    pub fn hold_state_for(&self, domain: &Domain) -> HoldState {
+        if self.hold_is_final_by_domain.contains(domain) {
             HoldState::final_hold()
         } else if self.auto_question_after_ms > 0 {
             HoldState::awaiting(self.auto_question_after_ms)
@@ -156,9 +158,11 @@ mod tests {
 
     #[test]
     fn holder_config_final_by_domain() {
-        let cfg = HolderConfig::default().with_final_domain("ValueJudgment");
-        assert!(cfg.hold_state_for("ValueJudgment").is_final());
-        assert!(cfg.hold_state_for("General").is_final());
+        let cfg = HolderConfig::default().with_final_domain(crate::meta::Domain::ValueJudgment);
+        assert!(cfg
+            .hold_state_for(&crate::meta::Domain::ValueJudgment)
+            .is_final());
+        assert!(cfg.hold_state_for(&crate::meta::Domain::General).is_final());
     }
 
     #[test]
@@ -167,7 +171,7 @@ mod tests {
             hold_is_final_by_domain: vec![],
             auto_question_after_ms: 1000,
         };
-        let h = cfg.hold_state_for("General");
+        let h = cfg.hold_state_for(&crate::meta::Domain::General);
         assert!(!h.is_final());
         assert!(h.can_be_questioned());
     }

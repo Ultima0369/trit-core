@@ -205,22 +205,13 @@ impl MirrorSnapshot {
 /// - API key management integration
 /// - Background fetch scheduling
 /// - Cache TTL per data source
-pub struct MirrorFetcher {
-    #[allow(dead_code)] // live API fetchers gated on API key integration
-    client: reqwest::Client,
-}
+///
+/// ponytail: struct is a unit stub until live API fetchers are wired.
+/// No fields needed — `snapshot()` returns the seed. When live fetchers
+/// are added, add `client: reqwest::Client` and `l2: Arc<L2Cache>` fields.
+pub struct MirrorFetcher;
 
 impl MirrorFetcher {
-    /// Create with a 10-second HTTP timeout.
-    pub fn new() -> Self {
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(10))
-            .user_agent("aurora-mirror/0.1 (True Cost Accounting dashboard)")
-            .build()
-            .expect("reqwest::Client should build with standard TLS");
-        Self { client }
-    }
-
     /// Return the current mirror snapshot.
     ///
     /// Currently returns the seed snapshot. Live API fetchers will be
@@ -232,7 +223,7 @@ impl MirrorFetcher {
 
 impl Default for MirrorFetcher {
     fn default() -> Self {
-        Self::new()
+        Self
     }
 }
 
@@ -296,7 +287,7 @@ mod tests {
 
     #[test]
     fn mirror_fetcher_returns_seed() {
-        let fetcher = MirrorFetcher::new();
+        let fetcher = MirrorFetcher;
         let snapshot = fetcher.snapshot();
         assert_eq!(snapshot.human_activity.len(), 5);
     }

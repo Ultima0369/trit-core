@@ -18,6 +18,7 @@ impl FrameMask {
     const DEVELOPMENTAL: u16 = 1 << 9;
     const ROLE: u16 = 1 << 10;
     const ENVIRONMENTAL: u16 = 1 << 11;
+    const INSTRUMENTAL: u16 = 1 << 12;
 
     /// Bitmask with all frame bits set. Update this when adding new Frame variants.
     const ALL_FRAMES: u16 = Self::SCIENCE
@@ -31,7 +32,8 @@ impl FrameMask {
         | Self::GEO_ECO
         | Self::DEVELOPMENTAL
         | Self::ROLE
-        | Self::ENVIRONMENTAL;
+        | Self::ENVIRONMENTAL
+        | Self::INSTRUMENTAL;
 
     pub(crate) fn from_inputs(inputs: &[TritWord]) -> Self {
         let mut mask = 0u16;
@@ -49,6 +51,7 @@ impl FrameMask {
                 Frame::Developmental => Self::DEVELOPMENTAL,
                 Frame::Role => Self::ROLE,
                 Frame::Environmental => Self::ENVIRONMENTAL,
+                Frame::Instrumental => Self::INSTRUMENTAL,
             };
             if mask == Self::ALL_FRAMES {
                 break; // all frames seen, early exit
@@ -71,6 +74,7 @@ impl FrameMask {
             Frame::Developmental => Self::DEVELOPMENTAL,
             Frame::Role => Self::ROLE,
             Frame::Environmental => Self::ENVIRONMENTAL,
+            Frame::Instrumental => Self::INSTRUMENTAL,
         };
         (self.0 & bit) != 0
     }

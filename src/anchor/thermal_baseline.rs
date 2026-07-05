@@ -131,10 +131,15 @@ impl AnchorConstraint for ThermalBaseline {
         AnchorSeverity::Abort
     }
 
-    fn check(&self, _decision: &DecisionPreview) -> Option<AnchorViolation> {
+    fn check(&self, decision: &DecisionPreview) -> Option<AnchorViolation> {
         // Fail-closed: a sensor error is treated as a violation. This anchor is
         // Abort-severity with veto power — unavailable data must not allow an
         // unsafe decision to proceed. See CLAUDE.md Layer 1.
+
+        // ── Static source checks (global environmental state) ──────
+        // These check the ambient environmental thresholds — independent of
+        // the specific decision being made.
+
         match self.olr_source.sample() {
             Ok(olr) if olr.abs() > self.config.olr_anomaly_max => {
                 return Some(AnchorViolation {
@@ -210,6 +215,26 @@ impl AnchorConstraint for ThermalBaseline {
                     threshold: self.config.energy_imbalance_max,
                 });
             }
+        }
+
+        // ── Decision-specific check (ponytail audit finding H) ──────
+        // Check whether THIS decision's expected carbon footprint would
+        // meaningfully worsen the atmospheric state. This makes the anchor
+        // responsive to the actual decision being evaluated, not just the
+        // global background state.
+
+        if decision.expected_carbon_kg > 1_000_000.0 {
+            return Some(AnchorViolation {
+                anchor_name: self.name().to_string(),
+                description: format!(
+                    "Decision carbon footprint {:.0} kg CO2-eq exceeds 1,000-tonne ceiling — \
+                     this decision's expected emissions are incompatible with thermal baseline",
+                    decision.expected_carbon_kg
+                ),
+                severity: self.severity(),
+                actual_value: decision.expected_carbon_kg,
+                threshold: 1_000_000.0,
+            });
         }
 
         None

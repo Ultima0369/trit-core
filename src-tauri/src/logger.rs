@@ -7,13 +7,13 @@
 #![allow(clippy::let_unit_value)]
 
 use std::fs::{File, OpenOptions};
-use std::io::Write;
+use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::SystemTime;
 
-/// 全局日志文件句柄。
-static LOG_FILE: Mutex<Option<File>> = Mutex::new(None);
+/// 全局日志文件句柄。BufWriter 自动批量刷盘，8KB 缓冲。
+static LOG_FILE: Mutex<Option<BufWriter<File>>> = Mutex::new(None);
 
 /// 本地时区与 UTC 的偏移秒数（正数 = 东区）。
 /// 在 init() 时计算一次，避免每行日志重复计算。
@@ -37,7 +37,7 @@ pub fn init() -> anyhow::Result<PathBuf> {
 
     *LOG_FILE
         .lock()
-        .expect("LOG_FILE mutex poisoned during init") = Some(file);
+        .expect("LOG_FILE mutex poisoned during init") = Some(BufWriter::new(file));
 
     // 写启动分隔线
     log("init", "INFO", "══════════════════════════════════════════");
@@ -58,7 +58,7 @@ pub fn log(module: &str, level: &str, message: &str) {
         .expect("LOG_FILE mutex poisoned — 日志系统不可恢复");
     if let Some(ref mut file) = *guard {
         let _ = file.write_all(line.as_bytes());
-        let _ = file.flush();
+        // ponytail: BufWriter auto-flushes at 8KB — no per-line flush needed
     }
 
     // 同时输出到 stderr（debug 模式可见）

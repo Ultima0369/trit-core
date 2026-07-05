@@ -1,0 +1,24 @@
+[package]
+name = "dataforge"
+version = "0.1.0"
+edition = "2021"
+authors = ["Ultima0369"]
+description = "Internet data acquisition layer — climate, ecology, science. Feeds raw signals into trit-core's cognitive firewall."
+license = "MIT"
+repository = "https://github.com/trit-core/trit-core"
+readme = "README.md"
+
+[dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+tokio = { version = "1", features = ["rt", "time"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "1.0"
+tracing = "0.1"
+async-trait = "0.1"
+quick-xml = { version = "0.36", features = ["serialize"] }
+
+[dev-dependencies]
+wiremock = "0.6"
+uuid = { version = "1.0", features = ["v4"] }

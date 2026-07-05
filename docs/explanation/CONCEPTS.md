@@ -135,7 +135,7 @@ pub enum Frame {
 }
 ```
 
-> 代码真相源：`src/core/frame.rs`，共 12 个变体。Trit-Core 基础 8 个（Science/Individual/Consensus/Absolute/Meta/FirstPerson/Embodied/Relational），Aurora 扩展 4 个（GeoEco/Developmental/Role/Environmental，见 ADR-004，**已实现**）。
+> 代码真相源：`src/core/frame.rs`，共 13 个变体。Trit-Core 基础 8 个（Science/Individual/Consensus/Absolute/Meta/FirstPerson/Embodied/Relational），Aurora 扩展 5 个（GeoEco/Developmental/Role/Environmental/Instrumental，见 ADR-004 + ADR-005，**已实现**）。
 
 ### 3.2 核心规则
 
@@ -174,7 +174,7 @@ pub enum Domain {
 }
 ```
 
-> 代码真相源：`src/meta/domain.rs`，共 10 个变体。Trit-Core 基础 6 个，Aurora 扩展 4 个（Organizational/Relational/Cognitive/Environmental）。
+> 代码真相源：`src/meta/domain.rs`，共 11 个变体。Trit-Core 基础 6 个，Aurora 扩展 5 个（Organizational/Relational/Cognitive/Environmental/Climate）。
 
 ### 4.2 仲裁规则
 
@@ -230,7 +230,7 @@ pub struct TritWord {
 
 ```rust
 pub struct MetaInterrupt {
-    pub conflict: ConflictType,  // FrameMismatch, OutOfScope, PhaseDrift, PolicyViolation
+    pub conflict: ConflictType,  // FrameMismatch, OutOfScope, PhaseDrift, PolicyViolation, ExplainImpulse
     pub reason: String,          // 人类可读原因
     pub timestamp: DateTime<Utc>, // UTC 时间戳
 }

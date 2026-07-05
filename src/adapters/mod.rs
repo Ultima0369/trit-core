@@ -223,7 +223,7 @@ mod tests {
 
     impl CognitiveModule for TestModule {
         fn id(&self) -> ModuleId {
-            ModuleId::SelfKnowledge
+            ModuleId::ResponsePatternCache
         }
 
         fn name(&self) -> &'static str {

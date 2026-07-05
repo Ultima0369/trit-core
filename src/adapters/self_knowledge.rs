@@ -1,9 +1,27 @@
-//! Self-knowledge adapter — model of the system's own response patterns.
+//! Response pattern cache — key-value lookup by frame.
 //!
-//! By comparing an incoming signal against known patterns, the system
-//! can estimate the likely state of a receiver that shares similar
-//! cognitive architecture. The feedback loop calibrates these patterns
-//! over time.
+//! ## What this actually is (ponytail audit finding E)
+//!
+//! [`ResponsePatternCache`] is a frame-keyed lookup table with gradient-descent
+//! phase adjustment. It does NOT model the system's internal state, reason
+//! about its own cognition, or maintain a self-model. It performs:
+//!
+//! 1. **Lookup**: `frame → (value, phase, context_string)` — O(n) linear scan.
+//! 2. **Calibration**: `phase ± 0.05` adjustments on pattern match.
+//! 3. **Confidence ceiling**: derived from `calibration_history.len()` — more
+//!    events → higher claimed confidence, regardless of whether the patterns
+//!    are actually correct.
+//!
+//! The name "SelfKnowledge" was aspirational. The implementation is a
+//! pattern cache. Rename the struct when you add real self-modeling (e.g.,
+//! causal models, introspection of decision paths, or runtime state
+//! representation). Until then, treat this as what it is: a simple
+//! associative store with numeric nudging.
+//!
+//! ## Backward compatibility
+//!
+//! [`SelfKnowledge`] is retained as a type alias for [`ResponsePatternCache`].
+//! Code using `SelfKnowledge` will compile and work identically.
 
 use serde::{Deserialize, Serialize};
 
@@ -74,13 +92,13 @@ pub struct ReceiverEstimate {
     pub attended_frames: Vec<Frame>,
 }
 
-// ── Self-knowledge (inner engine) ───────────────────────────────────
+// ── Response pattern cache (inner engine) ──────────────────────────
 
-/// Self-knowledge model containing the system's own patterns and triggers.
+/// Frame-keyed response pattern cache with phase-gradient calibration.
 ///
 /// ## Confidence scaling
 ///
-/// The confidence ceiling in `infer_receiver_state()` scales with the
+/// The confidence ceiling in `lookup_pattern()` scales with the
 /// number of calibration events recorded:
 ///
 /// | Calibrations | Confidence ceiling |
@@ -91,7 +109,7 @@ pub struct ReceiverEstimate {
 /// | 50–99       | 0.9               |
 /// | 100+        | 0.95              |
 #[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
-pub struct SelfKnowledge {
+pub struct ResponsePatternCache {
     /// Known response patterns.
     pub own_response_patterns: Vec<ResponsePattern>,
     /// Known trigger signatures.
@@ -103,8 +121,8 @@ pub struct SelfKnowledge {
     state: ModuleState,
 }
 
-impl SelfKnowledge {
-    /// Create an empty self-knowledge model.
+impl ResponsePatternCache {
+    /// Create an empty pattern cache.
     pub fn new() -> Self {
         Self {
             state: ModuleState::Idle,
@@ -178,8 +196,12 @@ impl SelfKnowledge {
         }
     }
 
-    /// Infer a receiver's likely state from an input signal.
-    pub fn infer_receiver_state(&self, input: &TritWord) -> ReceiverEstimate {
+    /// Look up a pattern matching the input signal's frame.
+    ///
+    /// This is a frame-keyed linear scan — not inference, not modeling.
+    /// Returns the stored pattern if found, or falls back to the input's own
+    /// value and phase.
+    pub fn lookup_pattern(&self, input: &TritWord) -> ReceiverEstimate {
         let matching = self
             .own_response_patterns
             .iter()
@@ -291,11 +313,11 @@ impl SelfKnowledge {
     }
 }
 
-impl CognitiveModule for SelfKnowledge {
+impl CognitiveModule for ResponsePatternCache {
     adapter_lifecycle!();
 
     fn id(&self) -> ModuleId {
-        ModuleId::SelfKnowledge
+        ModuleId::ResponsePatternCache
     }
 
     fn name(&self) -> &'static str {
@@ -318,7 +340,7 @@ impl CognitiveModule for SelfKnowledge {
         let estimates: Vec<ReceiverEstimate> = input
             .signals
             .iter()
-            .map(|s| self.infer_receiver_state(s))
+            .map(|s| self.lookup_pattern(s))
             .collect();
 
         let avg_confidence: f64 =
@@ -389,22 +411,28 @@ impl CognitiveModule for SelfKnowledge {
     }
 }
 
+/// Type alias for backward compatibility.
+///
+/// Prefer [`ResponsePatternCache`] in new code. This alias exists so
+/// existing callers that import `SelfKnowledge` compile without changes.
+#[deprecated(since = "0.3.1", note = "use ResponsePatternCache instead")]
+pub type SelfKnowledge = ResponsePatternCache;
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn human_defaults_have_patterns() {
-        let knowledge = SelfKnowledge::with_human_defaults();
+        let knowledge = ResponsePatternCache::with_human_defaults();
         assert!(!knowledge.own_response_patterns.is_empty());
         assert!(!knowledge.known_triggers.is_empty());
     }
 
     #[test]
     fn infer_receiver_from_first_person() {
-        let knowledge = SelfKnowledge::with_human_defaults();
+        let knowledge = ResponsePatternCache::with_human_defaults();
         let input = TritWord::tru(Frame::FirstPerson);
-        let estimate = knowledge.infer_receiver_state(&input);
+        let estimate = knowledge.lookup_pattern(&input);
         assert_eq!(estimate.estimated_value, TritValue::True);
         assert!(estimate.confidence > 0.5);
         assert!(estimate.attended_frames.contains(&Frame::FirstPerson));
@@ -412,9 +440,9 @@ mod tests {
 
     #[test]
     fn infer_receiver_without_pattern_uses_input() {
-        let knowledge = SelfKnowledge::new();
+        let knowledge = ResponsePatternCache::new();
         let input = TritWord::fals(Frame::Science);
-        let estimate = knowledge.infer_receiver_state(&input);
+        let estimate = knowledge.lookup_pattern(&input);
         assert_eq!(estimate.estimated_value, TritValue::False);
         assert!(estimate.confidence < 0.5);
     }
@@ -423,13 +451,13 @@ mod tests {
 
     #[test]
     fn confidence_ceiling_zero_calibrations() {
-        let knowledge = SelfKnowledge::new();
+        let knowledge = ResponsePatternCache::new();
         assert_float_eq!(knowledge.confidence_ceiling(), 0.6);
     }
 
     #[test]
     fn confidence_ceiling_grows_with_calibrations() {
-        let mut knowledge = SelfKnowledge::new();
+        let mut knowledge = ResponsePatternCache::new();
         assert_float_eq!(knowledge.confidence_ceiling(), 0.6);
 
         knowledge.calibrate_pattern(
@@ -461,7 +489,7 @@ mod tests {
 
     #[test]
     fn confidence_ceiling_max_is_095() {
-        let mut knowledge = SelfKnowledge::new();
+        let mut knowledge = ResponsePatternCache::new();
         for i in 0..100 {
             knowledge.calibrate_pattern(
                 ResponsePattern {
@@ -481,7 +509,7 @@ mod tests {
 
     #[test]
     fn calibrate_from_clean_result_strengthens() {
-        let mut knowledge = SelfKnowledge::new();
+        let mut knowledge = ResponsePatternCache::new();
         knowledge.add_pattern(ResponsePattern {
             frame: Frame::Science,
             value: TritValue::True,
@@ -504,7 +532,7 @@ mod tests {
 
     #[test]
     fn calibrate_from_conflicted_result_weakens() {
-        let mut knowledge = SelfKnowledge::new();
+        let mut knowledge = ResponsePatternCache::new();
         knowledge.add_pattern(ResponsePattern {
             frame: Frame::Individual,
             value: TritValue::Hold,
@@ -527,7 +555,7 @@ mod tests {
 
     #[test]
     fn calibrate_from_neutral_result_skips() {
-        let mut knowledge = SelfKnowledge::new();
+        let mut knowledge = ResponsePatternCache::new();
         let did_calibrate =
             knowledge.calibrate_from_result(Frame::Science, TritValue::Hold, 0.5, 0);
         assert!(!did_calibrate);
@@ -536,7 +564,7 @@ mod tests {
 
     #[test]
     fn calibrate_from_unknown_skips() {
-        let mut knowledge = SelfKnowledge::new();
+        let mut knowledge = ResponsePatternCache::new();
         let did_calibrate =
             knowledge.calibrate_from_result(Frame::Science, TritValue::Unknown, 0.5, 0);
         assert!(!did_calibrate);
@@ -545,7 +573,7 @@ mod tests {
 
     #[test]
     fn calibrate_phase_clamped_to_range() {
-        let mut knowledge = SelfKnowledge::new();
+        let mut knowledge = ResponsePatternCache::new();
         knowledge.add_pattern(ResponsePattern {
             frame: Frame::Science,
             value: TritValue::True,
@@ -564,8 +592,8 @@ mod tests {
 
     #[test]
     fn infer_confidence_scales_with_calibrations() {
-        let mut knowledge = SelfKnowledge::with_human_defaults();
-        let est0 = knowledge.infer_receiver_state(&TritWord::tru(Frame::FirstPerson));
+        let mut knowledge = ResponsePatternCache::with_human_defaults();
+        let est0 = knowledge.lookup_pattern(&TritWord::tru(Frame::FirstPerson));
         assert_float_eq!(est0.confidence, 0.6);
 
         for i in 0..10 {
@@ -580,7 +608,7 @@ mod tests {
                 "bulk".to_string(),
             );
         }
-        let est10 = knowledge.infer_receiver_state(&TritWord::tru(Frame::FirstPerson));
+        let est10 = knowledge.lookup_pattern(&TritWord::tru(Frame::FirstPerson));
         assert_float_eq!(est10.confidence, 0.8);
     }
 
@@ -588,14 +616,14 @@ mod tests {
 
     #[test]
     fn self_knowledge_module_id() {
-        let module = SelfKnowledge::new();
-        assert_eq!(module.id(), ModuleId::SelfKnowledge);
+        let module = ResponsePatternCache::new();
+        assert_eq!(module.id(), ModuleId::ResponsePatternCache);
         assert_eq!(module.name(), "self_knowledge");
     }
 
     #[test]
     fn self_knowledge_module_empty_input() {
-        let mut module = SelfKnowledge::with_human_defaults();
+        let mut module = ResponsePatternCache::with_human_defaults();
         let input = ModuleInput {
             signals: vec![],
             interrupts: vec![],
@@ -609,7 +637,7 @@ mod tests {
 
     #[test]
     fn self_knowledge_module_with_signals() {
-        let mut module = SelfKnowledge::with_human_defaults();
+        let mut module = ResponsePatternCache::with_human_defaults();
         let input = ModuleInput {
             signals: vec![TritWord::tru(Frame::FirstPerson)],
             interrupts: vec![],
@@ -624,7 +652,7 @@ mod tests {
 
     #[test]
     fn self_knowledge_module_calibrate_from_feedback() {
-        let mut module = SelfKnowledge::with_human_defaults();
+        let mut module = ResponsePatternCache::with_human_defaults();
         let initial_count = module.calibration_count();
 
         let fb = FeedbackSignal {
@@ -641,7 +669,7 @@ mod tests {
 
     #[test]
     fn self_knowledge_module_calibrate_negative_feedback() {
-        let mut module = SelfKnowledge::with_human_defaults();
+        let mut module = ResponsePatternCache::with_human_defaults();
         let initial_count = module.calibration_count();
 
         let fb = FeedbackSignal {
@@ -665,7 +693,7 @@ mod tests {
 
     #[test]
     fn self_knowledge_module_lifecycle() {
-        let mut module = SelfKnowledge::new();
+        let mut module = ResponsePatternCache::new();
         assert_eq!(module.state(), ModuleState::Idle);
 
         module.on_unmount();
@@ -675,3 +703,5 @@ mod tests {
         assert_eq!(module.state(), ModuleState::Idle);
     }
 }
+
+// ponytail: backward-compat alias (audit finding E)

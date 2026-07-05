@@ -126,6 +126,144 @@ pub enum ConflictType {
     ExplainImpulse,
 }
 
+// ── Cognitive Offload Protocol ──────────────────────────────────────
+
+/// Structured explanation of WHY the system refused to decide.
+///
+/// When trit-core returns Hold, this protocol provides a structured
+/// breakdown of what was missing, what conflicted, and what would
+/// help the user reach their own conclusion. This is NOT a suggestion
+/// — it's a diagnosis of the decision's epistemic limits.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CognitiveOffload {
+    /// Why Hold was triggered.
+    pub reason: HoldReason,
+    /// Sources that conflicted (if any).
+    pub conflicting_sources: Vec<SourceConflict>,
+    /// Key variables that were missing or insufficient.
+    pub missing_variables: Vec<String>,
+    /// What additional information would help resolve the Hold.
+    pub what_would_help: Vec<String>,
+    /// Suggested cognitive operations for the user (NOT answers).
+    pub suggested_cognitive_ops: Vec<String>,
+}
+
+impl CognitiveOffload {
+    /// Create a minimal offload for simple Hold cases.
+    pub fn new(reason: HoldReason) -> Self {
+        Self {
+            reason,
+            conflicting_sources: Vec::new(),
+            missing_variables: Vec::new(),
+            what_would_help: Vec::new(),
+            suggested_cognitive_ops: Vec::new(),
+        }
+    }
+
+    /// Build an offload from source conflicts.
+    pub fn from_conflicts(reason: HoldReason, conflicting_sources: Vec<SourceConflict>) -> Self {
+        let mut offload = Self::new(reason);
+        offload.conflicting_sources = conflicting_sources;
+        offload
+    }
+
+    /// Add missing variables to the offload.
+    pub fn with_missing(mut self, variables: Vec<String>) -> Self {
+        self.missing_variables = variables;
+        self
+    }
+
+    /// Add help suggestions.
+    pub fn with_help(mut self, help: Vec<String>) -> Self {
+        self.what_would_help = help;
+        self
+    }
+
+    /// Add cognitive operations.
+    pub fn with_cognitive_ops(mut self, ops: Vec<String>) -> Self {
+        self.suggested_cognitive_ops = ops;
+        self
+    }
+}
+
+impl std::fmt::Display for CognitiveOffload {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "⚠ Decision suspended: {}", self.reason)?;
+        if !self.conflicting_sources.is_empty() {
+            writeln!(f, "\nConflicting sources:")?;
+            for conflict in &self.conflicting_sources {
+                writeln!(
+                    f,
+                    "  - {} vs {}: {}",
+                    conflict.source_a, conflict.source_b, conflict.description
+                )?;
+            }
+        }
+        if !self.missing_variables.is_empty() {
+            writeln!(f, "\nMissing variables:")?;
+            for v in &self.missing_variables {
+                writeln!(f, "  - {}", v)?;
+            }
+        }
+        if !self.what_would_help.is_empty() {
+            writeln!(f, "\nWhat would help:")?;
+            for h in &self.what_would_help {
+                writeln!(f, "  - {}", h)?;
+            }
+        }
+        if !self.suggested_cognitive_ops.is_empty() {
+            writeln!(f, "\nSuggested cognitive operations:")?;
+            for op in &self.suggested_cognitive_ops {
+                writeln!(f, "  - {}", op)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Why the system refused to decide.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum HoldReason {
+    /// Multiple data sources produced contradictory signals.
+    SourceConflict,
+    /// Not enough data to form a judgment.
+    InsufficientData,
+    /// Signals came from incompatible reference frames.
+    FrameMismatch,
+    /// The question crosses domain boundaries with no arbitration rule.
+    DomainBoundary,
+    /// An anchor constraint blocked the decision.
+    AnchorViolation,
+    /// Other reason, with description.
+    Other(String),
+}
+
+impl std::fmt::Display for HoldReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            HoldReason::SourceConflict => write!(f, "conflicting data sources"),
+            HoldReason::InsufficientData => write!(f, "insufficient data"),
+            HoldReason::FrameMismatch => write!(f, "incompatible reference frames"),
+            HoldReason::DomainBoundary => write!(f, "cross-domain boundary"),
+            HoldReason::AnchorViolation => write!(f, "anchor constraint violation"),
+            HoldReason::Other(s) => write!(f, "{}", s),
+        }
+    }
+}
+
+/// Two sources that produced conflicting signals for the same event.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct SourceConflict {
+    /// Name of the first source.
+    pub source_a: String,
+    /// Name of the second source.
+    pub source_b: String,
+    /// Human-readable description of the conflict.
+    pub description: String,
+    /// What the two sources disagree about.
+    pub disputed_claim: String,
+}
+
 /// Specific kinds of policy violation that can be reported to the user.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PolicyViolation {

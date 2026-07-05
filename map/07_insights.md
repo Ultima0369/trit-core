@@ -83,7 +83,7 @@
 | 100ms vs 200ms | `aurora/01_insights/100MS_HIJACK_MODEL.md` | 沙盒延迟控制、输入门控 |
 | 注意力资本 | `aurora/02_math/ATTENTION_DYNAMICS.md` | 注意力引擎（预留） |
 | 认知主权 | `aurora/01_insights/COGNITIVE_SOVEREIGNTY.md` | `SafeFallback::disabled()` |
-| 帧认识论 | `aurora/01_insights/FRAME_EPISTEMOLOGY.md` | `Frame` enum 的 9 变体设计 |
+| 帧认识论 | `aurora/01_insights/FRAME_EPISTEMOLOGY.md` | `Frame` enum 的 13 变体设计 |
 | 环境冲击 | `aurora/01_insights/ENVIRONMENTAL_SHOCK.md` | `Physical` 域的安全回退 |
 | N-of-1 | `aurora/03_methodology/N_OF_1_PROTOCOL.md` | `Individual` 帧的优先仲裁 |
 

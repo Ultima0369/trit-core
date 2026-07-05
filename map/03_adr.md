@@ -16,12 +16,16 @@
 | ADR-002 | [[002-phase-arithmetic]] | `docs/adr/002-phase-arithmetic.md` | 为什么用浮点相位 [0.0, 1.0] | Accepted |
 | ADR-003 | [[003-domain-conflict]] | `docs/adr/003-domain-conflict.md` | 域冲突检测与仲裁机制 | Accepted |
 | ADR-004 | [[004-distributed-protocol]] | `docs/adr/004-distributed-protocol.md` | 分布式协议（已在 v0.2.0 移除） | Deprecated |
+| ADR-005 | [[005-instrumental-frame]] | `docs/adr/005-instrumental-frame.md` | Instrumental 帧 — 传感器/仪表数据的正确范畴 | Accepted |
+| ADR-006 | [[006-cognitive-offload]] | `docs/adr/006-cognitive-offload.md` | 认知卸载协议 — 当系统 Hold 时结构化解释为什么 | Accepted |
 
 **跨链连接**：
-- ADR-001 对应 `src/core/trit.rs` + `src/core/algebra.rs`
+- ADR-001 对应 `src/core/word.rs` + `src/core/algebra.rs`
 - ADR-002 对应 `src/core/phase.rs`
-- ADR-003 对应 `src/meta/arbitration.rs`
+- ADR-003 对应 `src/meta/domain.rs`
 - ADR-004 对应 `src/net/`（已删除）
+- ADR-005 对应 `src/core/frame.rs`（`Instrumental` 变体） + `aurora/src/percept/prism.rs`（`degrade_to_structured`）
+- ADR-006 对应 `src/meta/interrupt.rs`（`HoldReason`/`CognitiveOffload`） + `src/sandbox/pipeline.rs`（`build_cognitive_offload`）
 
 ---
 
@@ -65,7 +69,7 @@
 | aurora ADR | 涉及代码 |
 |---|---|
 | [[001-local-first]] | 架构层面（无远程连接） |
-| [[009-ethics-hardening]] | `src/meta/security_mode.rs` |
+| [[009-ethics-hardening]] | `src/security/mod.rs` |
 | [[008-subscription-over-ads]] | 开源免费 / 不要注意力（无代码） |
 
 ---

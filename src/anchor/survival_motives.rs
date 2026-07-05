@@ -93,10 +93,10 @@ impl AnchorConstraint for SurvivalMotives {
         AnchorSeverity::Abort
     }
 
-    fn check(&self, _decision: &DecisionPreview) -> Option<AnchorViolation> {
-        // Survival motives do not inspect decisions directly.
-        // They provide constant weight references. If the weights
-        // are invalid (a configuration error), we flag it.
+    fn check(&self, decision: &DecisionPreview) -> Option<AnchorViolation> {
+        // Survival motives check two things:
+        // 1. Configuration integrity: weights must be valid (anti-tamper).
+        // 2. Decision impact: the decision must not endanger a large population.
         if !self.is_valid() {
             return Some(AnchorViolation {
                 anchor_name: self.name().to_string(),
@@ -105,6 +105,22 @@ impl AnchorConstraint for SurvivalMotives {
                 actual_value: 0.0,
                 threshold: 0.5,
             });
+        }
+        // ponytail audit H: use DecisionPreview data
+        if let Some(pop) = decision.affected_population {
+            if pop > 1_000_000 && decision.irreversible_change_risk > 0.5 {
+                return Some(AnchorViolation {
+                    anchor_name: self.name().to_string(),
+                    description: format!(
+                        "Decision affects {pop} people with {:.0}% irreversible change risk — \
+                         population-scale irreversible impact violates survival motive constraints",
+                        decision.irreversible_change_risk * 100.0
+                    ),
+                    severity: self.severity(),
+                    actual_value: pop as f64,
+                    threshold: 1_000_000.0,
+                });
+            }
         }
         None
     }

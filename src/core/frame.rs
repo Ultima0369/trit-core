@@ -38,6 +38,18 @@ pub enum Frame {
     Role,
     /// Environmental state (e.g. noise, light, weather, social density).
     Environmental,
+    /// Instrumental measurement — sensor, detector, physical instrument reading.
+    ///
+    /// This is NOT the same as `Science` (theory/models/peer-reviewed claims).
+    /// A thermometer reads 28.4°C — that is Instrumental. "Global warming is
+    /// accelerating" is Science. The distinction matters: instruments can be
+    /// miscalibrated but their readings are physical facts; scientific claims
+    /// are interpretations that may be revised.
+    ///
+    /// Priority: Instrumental > Science (measurement over theory), but
+    /// Instrumental does NOT override Individual (instruments don't negate
+    /// subjective experience).
+    Instrumental,
 }
 
 impl std::fmt::Display for Frame {
@@ -55,6 +67,7 @@ impl std::fmt::Display for Frame {
             Frame::Developmental => write!(f, "Developmental"),
             Frame::Role => write!(f, "Role"),
             Frame::Environmental => write!(f, "Environmental"),
+            Frame::Instrumental => write!(f, "Instrumental"),
         }
     }
 }
@@ -76,6 +89,7 @@ impl FromStr for Frame {
             "Developmental" => Ok(Frame::Developmental),
             "Role" => Ok(Frame::Role),
             "Environmental" => Ok(Frame::Environmental),
+            "Instrumental" => Ok(Frame::Instrumental),
             unknown => Err(FrameError::Unknown(unknown.to_string())),
         }
     }

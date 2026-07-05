@@ -82,7 +82,8 @@ impl SafeFallback {
             | Domain::Organizational
             | Domain::Relational
             | Domain::Cognitive
-            | Domain::Environmental => false,
+            | Domain::Environmental
+            | Domain::Climate => false,
             Domain::Custom(name) => self.dangerous_custom_domains.iter().any(|d| d == name),
         }
     }
@@ -170,6 +171,7 @@ fn domain_label(domain: &Domain) -> &str {
         Domain::Relational => "Relational",
         Domain::Cognitive => "Cognitive",
         Domain::Environmental => "Environmental",
+        Domain::Climate => "Climate",
         Domain::Custom(name) => name.as_str(),
     }
 }

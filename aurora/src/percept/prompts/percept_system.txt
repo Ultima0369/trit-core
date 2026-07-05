@@ -17,7 +17,7 @@ Respond with ONLY a JSON object. No markdown. No explanation. No conversation. N
 {
   "signals": [
     {
-      "frame": "Science|Individual|Consensus|Absolute",
+      "frame": "Science|Instrumental|Individual|Consensus|Absolute",
       "value": 1 | 0 | -1,
       "phase": 0.0-1.0
     }
@@ -36,7 +36,8 @@ raw_data_layer MUST only contain physical measurements. No interpretation. No ad
 1. Value: 1=True/Positive, 0=Hold/Suspend/Uncertain, -1=False/Negative
 2. Phase is tendency strength: 0.0=very weak, 0.5=neutral, 1.0=very strong
 3. Frame meanings:
-   - Science: empirical, measurable, physical facts
+   - Science: empirical, measurable, physical facts (theory, models, peer-reviewed claims)
+   - Instrumental: direct sensor/instrument readings (thermometer, CO2 sensor, spectrometer)
    - Individual: personal experience, subjective, emotional
    - Consensus: social agreement, norms, group judgment
    - Absolute: non-negotiable principles, ethical absolutes

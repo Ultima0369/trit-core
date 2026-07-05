@@ -603,37 +603,58 @@ pub async fn prefetch_tiles(
         "预取请求: bbox({lat_min},{lng_min},{lat_max},{lng_max}) z{z_min}-z{z_max}, 约 {total_tiles} 个瓦片"
     ));
 
-    // 后台异步处理（不等待完成）
+    // 后台并发批量下载（复用 download_batch：Semaphore 控并发、指数退避）
     let downloader = Arc::clone(&state.downloader);
     let l2 = Arc::clone(&state.l2);
     let l1 = Arc::clone(&state.l1);
 
     tokio::spawn(async move {
+        // 收集所有需下载的瓦片坐标
+        let mut tiles: Vec<(u32, u32, u32)> = Vec::new();
         for z in z_min..=z_max {
             let x_min = crate::utils::lng_to_tile_x(lng_min, z);
             let x_max = crate::utils::lng_to_tile_x(lng_max, z);
             let y_min = crate::utils::lat_to_tile_y(lat_max, z);
             let y_max = crate::utils::lat_to_tile_y(lat_min, z);
-
             for x in x_min..=x_max {
                 for y in y_min..=y_max {
                     let key = format!("china-tiles/{}/{}/{}.jpg", z, x, y);
-
-                    // 跳过已缓存的
-                    if l2.exists(&key) {
-                        continue;
+                    if !l2.exists(&key) {
+                        tiles.push((z, x, y));
                     }
-
-                    if let Some(data) = downloader.download(z, x, y).await {
-                        let _ = l2.put(&key, &data);
-                        l1.put(&key, data);
-                    }
-
-                    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
                 }
             }
         }
-        crate::logger::log("prefetch", "INFO", "预取完成");
+
+        crate::logger::log(
+            "prefetch",
+            "INFO",
+            &format!(
+                "共 {} 个瓦片待下载 ({} 个已缓存)",
+                tiles.len(),
+                total_tiles - tiles.len()
+            ),
+        );
+
+        // 并发批量下载（6 并发，指数退避，自动跳过已缓存）
+        let (ok, fail, skip) = downloader
+            .download_batch(&tiles, &std::path::PathBuf::new(), false, 6, 100)
+            .await;
+
+        // 将下载成功的瓦片写入 L2+L1
+        // ponytail: download_batch 写磁盘，此处用 l2.get + l1.put 做内存预热
+        for &(z, x, y) in &tiles {
+            let key = format!("china-tiles/{}/{}/{}.jpg", z, x, y);
+            if let Some(data) = l2.get(&key) {
+                l1.put(&key, data);
+            }
+        }
+
+        crate::logger::log(
+            "prefetch",
+            "INFO",
+            &format!("预取完成: 下载 {ok}, 失败 {fail}, 跳过 {skip}"),
+        );
     });
 
     Ok(format!("预取任务已启动 (~{} 个瓦片)", total_tiles))
@@ -645,8 +666,10 @@ pub async fn prefetch_tiles(
 /// 前端渲染为可视化"剪刀差"。
 /// 同时从轨迹中读取停滞检测状态，从 L2 缓存读取真实 CO₂ 读数。
 #[tauri::command]
-pub fn get_mirror_snapshot(state: State<AppState>) -> Result<crate::mirror_fetcher::MirrorSnapshot, String> {
-    let mut snapshot = crate::mirror_fetcher::MirrorFetcher::new().snapshot();
+pub fn get_mirror_snapshot(
+    state: State<AppState>,
+) -> Result<crate::mirror_fetcher::MirrorSnapshot, String> {
+    let mut snapshot = crate::mirror_fetcher::MirrorFetcher.snapshot();
     if let Ok(ts) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
         snapshot.generated_at = format!("{}", ts.as_secs());
     }

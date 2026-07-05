@@ -101,7 +101,7 @@ pub use adapters::{
     cognitive_deconstruction::CognitiveDeconstruction,
     conflict_suspension::ConflictSuspension,
     coupling_adapter::CouplingAdapter,
-    critical_thinking::CriticalThinking,
+    critical_thinking::LogicalConsistencyCheck,
     ecological_assessment::EcologicalAssessment,
     engineering::EngineeringArchitecture,
     reflexive_audit::{
@@ -109,15 +109,15 @@ pub use adapters::{
         ReflexiveAuditor,
     },
     self_knowledge::{
-        CalibrationEvent, ReceiverEstimate, ResponsePattern, SelfKnowledge, TriggerSignature,
+        CalibrationEvent, ReceiverEstimate, ResponsePattern, ResponsePatternCache, TriggerSignature,
     },
     AttentionCmd, CognitiveModule, FeedbackSignal, ModuleInput, ModuleOutput, ShiftTarget,
 };
 pub use anchor::{
     check_all as check_all_anchors,
-    cost_factor::{CostFactor, CostMetadata, FactorError, JsonFactorLoader, Region, Sector},
-    AnchorConstraint, AnchorError, AnchorReport, AnchorSeverity, AnchorViolation, DataSource,
-    DecisionPreview, EcosystemZone, StaticSource,
+    cost_factor::{CostMetadata, FactorError, JsonFactorLoader, Region, Sector},
+    AnchorConstraint, AnchorError, AnchorReport, AnchorSeverity, AnchorViolation, DecisionPreview,
+    EcosystemZone,
 };
 pub use core::{
     algebra::TernaryAlgebra,
@@ -145,9 +145,9 @@ pub use hook::{
     HoldStrategy, HookContext, HookManager, IterationSummary, ScenarioType, UnmountReason,
 };
 pub use meta::{
-    ArbitrationResult, ConflictType, CustomRule, Domain, DomainParseError, FallbackBehavior,
-    JsonRuleLoader, MetaInterrupt, MetaMonitor, PolicyError, ResolutionPolicy, RuleError,
-    SafeFallback,
+    apply_rule, load_rule, load_rule_json, ArbitrationResult, ConflictType, CustomRule, Domain,
+    DomainParseError, FallbackBehavior, MetaInterrupt, MetaMonitor, PolicyError, ResolutionPolicy,
+    RuleError, SafeFallback,
 };
 pub use sandbox::{
     sanitize_log_field, validate_scenario, ErrorCategory, SandboxDiagnostics, SandboxError,

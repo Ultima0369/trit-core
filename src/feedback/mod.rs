@@ -252,6 +252,8 @@ mod tests {
             attention_cmd: None,
             receiver_estimate: None,
             hold_state: None,
+            cost_metadata: None,
+            cognitive_offload: None,
         }
     }
 

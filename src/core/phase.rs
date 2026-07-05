@@ -11,6 +11,25 @@ use thiserror::Error;
 /// The wrapped `f64` is always finite and within `[0.0, 1.0]`.
 /// Use [`Phase::new`] for strict construction, or [`Phase::new_clamped`]
 /// when the caller explicitly wants silent clamping.
+///
+/// ## Reification boundary (ponytail audit finding D)
+///
+/// **Phase is NOT a physical measurement.** It is a mathematical encoding of
+/// human intuition — scenario authors assign phase values based on subjective
+/// confidence, not calibrated sensors. The `f64` precision (1e-6, 1e-9
+/// epsilon thresholds) is an implementation detail, not an accuracy claim.
+///
+/// - `Phase::new(0.8)` means "the scenario author thinks this input has ~80% tendency
+///   toward True" — not "a sensor measured 0.800000 with 6-digit accuracy."
+/// - PhaseTracker velocity/smoothing (EMA) produces mathematically smooth numbers
+///   from subjective inputs — smoothness ≠ truth.
+/// - Phase quantization (1e-6) prevents numeric drift; it does not increase accuracy.
+///
+/// **When upgrading to real sensor fusion**: Phase should be replaced with a
+/// confidence-calibrated distribution (e.g., Beta distribution over evidence
+/// counts), not a bare `f64`. Until then, treat every Phase value as
+/// "somewhere near this number" with at most 2 significant digits of
+/// information content.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Phase(f64);
 

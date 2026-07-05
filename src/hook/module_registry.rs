@@ -16,7 +16,7 @@ use super::UnmountReason;
 /// Manager uses these IDs to track which modules are currently mounted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ModuleId {
-    CriticalThinking,
+    LogicalConsistencyCheck,
     CognitiveDeconstruction,
     ConflictSuspension,
     EngineeringArchitecture,
@@ -25,14 +25,14 @@ pub enum ModuleId {
     EcologicalAssessment,
     AttentionScheduler,
     CouplingAdapter,
-    SelfKnowledge,
+    ResponsePatternCache,
 }
 
 impl ModuleId {
     /// Human-readable module name.
     pub fn as_str(&self) -> &'static str {
         match self {
-            ModuleId::CriticalThinking => "critical_thinking",
+            ModuleId::LogicalConsistencyCheck => "critical_thinking",
             ModuleId::CognitiveDeconstruction => "cognitive_deconstruction",
             ModuleId::ConflictSuspension => "conflict_suspension",
             ModuleId::EngineeringArchitecture => "engineering_architecture",
@@ -41,7 +41,7 @@ impl ModuleId {
             ModuleId::EcologicalAssessment => "ecological_assessment",
             ModuleId::AttentionScheduler => "attention_scheduler",
             ModuleId::CouplingAdapter => "coupling_adapter",
-            ModuleId::SelfKnowledge => "self_knowledge",
+            ModuleId::ResponsePatternCache => "self_knowledge",
         }
     }
 }
@@ -285,13 +285,13 @@ mod tests {
         reg.mount(ModuleId::AttentionScheduler);
 
         let target: HashSet<ModuleId> =
-            [ModuleId::SelfKnowledge, ModuleId::AttentionScheduler].into();
+            [ModuleId::ResponsePatternCache, ModuleId::AttentionScheduler].into();
 
         let to_unmount = reg.modules_to_unmount(&target);
         let to_mount = reg.modules_to_mount(&target);
 
         assert_eq!(to_unmount, vec![ModuleId::ReflexiveAudit]);
-        assert_eq!(to_mount, vec![ModuleId::SelfKnowledge]);
+        assert_eq!(to_mount, vec![ModuleId::ResponsePatternCache]);
     }
 
     #[test]
@@ -301,14 +301,14 @@ mod tests {
         reg.mount(ModuleId::AttentionScheduler);
 
         reg.apply_diff(
-            &[ModuleId::SelfKnowledge],
+            &[ModuleId::ResponsePatternCache],
             &[ModuleId::ReflexiveAudit],
             UnmountReason::Completed,
         );
 
         assert!(!reg.is_mounted(ModuleId::ReflexiveAudit));
         assert!(reg.is_mounted(ModuleId::AttentionScheduler));
-        assert!(reg.is_mounted(ModuleId::SelfKnowledge));
+        assert!(reg.is_mounted(ModuleId::ResponsePatternCache));
         assert_eq!(reg.count(), 2);
     }
 
@@ -316,7 +316,7 @@ mod tests {
     fn tick_all_increments_cycles() {
         let mut reg = ModuleRegistry::new();
         reg.mount(ModuleId::ReflexiveAudit);
-        reg.mount(ModuleId::SelfKnowledge);
+        reg.mount(ModuleId::ResponsePatternCache);
         reg.tick_all();
         assert_eq!(reg.entries()[0].cycles_mounted, 2);
         assert_eq!(reg.entries()[1].cycles_mounted, 2);
@@ -341,7 +341,7 @@ mod tests {
     #[test]
     fn all_module_ids_have_labels() {
         let ids = [
-            ModuleId::CriticalThinking,
+            ModuleId::LogicalConsistencyCheck,
             ModuleId::CognitiveDeconstruction,
             ModuleId::ConflictSuspension,
             ModuleId::EngineeringArchitecture,
@@ -350,7 +350,7 @@ mod tests {
             ModuleId::EcologicalAssessment,
             ModuleId::AttentionScheduler,
             ModuleId::CouplingAdapter,
-            ModuleId::SelfKnowledge,
+            ModuleId::ResponsePatternCache,
         ];
         for id in ids {
             assert!(!id.as_str().is_empty());

@@ -26,7 +26,7 @@ pub mod wellbeing_priority;
 
 use serde::{Deserialize, Serialize};
 
-use crate::anchor::cost_factor::CostMetadata;
+use crate::anchor::cost_factor::{CostFactor, CostMetadata};
 use crate::core::frame::Frame;
 use crate::core::value::TritValue;
 
@@ -267,7 +267,7 @@ pub fn check_all(
 pub fn build_decision_preview(
     scenario: &crate::sandbox::ScenarioInput,
     final_word: &crate::core::word::TritWord,
-    cost_factor: Option<&dyn crate::anchor::cost_factor::CostFactor>,
+    cost_factor: Option<&crate::anchor::cost_factor::JsonFactorLoader>,
 ) -> DecisionPreview {
     let env = scenario.environmental_context.as_ref();
     let expected_energy_joules = env.map(|ctx| ctx.ambient_arousal * 1e6).unwrap_or(0.0);

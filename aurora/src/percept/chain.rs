@@ -25,6 +25,11 @@ impl PerceptChain {
         self
     }
 
+    /// How many providers are registered in this chain.
+    pub fn provider_count(&self) -> usize {
+        self.providers.len()
+    }
+
     /// Try providers in priority order, degrading on failure.
     ///
     /// Skips providers where `available()` returns `false`.

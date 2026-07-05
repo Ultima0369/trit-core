@@ -66,9 +66,9 @@
 |---|---|---|
 | Phase [0.0, 1.0] | `aurora/02_math/PHASE_ARITHMETIC.md` | `src/core/phase.rs` |
 | 三值真值表 | `docs/explanation/CONCEPTS.md` §1.4 | `src/core/algebra.rs` |
-| 注意力动力学 | `aurora/02_math/ATTENTION_DYNAMICS.md` | `src/attention/`（预留） |
-| 小波变换 | `aurora/02_math/WAVELET_ANALYSIS.md` | `src/wavelet/` |
-| 信息熵类比 | `aurora/02_math/INFORMATION_THEORY.md` | `src/core/entropy.rs`（预留） |
+| 注意力动力学 | `aurora/02_math/ATTENTION_DYNAMICS.md` | `aurora/src/pipeline/attention.rs` |
+| 小波变换 | `aurora/02_math/WAVELET_ANALYSIS.md` | `aurora/src/wavelet/` |
+| 信息熵类比 | `aurora/02_math/INFORMATION_THEORY.md` | `src/adapters/cognitive_deconstruction.rs`（熵计算） |
 
 ---
 

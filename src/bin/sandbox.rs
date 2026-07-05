@@ -17,6 +17,7 @@ struct Args {
     trace_phase: bool,
     self_knowledge: bool,
     cost_data: Option<String>,
+    skip_expected_check: bool,
 }
 
 impl Args {
@@ -30,6 +31,7 @@ impl Args {
         let mut trace_phase = false;
         let mut self_knowledge = false;
         let mut cost_data = None;
+        let mut skip_expected_check = false;
 
         let mut args = std::env::args().skip(1).peekable();
         while let Some(arg) = args.next() {
@@ -55,6 +57,7 @@ impl Args {
                             .to_string(),
                     );
                 }
+                "--skip-expected-check" => skip_expected_check = true,
                 "-h" | "--help" => {
                     print_usage();
                     std::process::exit(0);
@@ -75,6 +78,7 @@ impl Args {
             trace_phase,
             self_knowledge,
             cost_data,
+            skip_expected_check,
         })
     }
 }
@@ -100,8 +104,9 @@ Execution options:
       --hold-final         Treat Hold as the final answer (do not auto-question)
       --trace-phase        Output phase shift trajectory in diagnostics
       --self-knowledge     Enable receiver-state inference from self-knowledge
-      --cost-data <path>    Load true cost factors from a JSON file (embeds into anchor check)
-  -h, --help               Print this help message
+      --cost-data <path>      Load true cost factors from a JSON file (embeds into anchor check)
+      --skip-expected-check  Skip same-run expected_behavior comparison (tautological check)
+  -h, --help                 Print this help message
 
 Environment:
   TRIT_LOG                 Log filter (e.g., debug, info, warn)
@@ -184,6 +189,8 @@ fn run_with_error_context(args: &Args) -> Result<SandboxOutput, SandboxError> {
             attention_cmd: None,
             receiver_estimate: None,
             hold_state: None,
+            cost_metadata: None,
+            cognitive_offload: None,
         });
     }
 
@@ -198,15 +205,16 @@ fn run_with_error_context(args: &Args) -> Result<SandboxOutput, SandboxError> {
     }
     if args.self_knowledge {
         pipeline = pipeline.with_self_knowledge(
-            trit_core::adapters::self_knowledge::SelfKnowledge::with_human_defaults(),
+            trit_core::adapters::self_knowledge::ResponsePatternCache::with_human_defaults(),
         );
     }
     if let Some(ref cost_path) = args.cost_data {
-        let loader = trit_core::anchor::cost_factor::JsonFactorLoader::load(
-            std::path::Path::new(cost_path),
-        )
-        .map_err(|e| SandboxError::Io(format!("Failed to load cost data '{}': {}", cost_path, e)))?;
-        pipeline = pipeline.with_cost_factor(Box::new(loader));
+        let loader =
+            trit_core::anchor::cost_factor::JsonFactorLoader::load(std::path::Path::new(cost_path))
+                .map_err(|e| {
+                    SandboxError::Io(format!("Failed to load cost data '{}': {}", cost_path, e))
+                })?;
+        pipeline = pipeline.with_cost_factor(loader);
     }
 
     let (output, diagnostics) = pipeline.run_with_diagnostics(&scenario)?;
@@ -225,7 +233,10 @@ fn run_with_error_context(args: &Args) -> Result<SandboxOutput, SandboxError> {
     // Optionally validate expected_behavior if present and non-empty.
     // In dry-run mode arbitration is skipped, so the full-pipeline expectation
     // is not applicable.
-    if !args.dry_run && !scenario.expected_behavior.is_empty() {
+    //
+    // Note: this is a tautological check — both expected and actual values
+    // flow through the same engine. Use --skip-expected-check to disable it.
+    if !args.skip_expected_check && !args.dry_run && !scenario.expected_behavior.is_empty() {
         if let Err(e) = ScenarioValidator::validate(&output, &scenario.expected_behavior) {
             warn!(
                 scenario_id = %scenario.id,

@@ -1,6 +1,6 @@
 # MODULES — 模块参考
 
-`src/` 下每个子模块的职责、关键函数和设计约束摘要（v0.2.0）。
+`src/` 下每个子模块的职责、关键函数和设计约束摘要（v0.3.0）。
 
 ---
 
@@ -13,7 +13,7 @@
 | `mod.rs` | 公共重导出 |
 | `value.rs` | `TritValue` 枚举 + LUT 实现 |
 | `phase.rs` | `Phase` 连续倾向度 + 量化 + 严格构造 |
-| `frame.rs` | `Frame` 枚举（12 变体：`Science`/`Individual`/`Consensus`/`Absolute`/`Meta`/`FirstPerson`/`Embodied`/`Relational`/`GeoEco`/`Developmental`/`Role`/`Environmental`）+ `FrameRegistry` + `FrameError` |
+| `frame.rs` | `Frame` 枚举（13 变体）+ `FrameError` |
 | `word.rs` | `TritWord` 定义 + 构造器 + 不变量强制 |
 | `algebra.rs` | `TernaryAlgebra`: TAND/TOR/TNOT/THOLD/TSENSE |
 | `sensor.rs` | 多模态传感器信号 `SensorSignal` + `EnvironmentalContext` |
@@ -62,7 +62,7 @@
 |---|---|
 | `mod.rs` | 模块声明 + 重导出 |
 | `domain.rs` | `Domain` 枚举 + `ResolutionPolicy` + `ArbitrationResult` + `PolicyError` |
-| `frame_mask.rs` | O(1) u16 位掩码帧检测（当前用 12 位，上限 16） |
+| `frame_mask.rs` | O(1) u16 位掩码帧检测（当前用 13 位，上限 16） |
 | `interrupt.rs` | `MetaInterrupt` + `ConflictType` + `MetaMonitor` |
 | `rules.rs` | `CustomRule` + `RuleLoader` 特质 + `JsonRuleLoader` + `RuleError` |
 | `safe_fallback.rs` | `SafeFallback`: IEC 61508 安全降级 |
@@ -84,7 +84,7 @@
 
 ### 设计约束
 
-- `FrameMask` 基于 `u16`，当前使用 12 位（对应 12 个 `Frame` 变体），上限 16。
+- `FrameMask` 基于 `u16`，当前使用 13 位（对应 13 个 `Frame` 变体），上限 16。
 - `ResolutionPolicy::arbitrate` 不 panic；缺失输入或规则错误返回 `PolicyError`。
 - `Domain::Custom` 优先使用已附加的 `CustomRule`；无规则时返回 `Negotiate`。
 - SafeFallback 的预置危险域列表在 `SafeFallback::new()` 中硬编码。
@@ -145,39 +145,38 @@
 
 ---
 
-## `attention/` — 注意力调度
+## `adapters/bandwidth_scheduler.rs` — 注意力调度
 
 ### 文件
 
 | 文件 | 职责 |
 |---|---|
-| `mod.rs` | 公共重导出 |
-| `scheduler.rs` | `AttentionScheduler` + `AttentionCmd` + `AttentionEvent` |
+| `bandwidth_scheduler.rs` | `BandwidthScheduler` + `AttentionCmd` + `SuggestOutput` |
 
 ### 关键函数
 
 | 函数 | 说明 |
 |---|---|
-| `AttentionScheduler::record_event` | 记录注意力事件 |
-| `AttentionScheduler::suggest_reprioritization` | 根据输入与上下文给出注意力命令 |
+| `BandwidthScheduler::suggest_with_budget` | 根据输入与资源预算给出注意力命令 |
+| `BandwidthScheduler::new` | 以默认注意力带宽构造 |
 
 ---
 
-## `knowledge/` — 自我知识
+## `adapters/self_knowledge.rs` — 自我知识
 
 ### 文件
 
 | 文件 | 职责 |
 |---|---|
-| `mod.rs` | 公共重导出 |
-| `self_model.rs` | `SelfKnowledge` + `ReceiverEstimate` + `ResponsePattern` |
+| `self_knowledge.rs` | `SelfKnowledge` + `ReceiverEstimate` + `ResponsePatternCache` |
 
 ### 关键函数
 
 | 函数 | 说明 |
 |---|---|
 | `SelfKnowledge::with_human_defaults` | 使用人类默认响应模式初始化 |
-| `SelfKnowledge::infer_receiver_state` | 从输入推断接收者状态 |
+| `SelfKnowledge::lookup_pattern` | 从输入推断接收者状态 |
+| `SelfKnowledge::calibrate` | 反馈驱动校准（Layer 5 调用） |
 
 ---
 

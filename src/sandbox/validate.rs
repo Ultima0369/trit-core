@@ -81,7 +81,9 @@ pub fn validate_signal(index: usize, signal: &SignalInput) -> Result<(), Sandbox
     // Environmental) introduced by the mind-engineering extension.
     match signal.frame.as_str() {
         "Science" | "Individual" | "Consensus" | "Absolute" | "FirstPerson" | "Embodied"
-        | "Relational" | "GeoEco" | "Developmental" | "Role" | "Environmental" => Ok(()),
+        | "Relational" | "GeoEco" | "Developmental" | "Role" | "Environmental" | "Instrumental" => {
+            Ok(())
+        }
         f => Err(SandboxError::InvalidFrame {
             index,
             reason: format!("unknown frame '{}'", f),
@@ -219,6 +221,23 @@ mod tests {
 // ── Output validation ────────────────────────────────────────────────────────
 
 /// Validate that a sandbox output matches its declared expected behavior.
+///
+/// ## Reflexivity boundary (ponytail audit finding C)
+///
+/// This validator checks the *same pipeline run's output* against the
+/// scenario's own `expected_behavior` field. This is a tautological check:
+/// both the expected value and the actual output flow through the same
+/// decision engine. A "match" confirms internal consistency, not external
+/// correctness.
+///
+/// Use this only for:
+/// - **Regression detection**: has the engine's behavior changed for known inputs?
+/// - **Internal consistency**: does the engine produce the expected result given
+///   a known input?
+///
+/// Do NOT use this as evidence of correctness against an external ground truth.
+/// For external validation, run the pipeline against independently annotated
+/// scenarios where the expected behavior comes from a source outside the engine.
 #[derive(Debug, Clone, Default)]
 pub struct ScenarioValidator;
 
@@ -296,6 +315,8 @@ mod output_validation_tests {
             attention_cmd: None,
             receiver_estimate: None,
             hold_state: None,
+            cost_metadata: None,
+            cognitive_offload: None,
         }
     }
 

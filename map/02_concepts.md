@@ -26,7 +26,7 @@
 | [[004-geoeco-frame]] | `aurora/05_adr/004-geoeco-frame.md` | 中文 | 为什么 Frame 从 4 个扩展到 9 个（Aurora 扩展）。 |
 | [[FRAME_MODEL_SPEC]] | `aurora/07_specs/FRAME_MODEL_SPEC.md` | 中文 | 帧模型规格：语义、映射、枚举定义。 |
 
-**代码位置**: `src/core/frame.rs` (Frame enum, 9 变体)
+**代码位置**: `src/core/frame.rs` (Frame enum, 13 变体)
 
 ### 帧之间的不可通约性
 
@@ -57,7 +57,7 @@
 | [[META_MONITOR]] | `src/meta/` (代码内) | Rust | `MetaInterrupt` 和 `SafeFallback` 的实现。 |
 | [[009-ethics-hardening]] | `aurora/05_adr/009-ethics-hardening.md` | 中文 | 元监控的伦理约束：系统不阻断运算，只通知。 |
 
-**代码位置**: `src/meta/interrupt.rs`, `src/meta/safe_fallback.rs`, `src/meta/arbitration.rs`
+**代码位置**: `src/meta/interrupt.rs`, `src/meta/safe_fallback.rs`, `src/meta/domain.rs`
 
 ---
 
@@ -78,7 +78,7 @@
 | 概念 | 文档 | 代码 |
 |---|---|---|
 | TritValue (4 状态) | `docs/explanation/CONCEPTS.md` §1 | `src/core/trit.rs` enum |
-| Frame (9 变体) | `aurora/07_specs/FRAME_MODEL_SPEC.md` | `src/core/frame.rs` enum |
+| Frame (13 变体) | `aurora/07_specs/FRAME_MODEL_SPEC.md` | `src/core/frame.rs` enum |
 | Phase [0.0, 1.0] | `aurora/02_math/PHASE_ARITHMETIC.md` | `src/core/phase.rs` struct |
 | TAND/TOR/TNOT | `docs/explanation/CONCEPTS.md` §1.4 | `src/core/algebra.rs` |
 | MetaInterrupt | `docs/explanation/CONCEPTS.md` §2 | `src/meta/interrupt.rs` |

@@ -40,10 +40,13 @@ fn main() {
     for scenario in &scenarios {
         // Write scenario to a temp file in scenarios/ dir (sandbox security policy
         // requires files under the scenarios/ directory).
-        let tmp_path = std::path::Path::new("scenarios")
-            .join(format!(".audit_{}.json", scenario.id));
-        fs::write(&tmp_path, serde_json::to_string(scenario).expect("serialize"))
-            .expect("write temp scenario");
+        let tmp_path =
+            std::path::Path::new("scenarios").join(format!(".audit_{}.json", scenario.id));
+        fs::write(
+            &tmp_path,
+            serde_json::to_string(scenario).expect("serialize"),
+        )
+        .expect("write temp scenario");
         let output = Command::new(binary)
             .arg("--scenario")
             .arg(&tmp_path)

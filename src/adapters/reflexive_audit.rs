@@ -134,6 +134,14 @@ impl ReflexiveAuditor {
     }
 
     /// Audit the most recent decision path.
+    ///
+    /// Checks, in order:
+    /// 1. **Explanation impulse**: FrameMismatch conflicts + ≥3 repeated attention labels.
+    /// 2. **Forced collapse**: FrameMismatch conflicts without the repeated-attention pattern.
+    /// 3. **Cyclic reasoning** (ponytail audit finding F): decision chain contains a
+    ///    `ForcedCollapse` policy violation immediately preceded by a Hold → this
+    ///    suggests the engine chose True/False when it should have held.
+    /// 4. **Clean**: none of the above.
     pub fn audit_last_decision(&self) -> AuditReport {
         let unresolved_conflicts: Vec<_> = self
             .decision_chain
@@ -141,12 +149,38 @@ impl ReflexiveAuditor {
             .filter(|i| matches!(i.conflict, ConflictType::FrameMismatch))
             .collect();
 
+        // Check: explanation impulse (existing check)
         if !unresolved_conflicts.is_empty() && self.has_explanation_impulse() {
             return AuditReport::ExplanationImpulse {
                 reason: format!(
                     "{} unresolved frame conflict(s) co-occur with loop-like attention trace",
                     unresolved_conflicts.len()
                 ),
+            };
+        }
+
+        // Check: cyclic reasoning — a ForcedCollapse interrupt preceded by
+        // a Hold-producing decision path. This indicates the engine had
+        // conflicting signals, should have held, but chose True/False instead.
+        let has_forced_collapse = self
+            .decision_chain
+            .iter()
+            .any(|i| matches!(&i.conflict, ConflictType::PolicyViolation(pv) if matches!(pv, crate::meta::PolicyViolation::ForcedCollapse)));
+        let has_hold_path = unresolved_conflicts.len() >= 2;
+
+        if has_forced_collapse && has_hold_path {
+            return AuditReport::ForcedCollapse {
+                reason: format!(
+                    "{} unresolved frame conflicts + ForcedCollapse detected — \
+                     decision appears to have forced True/False when Hold was warranted. \
+                     This may indicate circular reasoning: input conflict → Hold impulse → \
+                     policy override → Commit.",
+                    unresolved_conflicts.len()
+                ),
+                recommendation: "Re-evaluate: was Hold overridden by a prior assumption \
+                    that True/False is always preferred? Consider returning Hold and \
+                    escalating to the anchor layer for guidance."
+                    .to_string(),
             };
         }
 

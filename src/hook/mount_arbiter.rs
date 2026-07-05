@@ -70,7 +70,7 @@ impl ResourceCost {
 /// Estimated resource cost for each module.
 pub fn resource_cost(id: ModuleId) -> ResourceCost {
     match id {
-        ModuleId::CriticalThinking => ResourceCost::heavy(),
+        ModuleId::LogicalConsistencyCheck => ResourceCost::heavy(),
         ModuleId::CognitiveDeconstruction => ResourceCost::heavy(),
         ModuleId::ConflictSuspension => ResourceCost::standard(),
         ModuleId::EngineeringArchitecture => ResourceCost::standard(),
@@ -79,7 +79,7 @@ pub fn resource_cost(id: ModuleId) -> ResourceCost {
         ModuleId::EcologicalAssessment => ResourceCost::heavy(),
         ModuleId::AttentionScheduler => ResourceCost::light(),
         ModuleId::CouplingAdapter => ResourceCost::standard(),
-        ModuleId::SelfKnowledge => ResourceCost::light(),
+        ModuleId::ResponsePatternCache => ResourceCost::light(),
     }
 }
 
@@ -92,7 +92,7 @@ pub fn resource_cost(id: ModuleId) -> ResourceCost {
 pub fn default_modules_for(scenario: ScenarioType) -> Vec<ModuleId> {
     match scenario {
         ScenarioType::PhysicalReasoning => vec![
-            ModuleId::CriticalThinking,
+            ModuleId::LogicalConsistencyCheck,
             ModuleId::EngineeringArchitecture,
             ModuleId::EcologicalAssessment,
             ModuleId::AttentionScheduler,
@@ -100,28 +100,28 @@ pub fn default_modules_for(scenario: ScenarioType) -> Vec<ModuleId> {
         ScenarioType::ValueConflict => vec![
             ModuleId::ConflictSuspension,
             ModuleId::CognitiveDeconstruction,
-            ModuleId::SelfKnowledge,
+            ModuleId::ResponsePatternCache,
             ModuleId::ReflexiveAudit,
         ],
         ScenarioType::MedicalEthics => vec![
             ModuleId::ConflictSuspension,
-            ModuleId::SelfKnowledge,
+            ModuleId::ResponsePatternCache,
             ModuleId::ReflexiveAudit,
-            ModuleId::CriticalThinking,
+            ModuleId::LogicalConsistencyCheck,
         ],
         ScenarioType::ReflexiveAudit => vec![
             ModuleId::ReflexiveAudit,
-            ModuleId::SelfKnowledge,
+            ModuleId::ResponsePatternCache,
             ModuleId::CognitiveDeconstruction,
         ],
         ScenarioType::CrisisResponse => vec![
-            ModuleId::CriticalThinking,
+            ModuleId::LogicalConsistencyCheck,
             ModuleId::AttentionScheduler,
             ModuleId::EngineeringArchitecture,
             ModuleId::ConflictSuspension,
         ],
         ScenarioType::General => vec![
-            ModuleId::SelfKnowledge,
+            ModuleId::ResponsePatternCache,
             ModuleId::AttentionScheduler,
             ModuleId::ConflictSuspension,
         ],
@@ -144,7 +144,7 @@ pub fn default_modules_for(scenario: ScenarioType) -> Vec<ModuleId> {
 /// The MountArbiter and ModuleRegistry are fully implemented and tested,
 /// but not yet wired into [`SandboxPipeline`](crate::sandbox::SandboxPipeline).
 /// The pipeline currently manages modules directly via `Option<AttentionScheduler>`
-/// and `Option<SelfKnowledge>` fields. Dynamic module mounting is gated on
+/// and `Option<ResponsePatternCache>` fields. Dynamic module mounting is gated on
 /// multi-scenario pipeline support (future milestone).
 #[derive(Debug)]
 pub struct MountArbiter {
@@ -293,7 +293,7 @@ mod tests {
     #[test]
     fn resource_cost_is_nonzero() {
         for id in &[
-            ModuleId::CriticalThinking,
+            ModuleId::LogicalConsistencyCheck,
             ModuleId::CognitiveDeconstruction,
             ModuleId::ConflictSuspension,
             ModuleId::EngineeringArchitecture,
@@ -302,7 +302,7 @@ mod tests {
             ModuleId::EcologicalAssessment,
             ModuleId::AttentionScheduler,
             ModuleId::CouplingAdapter,
-            ModuleId::SelfKnowledge,
+            ModuleId::ResponsePatternCache,
         ] {
             let cost = resource_cost(*id);
             assert!(cost.total() > 0.0, "zero cost for {:?}", id);
@@ -341,27 +341,27 @@ mod tests {
     fn plan_transition_to_general_uses_completed() {
         let arbiter = MountArbiter::new();
         let mut registry = ModuleRegistry::new();
-        registry.mount(ModuleId::CriticalThinking);
-        registry.mount(ModuleId::SelfKnowledge);
+        registry.mount(ModuleId::LogicalConsistencyCheck);
+        registry.mount(ModuleId::ResponsePatternCache);
 
         let (_to_mount, to_unmount, reason) =
             arbiter.plan_transition(&registry, ScenarioType::General);
 
         assert_eq!(reason, UnmountReason::Completed);
-        assert!(to_unmount.contains(&ModuleId::CriticalThinking));
+        assert!(to_unmount.contains(&ModuleId::LogicalConsistencyCheck));
     }
 
     #[test]
     fn execute_transition_modifies_registry() {
         let arbiter = MountArbiter::new();
         let mut registry = ModuleRegistry::new();
-        registry.mount(ModuleId::SelfKnowledge);
+        registry.mount(ModuleId::ResponsePatternCache);
 
         let (mounted, unmounted) =
             arbiter.execute_transition(&mut registry, ScenarioType::MedicalEthics);
 
         assert!(mounted > 0);
-        assert_eq!(unmounted, 0); // SelfKnowledge is in MedicalEthics default set
+        assert_eq!(unmounted, 0); // ResponsePatternCache is in MedicalEthics default set
         assert!(registry.is_mounted(ModuleId::ConflictSuspension));
     }
 
@@ -369,20 +369,20 @@ mod tests {
     fn prioritize_puts_default_modules_first() {
         let arbiter = MountArbiter::new();
         let modules = vec![
-            ModuleId::SelfKnowledge,
-            ModuleId::CriticalThinking,
+            ModuleId::ResponsePatternCache,
+            ModuleId::LogicalConsistencyCheck,
             ModuleId::AttentionScheduler,
         ];
         let prioritized = arbiter.prioritize(&modules, ScenarioType::PhysicalReasoning);
-        // CriticalThinking should be first (it's in the default set)
-        assert_eq!(prioritized[0], ModuleId::CriticalThinking);
+        // LogicalConsistencyCheck should be first (it's in the default set)
+        assert_eq!(prioritized[0], ModuleId::LogicalConsistencyCheck);
     }
 
     #[test]
     fn check_budget_allows_reasonable_sets() {
         let arbiter = MountArbiter::new();
         let modules: HashSet<ModuleId> = [
-            ModuleId::SelfKnowledge,
+            ModuleId::ResponsePatternCache,
             ModuleId::AttentionScheduler,
             ModuleId::ConflictSuspension,
         ]

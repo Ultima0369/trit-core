@@ -272,8 +272,9 @@ impl AuroraApp {
         user_decision: &str,
     ) -> Result<RetrospectiveDoc> {
         use crate::percept::retrospective::SspScenario;
-        let scenario = SspScenario::load(ssp_scenario_path)
-            .map_err(|e| anyhow::anyhow!("failed to load SSP scenario [{}/{}]: {e}", e.kind(), e))?;
+        let scenario = SspScenario::load(ssp_scenario_path).map_err(|e| {
+            anyhow::anyhow!("failed to load SSP scenario [{}/{}]: {e}", e.kind(), e)
+        })?;
         self.run_retrospective_from_scenario(&scenario, user_decision)
     }
 
@@ -287,7 +288,9 @@ impl AuroraApp {
         let batch = self
             .percept_chain
             .perceive_or_degrade(&prompt)
-            .map_err(|e| anyhow::anyhow!("retrospective perception failed [{}/{}]: {e}", e.kind(), e))?;
+            .map_err(|e| {
+                anyhow::anyhow!("retrospective perception failed [{}/{}]: {e}", e.kind(), e)
+            })?;
         Ok(RetrospectiveDoc {
             pathway: scenario.ssp_pathway.clone(),
             lookback_year: scenario.lookback_year,

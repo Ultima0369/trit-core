@@ -6,10 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a **Rust workspace** with two crates:
+This is a **Rust workspace** with three crates:
 
 - **`trit-core`** (v0.3.0): A ternary decision engine for conflict-aware AI alignment. Uses three-state logic (`True`, `Hold`, `False`) instead of binary. The `Hold` state represents intentional suspension of judgment when conflicting decision domains are detected.
 - **`aurora`** (v0.1.0): A local-first cognitive sovereignty desktop tool built on Trit-Core. Currently at M1 — bounded context skeletons + SQLite persistence layer in place.
+- **`dataforge`** (v0.1.0): Internet data acquisition crate — 5 public data sources (Open-Meteo, NOAA CO₂, GBIF, arXiv, UCDP) with L2 disk cache and SourceRegistry. Zero trit dependency.
 
 ## Build & Test Commands
 
@@ -61,7 +62,7 @@ The library is a **modular monolith** with five layers (bottom-up):
 Five non-negotiable constraints checked before every decision: `thermal_baseline`, `survival_motives`, `flourishing_pool`, `ecological_base`, `wellbeing_priority`. Any violation forces `Hold` + alert. No frame or domain can override an `Abort`-severity violation.
 
 ### Layer 2: `src/hook/` — Scenario Perception & Module Scheduling
-The "perceptual foundation." `ScenarioRecognizer` identifies the current scenario type (`PhysicalReasoning`, `ValueConflict`, `MedicalEthics`, `SelfReflection`, `General`). `MountArbiter` decides which adapter modules to mount based on scenario + resource budget. `HookContext` is the read-only communication bus — modules read from it but never mutate it.
+The "perceptual foundation." `ScenarioRecognizer` identifies the current scenario type (`PhysicalReasoning`, `ValueConflict`, `MedicalEthics`, `ReflexiveAudit`, `CrisisResponse`, `General`). `MountArbiter` decides which adapter modules to mount based on scenario + resource budget. `HookContext` is the read-only communication bus — modules read from it but never mutate it.
 
 ### Layer 3: `src/adapters/` — Cognitive Module Pool
 Ten dynamically mounted modules, each implementing `CognitiveModule`:
@@ -72,10 +73,10 @@ Modules do NOT call each other. All cross-module communication goes through `Hoo
 ### Layer 4: `src/core/` + `src/meta/` — Ternary Algebra & Policy Engine
 - **`TritValue`**: `True` (+1), `Hold` (0), `False` (-1), `Unknown` (⊥ — out-of-distribution, propagates through TAND/TOR).
 - **`Phase`**: Continuous tendency 0.0–1.0 (0.5 = neutral). Wraps `f64` with strict construction (`Phase::new` returns `Result`).
-- **`Frame`**: 12 variants — `Science`, `Individual`, `Consensus`, `Absolute`, `Meta`, `FirstPerson`, `Embodied`, `Relational`, `GeoEco`, `Developmental`, `Role`, `Environmental` (see `src/core/frame.rs`). Trit-Core base 8, Aurora extends 4 (ADR-004, implemented). Cross-frame operations trigger `MetaInterrupt`.
+- **`Frame`**: 13 variants — `Science`, `Individual`, `Consensus`, `Absolute`, `Meta`, `FirstPerson`, `Embodied`, `Relational`, `GeoEco`, `Developmental`, `Role`, `Environmental`, `Instrumental` (see `src/core/frame.rs`). Trit-Core base 8, Aurora extends 5 (ADR-004 + ADR-005). Cross-frame operations trigger `MetaInterrupt`.
 - **`TritWord`**: Bundles `TritValue` + `Phase` + `Frame`. Fields are private; invariants enforced by constructors. `Copy` type.
 - **`TernaryAlgebra`** (HTA): Static methods `t_and`, `t_or`, `t_not`, `t_hold`, `t_sense`. Hot-path methods `t_and_hot`/`t_or_hot` panic on frame mismatch. `t_and_n` uses equal-weight Phase averaging for batch operations.
-- **`Domain`**: 10 variants — `Physical`, `Engineering`, `MedicalEthics`, `ValueJudgment`, `General`, `Custom(String)`, `Organizational`, `Relational`, `Cognitive`, `Environmental` (see `src/meta/domain.rs`).
+- **`Domain`**: 11 variants — `Physical`, `Engineering`, `MedicalEthics`, `ValueJudgment`, `General`, `Custom(String)`, `Organizational`, `Relational`, `Cognitive`, `Environmental`, `Climate` (see `src/meta/domain.rs`).
 - **`ResolutionPolicy::arbitrate()`**: Domain-specific arbitration. `Physical`/`Engineering` prioritize `Science`. `MedicalEthics` prioritizes `Individual`. `Relational`/`Cognitive`/`Environmental` prioritize their namesake frames. `ValueJudgment` always returns `Hold`.
 - **`SafeFallback`**: IEC 61508-style safety override; forces `False` with `Phase::full_false()` in dangerous domains.
 
@@ -167,9 +168,9 @@ Local database at `~/.aurora/data/aurora.db`. Schema: `contacts`, `frame_annotat
 {
   "id": "unique_id",
   "description": "human-readable scenario",
-  "domain": "Physical|Engineering|MedicalEthics|ValueJudgment|General|Custom(name)|Organizational|Relational|Cognitive|Environmental",
+  "domain": "Physical|Engineering|MedicalEthics|ValueJudgment|General|Custom(name)|Organizational|Relational|Cognitive|Environmental|Climate",
   "signals": [
-    { "frame": "Science|Individual|Consensus|Absolute|FirstPerson|Embodied|Relational|GeoEco|Developmental|Role|Environmental", "value": 1|0|-1, "phase": 0.0-1.0 }
+    { "frame": "Science|Individual|Consensus|Absolute|FirstPerson|Embodied|Relational|GeoEco|Developmental|Role|Environmental|Instrumental", "value": 1|0|-1, "phase": 0.0-1.0 }
   ],
   "expected_behavior": "hold|commit_true|commit_false|negotiate"
 }

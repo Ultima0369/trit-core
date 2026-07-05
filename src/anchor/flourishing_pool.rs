@@ -56,10 +56,10 @@ impl FlourishingPool {
     pub fn new() -> Self {
         FlourishingPool {
             indicators: vec![
-                FlourishingIndicator::new(FlourishingDimension::Autonomy, 0.5, 0.7),
-                FlourishingIndicator::new(FlourishingDimension::Creativity, 0.5, 0.6),
-                FlourishingIndicator::new(FlourishingDimension::Connection, 0.5, 0.7),
-                FlourishingIndicator::new(FlourishingDimension::Transcendence, 0.3, 0.5),
+                FlourishingIndicator::new(FlourishingDimension::Autonomy, 0.7, 0.7),
+                FlourishingIndicator::new(FlourishingDimension::Creativity, 0.6, 0.6),
+                FlourishingIndicator::new(FlourishingDimension::Connection, 0.7, 0.7),
+                FlourishingIndicator::new(FlourishingDimension::Transcendence, 0.5, 0.5),
             ],
         }
     }
@@ -105,6 +105,12 @@ impl AnchorConstraint for FlourishingPool {
         AnchorSeverity::DowngradeToHold
     }
 
+    /// Check flourishing satisfaction.
+    ///
+    /// Note (ponytail audit H): this check uses the pool's internal indicator
+    /// state only — DecisionPreview has no flourishing-specific fields.
+    /// When a flourishing-impact model is added to DecisionPreview (e.g.,
+    /// `autonomy_impact: f64`), this check should incorporate those fields.
     fn check(&self, _decision: &DecisionPreview) -> Option<AnchorViolation> {
         let fraction = self.satisfaction_fraction();
         if fraction < 0.25 {
@@ -136,13 +142,12 @@ mod tests {
     #[test]
     fn satisfaction_fraction_is_correct() {
         let mut pool = FlourishingPool::new();
+        assert_eq!(pool.satisfaction_fraction(), 1.0); // default is all-satisfied
+                                                       // Make some unsatisfied
+        pool.indicators[0].current_level = 0.5;
+        pool.indicators[0].aspiration = 0.9;
+        pool.indicators[0].satisfied = false;
         assert!(pool.satisfaction_fraction() < 1.0);
-        // Make all satisfied
-        for i in 0..4 {
-            pool.indicators[i].current_level = 1.0;
-            pool.indicators[i].satisfied = true;
-        }
-        assert_eq!(pool.satisfaction_fraction(), 1.0);
     }
 
     #[test]

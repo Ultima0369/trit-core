@@ -1,7 +1,9 @@
 use crate::adapters::self_knowledge::ReceiverEstimate;
+use crate::anchor::cost_factor::CostMetadata;
 use crate::core::hold::HoldState;
 use crate::core::phase::Phase;
 use crate::core::value::TritValue;
+use crate::meta::CognitiveOffload;
 use serde::{Deserialize, Deserializer, Serialize};
 
 /// Sandbox output record.
@@ -38,6 +40,13 @@ pub struct SandboxOutput {
     /// Optional Hold state metadata.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hold_state: Option<HoldState>,
+    /// True cost metadata for this decision (populated when --cost-data is used).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cost_metadata: Option<CostMetadata>,
+    /// Cognitive offload — structured explanation of WHY Hold was triggered.
+    /// Present only when the decision was Hold + the pipeline produced an offload.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cognitive_offload: Option<CognitiveOffload>,
 }
 
 impl SandboxOutput {
@@ -91,6 +100,10 @@ impl<'de> Deserialize<'de> for SandboxOutput {
             receiver_estimate: Option<ReceiverEstimate>,
             #[serde(default)]
             hold_state: Option<HoldState>,
+            #[serde(default)]
+            cost_metadata: Option<CostMetadata>,
+            #[serde(default)]
+            cognitive_offload: Option<CognitiveOffload>,
         }
 
         let raw = SandboxOutputRaw::deserialize(deserializer)?;
@@ -129,6 +142,8 @@ impl<'de> Deserialize<'de> for SandboxOutput {
             attention_cmd: raw.attention_cmd,
             receiver_estimate: raw.receiver_estimate,
             hold_state: raw.hold_state,
+            cost_metadata: raw.cost_metadata,
+            cognitive_offload: raw.cognitive_offload,
         })
     }
 }

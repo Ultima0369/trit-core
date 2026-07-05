@@ -83,63 +83,63 @@ pub enum RuleError {
 }
 
 /// Rule loader using serde_json.
-pub struct JsonRuleLoader;
+///
+/// # ponytail: free functions, no struct — single caller in domain.rs.
+/// Re-add a loader struct when multiple implementations exist.
+///
+/// Load a single rule from a file path.
+pub fn load_rule<P: AsRef<Path>>(path: P) -> Result<CustomRule, RuleError> {
+    let raw = std::fs::read_to_string(path.as_ref()).map_err(|e| {
+        RuleError::Read(format!(
+            "Failed to read rule file '{}': {}",
+            path.as_ref().display(),
+            e
+        ))
+    })?;
+    load_rule_json(&raw)
+}
 
-impl JsonRuleLoader {
-    /// Load a single rule from a file path.
-    pub fn load<P: AsRef<Path>>(path: P) -> Result<CustomRule, RuleError> {
-        let raw = std::fs::read_to_string(path.as_ref()).map_err(|e| {
-            RuleError::Read(format!(
-                "Failed to read rule file '{}': {}",
-                path.as_ref().display(),
-                e
-            ))
-        })?;
-        Self::load_json(&raw)
-    }
+/// Load a rule from a JSON string.
+pub fn load_rule_json(json: &str) -> Result<CustomRule, RuleError> {
+    serde_json::from_str::<CustomRule>(json).map_err(|e| RuleError::Parse(e.to_string()))
+}
 
-    /// Load a rule from a JSON string.
-    pub fn load_json(json: &str) -> Result<CustomRule, RuleError> {
-        serde_json::from_str::<CustomRule>(json).map_err(|e| RuleError::Parse(e.to_string()))
-    }
-
-    /// Apply a loaded rule to inputs, producing an arbitration result.
-    pub fn apply(rule: &CustomRule, inputs: &[TritWord]) -> ArbitrationResult {
-        // Check for priority frame match
-        if let Some(ref pf) = rule.priority_frame {
-            match pf.parse::<Frame>() {
-                Ok(frame) => {
-                    if let Some(t) = inputs.iter().find(|w| w.frame() == frame) {
-                        return if rule.allow_forced_collapse {
-                            ArbitrationResult::Commit(*t)
-                        } else {
-                            ArbitrationResult::Preserve(*t)
-                        };
-                    }
-                }
-                Err(_) => {
-                    tracing::warn!(
-                        priority_frame = %pf,
-                        rule_name = %rule.name,
-                        "CustomRule priority_frame is not a valid Frame name — falling back"
-                    );
+/// Apply a loaded rule to inputs, producing an arbitration result.
+pub fn apply_rule(rule: &CustomRule, inputs: &[TritWord]) -> ArbitrationResult {
+    // Check for priority frame match
+    if let Some(ref pf) = rule.priority_frame {
+        match pf.parse::<Frame>() {
+            Ok(frame) => {
+                if let Some(t) = inputs.iter().find(|w| w.frame() == frame) {
+                    return if rule.allow_forced_collapse {
+                        ArbitrationResult::Commit(*t)
+                    } else {
+                        ArbitrationResult::Preserve(*t)
+                    };
                 }
             }
-        }
-
-        // Fallback behavior
-        match rule.fallback {
-            FallbackBehavior::Hold => ArbitrationResult::Hold,
-            FallbackBehavior::CommitFirst => {
-                if let Some(first) = inputs.iter().find(|t| t.value() != TritValue::Unknown) {
-                    ArbitrationResult::Commit(*first)
-                } else {
-                    ArbitrationResult::Hold
-                }
+            Err(_) => {
+                tracing::warn!(
+                    priority_frame = %pf,
+                    rule_name = %rule.name,
+                    "CustomRule priority_frame is not a valid Frame name — falling back"
+                );
             }
-            FallbackBehavior::SafeFallback => ArbitrationResult::ForceCollapse,
-            FallbackBehavior::Negotiate => ArbitrationResult::Negotiate,
         }
+    }
+
+    // Fallback behavior
+    match rule.fallback {
+        FallbackBehavior::Hold => ArbitrationResult::Hold,
+        FallbackBehavior::CommitFirst => {
+            if let Some(first) = inputs.iter().find(|t| t.value() != TritValue::Unknown) {
+                ArbitrationResult::Commit(*first)
+            } else {
+                ArbitrationResult::Hold
+            }
+        }
+        FallbackBehavior::SafeFallback => ArbitrationResult::ForceCollapse,
+        FallbackBehavior::Negotiate => ArbitrationResult::Negotiate,
     }
 }
 
@@ -157,7 +157,7 @@ mod tests {
             "allow_forced_collapse": true,
             "fallback": "safe_fallback"
         }"#;
-        let rule = JsonRuleLoader::load_json(json).unwrap();
+        let rule = load_rule_json(json).unwrap();
         assert_eq!(rule.name, "chemistry_safety");
         assert_eq!(rule.priority_frame, Some("Science".to_string()));
         assert!(rule.allow_forced_collapse);
@@ -166,7 +166,7 @@ mod tests {
 
     #[test]
     fn json_rule_loader_rejects_invalid_json() {
-        assert!(JsonRuleLoader::load_json("not json").is_err());
+        assert!(load_rule_json("not json").is_err());
     }
 
     #[test]
@@ -181,7 +181,7 @@ mod tests {
             TritWord::fals(Frame::Individual),
             TritWord::tru(Frame::Science),
         ];
-        let result = JsonRuleLoader::apply(&rule, &inputs);
+        let result = apply_rule(&rule, &inputs);
         assert!(matches!(result, ArbitrationResult::Commit(_)));
     }
 
@@ -194,7 +194,7 @@ mod tests {
             fallback: FallbackBehavior::Hold,
         };
         let inputs = vec![TritWord::tru(Frame::Science)];
-        let result = JsonRuleLoader::apply(&rule, &inputs);
+        let result = apply_rule(&rule, &inputs);
         assert_eq!(result, ArbitrationResult::Hold);
     }
 
@@ -207,7 +207,7 @@ mod tests {
             fallback: FallbackBehavior::SafeFallback,
         };
         let inputs = vec![TritWord::tru(Frame::Science)];
-        let result = JsonRuleLoader::apply(&rule, &inputs);
+        let result = apply_rule(&rule, &inputs);
         assert_eq!(result, ArbitrationResult::ForceCollapse);
     }
 
@@ -220,7 +220,7 @@ mod tests {
             fallback: FallbackBehavior::Hold,
         };
         let inputs = vec![TritWord::tru(Frame::Individual)];
-        let result = JsonRuleLoader::apply(&rule, &inputs);
+        let result = apply_rule(&rule, &inputs);
         assert_eq!(result, ArbitrationResult::Hold); // fallback is hold
     }
 
@@ -236,7 +236,7 @@ mod tests {
             TritWord::unknown(Frame::Science),
             TritWord::fals(Frame::Individual),
         ];
-        let result = JsonRuleLoader::apply(&rule, &inputs);
+        let result = apply_rule(&rule, &inputs);
         assert!(matches!(result, ArbitrationResult::Commit(w) if w.value() == TritValue::False));
     }
 
@@ -288,7 +288,7 @@ mod tests {
 
     #[test]
     fn load_from_missing_file_fails() {
-        let result = JsonRuleLoader::load("/nonexistent/rule.json");
+        let result = load_rule("/nonexistent/rule.json");
         assert!(result.is_err());
         let msg = format!("{}", result.unwrap_err());
         assert!(msg.contains("Failed to read"));
@@ -300,7 +300,7 @@ mod tests {
         let dir = std::env::temp_dir();
         let path = dir.join("trit_core_test_rule.json");
         std::fs::write(&path, json).unwrap();
-        let rule = JsonRuleLoader::load(&path).unwrap();
+        let rule = load_rule(&path).unwrap();
         assert_eq!(rule.name, "temp");
         assert_eq!(rule.fallback, FallbackBehavior::Hold);
         // cleanup

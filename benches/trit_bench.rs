@@ -187,6 +187,8 @@ fn bench_json_serde_output_ser(c: &mut Criterion) {
         attention_cmd: None,
         receiver_estimate: None,
         hold_state: None,
+        cost_metadata: None,
+        cognitive_offload: None,
     };
 
     c.bench_function("json_ser_output", |b| {

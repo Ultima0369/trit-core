@@ -22,8 +22,11 @@ impl FFTProvider {
 }
 
 impl ExternalPercept for FFTProvider {
+    /// FFTProvider cannot decompose raw text into TritWords — it only works on
+    /// numeric time-series via the analysis pipeline. Returning AllUnavailable
+    /// allows the perception chain to degrade to structured decomposition.
     fn perceive(&self, _raw: &str) -> Result<PerceptBatch, PerceptError> {
-        Ok(PerceptBatch::empty("fft-wavelet"))
+        Err(PerceptError::AllUnavailable)
     }
 
     fn provider_name(&self) -> &str {

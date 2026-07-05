@@ -2,8 +2,8 @@
 
 > **目的**：每次新会话开始时，AI 或人类协作者读此文件，30 秒内定位工作进度。
 > **维护规则**：每次完成一个阶段或做出重大决策后，更新"当前进度"和"上次决策"两节。
-> **版本**：1.1.0
-> **最后更新**：2026-07-05（CTO 审计 L8 修复 + cost_factor 集成）
+> **版本**：1.5.0
+> **最后更新**：2026-07-06（GUI 层性能审计 + 修正：L2 atime 线程→同步 touch、MirrorFetcher 死 client 移除、Logger BufWriter 替代逐行 flush、prefetch 串行→并发 download_batch。三方一致性审计完成：源码 62 + docs 93 + aurora/map 48 + GUI 4 项发现，已全部修正。src-tauri 编译通过。630 tests + clippy + fmt clean）
 
 ---
 
@@ -20,8 +20,9 @@
 
 | 维度 | 状态 |
 |------|------|
-| **Trit-Core 版本** | v0.3.0 — 单机决策引擎，5 层架构完整（Core→Meta→Hook→Adapter→Feedback） |
-| **Aurora 阶段** | M1 — Sandcastle 3-column UI 完成（Monaco Editor + CesiumJS Globe + Analysis Panel）。Cosmos 视觉预设（MeshStandardMaterial + 双辉光壳 + 星空）已集成。纹理切换（Blue Marble / Topographic）通过 TopBar 按钮支持。决策结果抽屉完成（顶栏 decision 标签可点击 → 抽屉展示 phase/asi/signals/conflicts；Esc 关闭）。**Tauri 桌面打包验证通过**（NSIS `aurora_0.1.0_x64-setup.exe` 13M + MSI 15M，M1 Exit Criteria"可打包安装"达成）。41 UI 测试通过，TypeScript 干净。共享类型和事件常量已提取到 types.ts。 |
+| **Trit-Core 版本** | v0.3.0 — 单机决策引擎，5 层架构完整（Core→Meta→Hook→Adapter→Feedback）。Frame 系统 13 变体（+Instrumental 仪器测量帧）。Domain 11 变体（+Climate 气候域）。CognitiveOffload 认知卸载协议已定义。 |
+| **Aurora 阶段** | M2 — dataforge crate 完成（5 数据源 + L2 缓存 + SourceRegistry），prism 引擎完成（RawSignal → LLM → PerceptBatch 分解 + 无 LLM 时结构化降级），Instrumental 帧 + Climate domain 仲裁策略就绪，CognitiveOffload 在管线中自动填充（Hold 时映射 interrupt 类型→HoldReason），CLI 子命令完成（pipeline/sources/perceive），端到端感知管线打通。 |
+| **dataforge crate** | v0.1.0 — 工作区新成员。5 个公开数据源：Open-Meteo（温度异常）、NOAA GML（Mauna Loa CO2）、GBIF（物种观测）、arXiv（预印本）、UCDP GED（地缘冲突）。独立 L2 磁盘缓存。零 trit 依赖。 |
 | **架构设计** | 已完成 — 见 `docs/superpowers/specs/2026-06-20-aurora-architecture-design.md` |
 | **M0 剩余工作** | 无代码任务。P1 待办：作者自我验证 + 2 外部用户试用（创始人侧） |
 | **M1 入口** | 桌面打包已验证 ✅。下一步：真实数据源接入（邮件/日历，M1 P0，目前仅 JSON fallback + 公开气候数据）、注意力训练闭环测试、作者自验证 |
@@ -33,6 +34,8 @@
 
 | 日期 | 决策 | 文档 |
 |------|------|------|
+| 2026-07-06 | 三方一致性审计（代码↔注释↔文档）完成：4 路并行 agent 审计 225 文件 → 155 项发现 → 全量修正。源码层：删除 SafetyHold 死代码，修正 hold_is_final_by_domain 注释。文档层：CLAUDE.md Frame/Domain 计数更新，CLI_REFERENCE 移除 5 个假标志，CONFIGURATION 移除假 env vars，map/ 8 处过时路径/计数修正，aurora/ MANIFEST + COGNITIVE_ARCHITECTURE_LAYERS 计数更新，docs/reference api.md + MODULES.md Frame/Domain/FrameMask 修正。 | 本轮对话 |
+| 2026-07-06 | GUI 层性能审计 + 修正：L2 缓存 atime 更新从 `std::thread::spawn` 改同步 `file_touch`（消除每请求生成线程），MirrorFetcher 移除未使用的 reqwest::Client，Logger 改用 `BufWriter<File>` 替代逐行 flush，prefetch_tiles 从 O(n³) 串行 + sleep(20ms) 改为 `download_batch` Semaphore 6 并发。src-tauri 编译通过，39 单测全过。 | 本轮对话 |
 | 2026-07-05 | 28 commits：三杠杆全通 + M2/M3/M4 修复 + 对抗审计 12/12 + SSP include_str! 嵌入 + commands.rs 首测 + 轨迹趋势可视化 + 剪刀差 + CO2 L2 接入。827 tests，clippy zero。 | 本轮对话 |
 | 2026-07-01 | Tauri 桌面打包验证通过 — `cargo tauri build` 产出 NSIS `aurora_0.1.0_x64-setup.exe` (13M) + MSI (15M) + 裸 exe (27M)，release 编译 2m20s 零错误。19 个 Tauri 命令注册齐全（run_analysis_pipeline/get_anchor_status/get_geo_events/export_user_data 等），应用非空壳。M1 Exit Criteria "桌面应用可打包安装" 硬指标达成。 | 本轮对话 |
 | 2026-07-01 | 决策结果抽屉完成 — 顶栏 decision 标签可点击 → 抽屉展示 phase/asi/signals/conflicts。Esc 键优先关设置抽屉，其次关决策抽屉，最后退出应用。冲突项布局借鉴 worldmonitor renderSignal（左色条+badge）。8 提交，41 UI 测试，终审 Ready to merge。 | 本轮对话 |

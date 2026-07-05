@@ -82,8 +82,8 @@ L0 物理层（Physical）        ← 100ms 神经回路运算，离子通道，
 
 **已实现**：
 - `TernaryAlgebra`（TAND/TOR/TNOT）
-- `Frame` 系统（8+4 个参考系）
-- `Domain` 仲裁（Physical/Engineering/MedicalEthics/ValueJudgment/General/Custom）
+- `Frame` 系统（13 个参考系）
+- `Domain` 仲裁（11 个域：Physical/Engineering/MedicalEthics/ValueJudgment/General/Custom/Organizational/Relational/Cognitive/Environmental/Climate）
 - `MetaInterrupt`（冲突记录）
 - `SafeFallback`（危险域默认 False）
 

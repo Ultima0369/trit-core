@@ -113,10 +113,13 @@ impl AnchorConstraint for EcologicalBase {
         AnchorSeverity::Abort
     }
 
-    fn check(&self, _decision: &DecisionPreview) -> Option<AnchorViolation> {
+    fn check(&self, decision: &DecisionPreview) -> Option<AnchorViolation> {
         // Fail-closed: a sensor error is treated as a violation. These anchors
         // are Abort-severity with veto power — unavailable data must not allow
         // an unsafe decision to proceed. See CLAUDE.md Layer 1.
+
+        // ── Static source checks (global environmental state) ──────
+
         match self.bii_source.sample() {
             Ok(bii) if bii < self.config.bii_min => {
                 return Some(AnchorViolation {
@@ -187,6 +190,24 @@ impl AnchorConstraint for EcologicalBase {
                     threshold: self.config.ocean_ph_min,
                 });
             }
+        }
+
+        // ── Decision-specific check (ponytail audit H) ────────────
+        // Check whether the decision's ecosystem impact zone combined with
+        // high irreversible change risk triggers a veto.
+
+        if decision.irreversible_change_risk > 0.8 {
+            return Some(AnchorViolation {
+                anchor_name: self.name().to_string(),
+                description: format!(
+                    "Decision irreversible change risk {:.0}% exceeds ecological ceiling — \
+                     species extinction-level risk is not acceptable regardless of other metrics",
+                    decision.irreversible_change_risk * 100.0
+                ),
+                severity: self.severity(),
+                actual_value: decision.irreversible_change_risk,
+                threshold: 0.8,
+            });
         }
 
         None

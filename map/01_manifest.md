@@ -50,8 +50,8 @@
 | 概念 | 文档位置 | 代码位置 |
 |---|---|---|
 | 四条底线 | `aurora/00_manifest/CHARTER.md` | `src/meta/safe_fallback.rs`（可关闭 = 不剥夺） |
-| L1-L5 架构 | `aurora/00_manifest/COGNITIVE_ARCHITECTURE_LAYERS.md` | `src/` 目录结构（L1=lib.rs, L2=sandbox/input.rs, L3=adapters（预留）, L4=core/, L5=meta/） |
-| 伦理模式 | `aurora/05_adr/009-ethics-hardening.md` | `src/meta/security_mode.rs`（SecurityMode enum） |
+| L1-L5 架构 | `aurora/00_manifest/COGNITIVE_ARCHITECTURE_LAYERS.md` | `src/` 目录结构（L1=anchor, L2=hook, L3=adapters, L4=core+meta, L5=feedback） |
+| 伦理模式 | `aurora/05_adr/009-ethics-hardening.md` | `src/security/mod.rs`（SecurityMode enum） |
 
 ---
 

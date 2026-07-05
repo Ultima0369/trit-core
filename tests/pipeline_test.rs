@@ -4,7 +4,7 @@
 //! under the 300-line SRP limit.
 
 use trit_core::adapters::reflexive_audit::ReflexiveAuditor;
-use trit_core::adapters::self_knowledge::{ResponsePattern, SelfKnowledge};
+use trit_core::adapters::self_knowledge::{ResponsePattern, ResponsePatternCache};
 use trit_core::adapters::{AttentionCmd, ShiftTarget};
 use trit_core::anchor::ecological_base::EcologicalBase;
 use trit_core::anchor::thermal_baseline::ThermalBaseline;
@@ -370,7 +370,7 @@ fn pipeline_with_self_knowledge_calibrates() {
         "MedicalEthics",
         vec![signal("Science", 1, 0.8), signal("Individual", -1, 0.2)],
     );
-    let knowledge = SelfKnowledge::with_human_defaults();
+    let knowledge = ResponsePatternCache::with_human_defaults();
     let before_count = knowledge.calibration_count();
     let mut pipeline = SandboxPipeline::default()
         .with_self_knowledge(knowledge)
@@ -386,7 +386,7 @@ fn pipeline_with_self_knowledge_calibrates() {
 #[test]
 fn pipeline_clean_decision_strengthens_pattern() {
     let s = scenario("General", vec![signal("Science", 1, 0.9)]);
-    let mut knowledge = SelfKnowledge::with_human_defaults();
+    let mut knowledge = ResponsePatternCache::with_human_defaults();
     knowledge.add_pattern(ResponsePattern {
         frame: Frame::Science,
         value: TritValue::True,
@@ -524,4 +524,129 @@ fn pipeline_feedback_value_judgment_holds() {
     let mut pipeline = SandboxPipeline::default().with_feedback(feedback);
     let (out, _diag) = pipeline.run_with_diagnostics(&s).unwrap();
     assert_eq!(out.final_value_code, 0);
+}
+
+// ── CognitiveOffload tests ─────────────────────────────────────
+
+#[test]
+fn cognitive_offload_populated_on_hold() {
+    // ValueJudgment domain always produces Hold
+    let s = scenario(
+        "ValueJudgment",
+        vec![signal("Individual", -1, 0.3), signal("Consensus", 1, 0.7)],
+    );
+    let mut pipeline = SandboxPipeline::default();
+    let (out, _diag) = pipeline.run_with_diagnostics(&s).unwrap();
+    assert_eq!(out.final_value_code, 0, "ValueJudgment should always Hold");
+    let offload = out
+        .cognitive_offload
+        .as_ref()
+        .expect("Hold should produce CognitiveOffload");
+    assert!(
+        matches!(
+            offload.reason,
+            trit_core::meta::HoldReason::FrameMismatch
+                | trit_core::meta::HoldReason::DomainBoundary
+        ),
+        "Hold should have a reason, got {:?}",
+        offload.reason
+    );
+    // ValueJudgment with cross-frame inputs should have conflicts
+    assert!(
+        !offload.conflicting_sources.is_empty(),
+        "should have conflicting sources"
+    );
+}
+
+#[test]
+fn cognitive_offload_none_on_true() {
+    let s = scenario("Physical", vec![signal("Science", 1, 0.95)]);
+    let mut pipeline = SandboxPipeline::default();
+    let (out, _diag) = pipeline.run_with_diagnostics(&s).unwrap();
+    assert_eq!(out.final_value_code, 1);
+    assert!(
+        out.cognitive_offload.is_none(),
+        "non-Hold decision should not produce CognitiveOffload"
+    );
+}
+
+#[test]
+fn cognitive_offload_with_anchor_violation() {
+    // WellbeingPriority violation: high arousal + high social density
+    let s = ScenarioInput {
+        id: "anchor-test".into(),
+        description: "violating wellbeing".into(),
+        domain: "Cognitive".into(),
+        signals: vec![signal("Individual", 1, 0.95)],
+        expected_behavior: "hold".into(),
+        environmental_context: Some(EnvironmentalContext {
+            ambient_arousal: 0.95,
+            social_density: 0.9,
+            ..Default::default()
+        }),
+    };
+    let mut pipeline = SandboxPipeline::default().with_anchor(Box::new(WellbeingPriority::new()));
+    let (out, _diag) = pipeline.run_with_diagnostics(&s).unwrap();
+    assert_eq!(out.final_value_code, 0);
+    let offload = out.cognitive_offload.as_ref().unwrap();
+    assert!(
+        matches!(offload.reason, trit_core::meta::HoldReason::AnchorViolation),
+        "anchor violation should produce AnchorViolation, got {:?}",
+        offload.reason
+    );
+}
+
+#[test]
+fn climate_instrumental_agreement_commits() {
+    // Two Instrumental signals that agree → should preserve Instrumental.
+    let s = ScenarioInput {
+        id: "climate-agree".into(),
+        description: "two stations agree".into(),
+        domain: "Climate".into(),
+        signals: vec![
+            signal("Instrumental", 1, 0.85),
+            signal("Instrumental", 1, 0.78),
+        ],
+        expected_behavior: "commit_true".into(),
+        environmental_context: None,
+    };
+    let mut pipeline = SandboxPipeline::default();
+    let (out, _diag) = pipeline.run_with_diagnostics(&s).unwrap();
+    assert_eq!(out.final_value_code, 1);
+    assert_eq!(out.final_frame, "Instrumental");
+}
+
+#[test]
+fn climate_instrumental_conflict_holds_with_offload() {
+    // Two Instrumental signals that disagree → Hold + CognitiveOffload.
+    let s = ScenarioInput {
+        id: "climate-conflict".into(),
+        description: "CO2 reading conflict".into(),
+        domain: "Climate".into(),
+        signals: vec![
+            signal("Instrumental", 1, 0.85),  // below threshold
+            signal("Instrumental", -1, 0.90), // above threshold
+        ],
+        expected_behavior: "hold".into(),
+        environmental_context: None,
+    };
+    let mut pipeline = SandboxPipeline::default();
+    let (out, _diag) = pipeline.run_with_diagnostics(&s).unwrap();
+    assert_eq!(out.final_value_code, 0);
+    let offload = out
+        .cognitive_offload
+        .as_ref()
+        .expect("Hold should produce CognitiveOffload");
+    assert!(
+        matches!(offload.reason, trit_core::meta::HoldReason::DomainBoundary),
+        "climate conflict without interrupts should be DomainBoundary, got {:?}",
+        offload.reason
+    );
+    // Help text should reference instrumental / measurement
+    let help_text = offload.what_would_help.join(" ");
+    assert!(
+        help_text.contains("instrumental") || help_text.contains("measurement"),
+        "climate help should mention instrumental/measurement, got: {}",
+        help_text
+    );
 }

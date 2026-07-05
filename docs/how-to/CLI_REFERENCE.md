@@ -18,11 +18,6 @@ cargo run --release --bin trit-sandbox -- --scenario <PATH> [OPTIONS]
 
 | 选项 | 说明 |
 |---|---|
-| `-v`, `--verbose` | 启用 debug 级别日志 |
-| `-q`, `--quiet` | 仅输出 warn 及以上级别日志 |
-| `--trace` | 启用 trace 级别日志（最详细） |
-| `--log-file <PATH>` | 将日志写入指定文件（替代 stderr） |
-| `--log-format <FMT>` | 日志格式：`json`（默认）、`pretty`、`compact`、`full` |
 | `--diagnostic` | 在标准错误输出 JSON 诊断报告 |
 | `--validate-only` | 校验场景文件后退出，不运行决策管道 |
 | `--dry-run` | 构建 trits 并运行 TAND，但跳过仲裁与 SafeFallback；此模式下不校验 `expected_behavior` |
@@ -30,7 +25,11 @@ cargo run --release --bin trit-sandbox -- --scenario <PATH> [OPTIONS]
 | `--self-knowledge` | 启用自我知识模型，在输出中附加 receiver_estimate |
 | `--trace-phase` | 记录最终相位到诊断报告的 `phase_trace` 字段 |
 | `--hold-final` | 将 Hold 视为最终答案（默认行为相同；用于显式表达不自动质疑的保持） |
+| `--cost-data <PATH>` | 加载碳排放成本因子 JSON 文件 |
+| `--skip-expected-check` | 跳过 expected_behavior 断言（仅用于未设期望的场景） |
 | `-h`, `--help` | 打印帮助信息 |
+
+> **日志配置**：通过 `TRIT_LOG` 环境变量控制（`tracing_init::init()` 读取）。格式：`TRIT_LOG=debug` 或 `TRIT_LOG=trace`。无独立的 `--verbose`/`--quiet`/`--log-file`/`--log-format` CLI 标志。
 
 ## 使用示例
 
@@ -56,12 +55,12 @@ cargo run --release --bin trit-sandbox -- \
   --validate-only
 ```
 
-### 以 pretty 格式输出到文件
+### 启用诊断 + 自反审计
 
 ```bash
-cargo run --release --bin trit-sandbox -- \
+TRIT_LOG=debug cargo run --release --bin trit-sandbox -- \
   --scenario scenarios/career_value_conflict.json \
-  --log-file trit.log --log-format pretty --verbose
+  --diagnostic --reflexive
 ```
 
 ## `--help` 输出
@@ -75,12 +74,8 @@ Usage:
 Required:
   --scenario <path.json>   Path to a scenario JSON file under the scenarios/ directory
 
-Logging options:
-  -v, --verbose            Enable debug-level logging
-  -q, --quiet              Only log warnings and errors
-      --trace              Enable trace-level logging (most verbose)
-      --log-file <path>    Write logs to a file instead of stderr
-      --log-format <fmt>   One of: json (default), pretty, compact, full
+Logging:
+  TRIT_LOG=<level>         Environment variable: debug, trace, info, warn, error
 
 Execution options:
       --diagnostic         Emit a diagnostic report alongside the output
@@ -119,7 +114,7 @@ Environment:
 |---|---|---|
 | `id` | string | 场景唯一 ID，用于输出追踪 |
 | `description` | string | 自由文本描述 |
-| `domain` | string | 仲裁域。可选值：`Physical`、`Engineering`、`MedicalEthics`、`ValueJudgment`、`General`、`Organizational`、`Relational`、`Cognitive`、`Environmental`，或 `Custom(name)`（如 `Custom(chemistry)`） |
+| `domain` | string | 仲裁域。可选值：`Physical`、`Engineering`、`MedicalEthics`、`ValueJudgment`、`General`、`Organizational`、`Relational`、`Cognitive`、`Environmental`、`Climate`，或 `Custom(name)`（如 `Custom(chemistry)`） |
 | `signals` | array | SignalInput 对象数组（至少 1 个） |
 | `expected_behavior` | string | 预期行为。可选值：`hold`、`commit_true`、`commit_false`、`negotiate`。用于测试断言 |
 
@@ -135,7 +130,7 @@ Environment:
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| `frame` | string | 决策帧。可选值（11 个外部帧，`Meta` 为系统内部帧不可用于输入）：`Science`、`Individual`、`Consensus`、`Absolute`、`FirstPerson`、`Embodied`、`Relational`、`GeoEco`、`Developmental`、`Role`、`Environmental` |
+| `frame` | string | 决策帧。可选值（12 个外部帧，`Meta` 为系统内部帧不可用于输入）：`Science`、`Individual`、`Consensus`、`Absolute`、`FirstPerson`、`Embodied`、`Relational`、`GeoEco`、`Developmental`、`Role`、`Environmental`、`Instrumental` |
 | `value` | i8 | 三值状态：`1`=True，`0`=Hold，`-1`=False |
 | `phase` | f64 | 倾向度 `0.0..1.0`。`0.5`=中性，`>0.5`=倾向 True，`<0.5`=倾向 False |
 
