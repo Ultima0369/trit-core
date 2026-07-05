@@ -1,0 +1,10 @@
+{
+  "id": "ssp5_fossil_fueled",
+  "description": "SSP5 Fossil-Fueled Development — Rapid technological progress and human capital development are fueled by continued fossil resource exploitation. High challenges to mitigation, low challenges to adaptation.",
+  "domain": "Environmental",
+  "signals": [
+    { "frame": "GeoEco", "value": -1, "phase": 0.95 },
+    { "frame": "Science", "value": 1, "phase": 0.8 }
+  ],
+  "expected_behavior": "commit_false"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "ssp1_sustainability",
+  "description": "SSP1 Sustainability — The world shifts gradually toward a more sustainable path. Low challenges to mitigation and adaptation. Global commons are managed cooperatively.",
+  "domain": "Environmental",
+  "signals": [
+    { "frame": "GeoEco", "value": 1, "phase": 0.85 },
+    { "frame": "Consensus", "value": 1, "phase": 0.8 }
+  ],
+  "expected_behavior": "commit_true"
+}

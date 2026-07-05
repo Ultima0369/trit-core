@@ -1,0 +1,10 @@
+{
+  "id": "ssp4_inequality",
+  "description": "SSP4 Inequality — Highly unequal investments in human capital and increasing disparities. A small knowledge-intensive elite benefits while a larger low-income group struggles.",
+  "domain": "Environmental",
+  "signals": [
+    { "frame": "GeoEco", "value": -1, "phase": 0.6 },
+    { "frame": "Individual", "value": 1, "phase": 0.4 }
+  ],
+  "expected_behavior": "commit_false"
+}

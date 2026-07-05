@@ -1,0 +1,10 @@
+{
+  "id": "ssp3_regional_rivalry",
+  "description": "SSP3 Regional Rivalry — Resurgent nationalism, trade wars, and concerns about competitiveness push countries toward regional blocs. High challenges to mitigation and adaptation.",
+  "domain": "Environmental",
+  "signals": [
+    { "frame": "GeoEco", "value": -1, "phase": 0.9 },
+    { "frame": "Consensus", "value": -1, "phase": 0.7 }
+  ],
+  "expected_behavior": "commit_false"
+}

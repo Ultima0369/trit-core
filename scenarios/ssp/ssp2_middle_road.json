@@ -1,0 +1,10 @@
+{
+  "id": "ssp2_middle_road",
+  "description": "SSP2 Middle of the Road — The world follows a path where social, economic, and technological trends do not shift markedly from historical patterns. Moderate challenges to mitigation and adaptation.",
+  "domain": "Environmental",
+  "signals": [
+    { "frame": "GeoEco", "value": -1, "phase": 0.5 },
+    { "frame": "Consensus", "value": 0, "phase": 0.5 }
+  ],
+  "expected_behavior": "commit_false"
+}
