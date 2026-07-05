@@ -147,7 +147,7 @@ impl AuroraApp {
         let attention_outcome = attention::run_attention(
             &analysis_report.decision,
             &analysis_report.decision.input_signals,
-            &*db,
+            &db,
             &self.contacts,
         )
         .map_err(|e| anyhow::anyhow!("attention link failed: {e}"))?;
@@ -184,7 +184,7 @@ impl AuroraApp {
         let attention_outcome = attention::run_attention(
             &analysis_report.decision,
             &analysis_report.decision.input_signals,
-            &*db,
+            &db,
             &self.contacts,
         )
         .map_err(|e| anyhow::anyhow!("attention link failed: {e}"))?;
