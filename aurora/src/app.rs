@@ -19,6 +19,7 @@ use crate::percept::cloud::CloudLLMProvider;
 use crate::percept::fft::FFTProvider;
 use crate::percept::local::LocalLLMProvider;
 use crate::percept::PerceptChain;
+use crate::percept::{RetrospectiveDoc, RetrospectiveProvider};
 use crate::pipeline::analysis::{self, AnalysisReport, SignalSpec};
 use crate::pipeline::attention::{self, AttentionOutcome};
 
@@ -220,6 +221,38 @@ impl AuroraApp {
         Ok(serde_json::to_string_pretty(&serde_json::Value::Object(
             export,
         ))?)
+    }
+
+    /// Run a future retrospective simulation (Lever 2).
+    ///
+    /// Loads an SSP pathway scenario, formats a future-retrospective prompt
+    /// from the user's decision, and runs it through the percept chain.
+    /// Returns a [`RetrospectiveDoc`] with the 2066-perspective analysis.
+    pub fn run_retrospective(
+        &self,
+        ssp_scenario_path: &Path,
+        user_decision: &str,
+    ) -> Result<RetrospectiveDoc> {
+        let scenario = crate::percept::retrospective::RetrospectiveProvider::load_scenario(
+            ssp_scenario_path,
+        )
+        .map_err(|e| anyhow::anyhow!("failed to load SSP scenario: {e}"))?;
+        // ponytail: use FFT provider as inner since we only need the prompt
+        // formatting and delegation structure. The actual LLM call happens
+        // through percept_chain, not the inner provider.
+        let inner = crate::percept::fft::FFTProvider::new(SignalSpec {
+            freq: 2.0,
+            sample_rate: 100.0,
+            duration_secs: 1.0,
+            noise_std: 0.0,
+        });
+        let provider = RetrospectiveProvider::new(Box::new(inner), scenario);
+        let prompt = provider.build_prompt(user_decision);
+        let batch = self
+            .percept_chain
+            .perceive_or_degrade(&prompt)
+            .map_err(|e| anyhow::anyhow!("retrospective perception failed: {e}"))?;
+        Ok(provider.to_doc(&batch))
     }
 
     /// Render analysis + attention into HTML and JSON output.

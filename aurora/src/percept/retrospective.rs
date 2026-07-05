@@ -86,7 +86,7 @@ impl RetrospectiveProvider {
     }
 
     /// Build the retrospective prompt for the inner LLM.
-    fn build_prompt(&self, raw: &str) -> String {
+    pub fn build_prompt(&self, raw: &str) -> String {
         let projected = self
             .scenario
             .projected_signals_2066
