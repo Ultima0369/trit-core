@@ -154,8 +154,29 @@ async fn main() {
             eprintln!("logging results to {dir}");
         }
 
+        // Graceful shutdown on SIGTERM/SIGINT
+        let shutdown_flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let flag = shutdown_flag.clone();
+        tokio::spawn(async move {
+            tokio::signal::ctrl_c().await.ok();
+            flag.store(true, std::sync::atomic::Ordering::SeqCst);
+        });
+
         loop {
+            if shutdown_flag.load(std::sync::atomic::Ordering::SeqCst) {
+                eprintln!("received shutdown signal, saving state...");
+                if let Some(ref dir) = log_dir {
+                    let path = std::path::Path::new(dir).join("shutdown-store.json");
+                    if let Ok(saved) = pipeline.save(&path) {
+                        eprintln!("saved {} points to {path:?}", saved);
+                    }
+                }
+                eprintln!("datacore-collect shutting down");
+                break;
+            }
+
             tokio::time::sleep(interval).await;
+
             let result = pipeline.run_changes(&registry).await;
             if result.raw_count > 0 {
                 if report_md {
