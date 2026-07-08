@@ -172,14 +172,24 @@ impl SourceRegistry {
             live_fetches.push((i, source, cache_key));
         }
 
-        // Phase 2: concurrent live fetch for all sources needing it
+        // Phase 2: concurrent live fetch with per-source timeout
         if !live_fetches.is_empty() {
+            const FETCH_TIMEOUT: Duration = Duration::from_secs(30);
             let results = futures::future::join_all(live_fetches.iter().map(
                 |(i, source, cache_key)| async move {
                     let t0 = std::time::Instant::now();
-                    let outcome = source.fetch().await;
+                    let outcome = tokio::time::timeout(FETCH_TIMEOUT, source.fetch()).await;
                     let latency_us = t0.elapsed().as_micros() as u64;
-                    (*i, outcome, cache_key.clone(), latency_us)
+                    match outcome {
+                        Ok(fetch_result) => (*i, fetch_result, cache_key.clone(), latency_us),
+                        Err(_elapsed) => {
+                            let err = crate::error::DataforgeError::Unavailable(format!(
+                                "fetch timed out after {}s",
+                                FETCH_TIMEOUT.as_secs()
+                            ));
+                            (*i, Err(err), cache_key.clone(), latency_us)
+                        }
+                    }
                 },
             ))
             .await;
@@ -278,9 +288,16 @@ impl SourceRegistry {
         let results = futures::future::join_all(preparations.iter().map(
             |(i, old_ids, cache_key)| async move {
                 let t0 = std::time::Instant::now();
-                let outcome = self.sources[*i].fetch().await;
+                let outcome =
+                    tokio::time::timeout(Duration::from_secs(30), self.sources[*i].fetch()).await;
                 let latency_us = t0.elapsed().as_micros() as u64;
-                (*i, outcome, old_ids.clone(), cache_key.clone(), latency_us)
+                let result = match outcome {
+                    Ok(r) => r,
+                    Err(_) => Err(crate::error::DataforgeError::Unavailable(
+                        "fetch timed out after 30s".into(),
+                    )),
+                };
+                (*i, result, old_ids.clone(), cache_key.clone(), latency_us)
             },
         ))
         .await;
@@ -329,9 +346,16 @@ impl SourceRegistry {
                 .filter(|(i, _)| !self.is_circuit_open(*i))
                 .map(|(i, source)| async move {
                     let t0 = std::time::Instant::now();
-                    let outcome = source.fetch().await;
+                    let outcome =
+                        tokio::time::timeout(Duration::from_secs(30), source.fetch()).await;
                     let latency_us = t0.elapsed().as_micros() as u64;
-                    (i, outcome, cache_key_for(source.name()), latency_us)
+                    let result = match outcome {
+                        Ok(r) => r,
+                        Err(_) => Err(crate::error::DataforgeError::Unavailable(
+                            "fetch timed out after 30s".into(),
+                        )),
+                    };
+                    (i, result, cache_key_for(source.name()), latency_us)
                 }),
         )
         .await;
