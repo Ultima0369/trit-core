@@ -26,15 +26,47 @@ pub struct TimeSeriesPoint {
 /// In-memory time-series store with parameter-grouped queries.
 ///
 /// ponytail: Vec<TimeSeriesPoint> with linear scan for range queries.
-/// Indexed by parameter name when query patterns demand it.
+/// Bounded to `max_points` (default 100,000) — oldest points are evicted
+/// when the limit is reached (FIFO ring buffer semantics).
 /// Replace with columnar storage when >100k points.
 pub struct TimeSeriesStore {
     pub(crate) points: Vec<TimeSeriesPoint>,
+    max_points: usize,
 }
 
 impl TimeSeriesStore {
+    /// Maximum default points in the store (100k).
+    pub const DEFAULT_MAX_POINTS: usize = 100_000;
+
+    /// Create a new store with the default capacity limit.
     pub fn new() -> Self {
-        Self { points: Vec::new() }
+        Self {
+            points: Vec::with_capacity(1024),
+            max_points: Self::DEFAULT_MAX_POINTS,
+        }
+    }
+
+    /// Create a store with a custom point limit.
+    pub fn with_limit(max_points: usize) -> Self {
+        Self {
+            points: Vec::with_capacity(1024.min(max_points)),
+            max_points,
+        }
+    }
+
+    /// Evict oldest points if over capacity.
+    fn maybe_evict(&mut self) {
+        if self.points.len() > self.max_points {
+            let excess = self.points.len() - self.max_points;
+            // ponytail: drain oldest (front of Vec). O(n) per eviction,
+            // but triggered rarely (only at insert when over limit).
+            self.points.drain(0..excess);
+            tracing::debug!(
+                evicted = excess,
+                remaining = self.points.len(),
+                "TimeSeriesStore eviction"
+            );
+        }
     }
 
     /// Insert all numeric values from a normalized signal as time-series points.
@@ -50,6 +82,7 @@ impl TimeSeriesStore {
             });
             count += 1;
         }
+        self.maybe_evict();
         count
     }
 
@@ -415,5 +448,31 @@ mod tests {
         assert!(obj.contains_key("b"));
         assert_eq!(obj["a"].as_array().unwrap().len(), 2);
         assert_eq!(obj["b"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn evicts_oldest_when_over_limit() {
+        let mut store = TimeSeriesStore::with_limit(3);
+        let t = Utc::now();
+        for i in 0..5 {
+            let sig = make_signal(
+                &format!("s{i}"),
+                "test",
+                t + chrono::Duration::hours(i),
+                vec![("v", i as f64)],
+            );
+            store.insert_signal(&sig);
+        }
+        assert_eq!(store.len(), 3);
+        // Oldest two (v=0, v=1) should be evicted; keep v=2, v=3, v=4
+        let values: Vec<f64> = store.query_parameter("v").iter().map(|p| p.value).collect();
+        assert_eq!(values, vec![2.0, 3.0, 4.0]);
+    }
+
+    #[test]
+    fn with_limit_respects_capacity() {
+        let store = TimeSeriesStore::with_limit(500);
+        assert_eq!(store.max_points, 500);
+        assert!(store.is_empty());
     }
 }
