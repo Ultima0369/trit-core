@@ -19,13 +19,19 @@ services:
     image: trit-core-collector:latest
     container_name: trit-collector
     restart: unless-stopped
-    command: ["--daemon", "--changes"]
+    command: ["--daemon", "--changes", "--log-dir", "/logs"]
     environment:
       - RUST_LOG=${RUST_LOG:-datacore_collect=info,dataforge=warn}
       - COLLECT_INTERVAL_SECS=${COLLECT_INTERVAL_SECS:-300}
     volumes:
       - collector-cache:/data/cache
       - ./logs:/logs
+    healthcheck:
+      test: ["CMD", "cat", "/logs/health.json"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     logging:
       driver: "json-file"
       options:

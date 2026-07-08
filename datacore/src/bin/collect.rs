@@ -184,6 +184,26 @@ async fn main() {
                             eprintln!("failed to write log file {path:?}: {e}");
                         }
                     }
+                    // Write health status file for container orchestration
+                    let health_path = std::path::Path::new(dir).join("health.json");
+                    let health_json = serde_json::json!({
+                        "ts": chrono::Utc::now().to_rfc3339(),
+                        "alive": true,
+                        "sources": registry.source_count(),
+                        "points_stored": pipeline.store().len(),
+                        "last_raw_count": result.raw_count,
+                        "anomalies": result.anomaly_count,
+                        "source_health": result.health.iter().map(|h| serde_json::json!({
+                            "name": h.name,
+                            "ok": h.successes > 0 || h.failures == 0,
+                            "successes": h.successes,
+                            "failures": h.failures,
+                        })).collect::<Vec<_>>(),
+                    });
+                    let _ = std::fs::write(
+                        &health_path,
+                        serde_json::to_string(&health_json).unwrap_or_default(),
+                    );
                 }
             } else {
                 eprintln!(
