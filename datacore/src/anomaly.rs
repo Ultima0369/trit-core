@@ -258,14 +258,24 @@ impl ThresholdDetector {
         d.insert("co2_ppm", None, Some(430.0));
         // Temperature anomaly: Paris Agreement 1.5°C threshold
         d.insert("anomaly_c", Some(-2.0), Some(2.0));
+        // T2M (surface temp): >40°C extreme heat, < -50°C extreme cold
+        d.insert("t2m_c", Some(-50.0), Some(40.0));
+        // Precipitation: >300mm/day is extreme flooding
+        d.insert("precip_mm", None, Some(300.0));
         // Sea ice extent: Arctic minimum < 3 million km² is extreme
         d.insert("sea_ice_extent_mkm2", Some(3.0), None);
-        // Earthquake magnitude: ≥ 6.0 is significant
+        // Earthquake magnitude: ≥ 6.0 is significant, ≥ 7.0 major
         d.insert("earthquake_mag", None, Some(6.0));
-        // Deaths in conflict: any > 0 is concerning, > 100 is critical
+        // Earthquake depth: < 10km shallow = more destructive
+        d.insert("depth_km", Some(10.0), None);
+        // Deaths in conflict: any > 0 is concerning
         d.insert("deaths", None, Some(0.0));
         // Water level: ±3m from MSL is anomalous at tide gauges
         d.insert("water_level_m", Some(-3.0), Some(3.0));
+        // Wind speed: > 50 m/s (180 km/h) is Category 3+ hurricane
+        d.insert("wind_m_s", None, Some(50.0));
+        // Solar radiation: > 1361 W/m² solar constant is implausible
+        d.insert("solar_w_m2", None, Some(1361.0));
         d
     }
 
@@ -570,8 +580,9 @@ mod tests {
     #[test]
     fn threshold_with_climate_defaults_has_rules() {
         let detector = ThresholdDetector::with_climate_defaults();
-        assert!(detector.rule_count() >= 6);
+        assert!(detector.rule_count() >= 11);
         assert!(detector.parameters().contains(&"co2_ppm"));
         assert!(detector.parameters().contains(&"sea_ice_extent_mkm2"));
+        assert!(detector.parameters().contains(&"wind_m_s"));
     }
 }
