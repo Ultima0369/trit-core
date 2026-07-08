@@ -49,6 +49,7 @@ async fn main() {
             "  RUST_LOG              Log level (default: datacore_collect=info,dataforge=warn)"
         );
         eprintln!("  COLLECT_INTERVAL_SECS Daemon poll interval seconds (default: 300)");
+        eprintln!("  HTTPS_PROXY           Proxy for sources behind network restrictions");
         return;
     }
     let only_changes = args.iter().any(|a| a == "--changes");
