@@ -4,9 +4,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, ocr-empty-base]
   pull_request:
-    branches: [main]
+    branches: [main, ocr-empty-base]
 
 env:
   CARGO_TERM_COLOR: always
