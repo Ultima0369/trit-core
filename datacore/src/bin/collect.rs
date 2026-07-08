@@ -40,6 +40,7 @@ async fn main() {
         eprintln!("  datacore-collect --compact        Summary JSON (one line)");
         eprintln!("  datacore-collect --report         Markdown report");
         eprintln!("  datacore-collect --daemon         Continuous polling mode");
+        eprintln!("  datacore-collect --daemon --log-dir ./logs  Persist results to files");
         eprintln!();
         eprintln!("Flags can be combined.");
         eprintln!();
@@ -135,12 +136,24 @@ async fn main() {
             std::env::var("COLLECT_INTERVAL_SECS")
                 .ok()
                 .and_then(|s| s.parse().ok())
-                .unwrap_or(300), // default 5 minutes
+                .unwrap_or(300),
         );
+
+        // Optional log directory for persisting pipeline results
+        let log_dir = args
+            .iter()
+            .position(|a| a == "--log-dir")
+            .and_then(|i| args.get(i + 1).cloned());
+
         eprintln!(
             "daemon mode active — polling every {}s (set COLLECT_INTERVAL_SECS to change)",
             interval.as_secs()
         );
+        if let Some(ref dir) = log_dir {
+            let _ = std::fs::create_dir_all(dir);
+            eprintln!("logging results to {dir}");
+        }
+
         loop {
             tokio::time::sleep(interval).await;
             let result = pipeline.run_changes(&registry).await;
@@ -161,6 +174,16 @@ async fn main() {
                         })).collect::<Vec<_>>(),
                     });
                     println!("{}", serde_json::to_string(&summary).unwrap());
+                }
+                // Persist to log directory if configured
+                if let Some(ref dir) = log_dir {
+                    let ts = chrono::Utc::now().format("%Y%m%dT%H%M%S");
+                    let path = std::path::Path::new(dir).join(format!("collect-{ts}.json"));
+                    if let Ok(json) = serde_json::to_string_pretty(&result) {
+                        if let Err(e) = std::fs::write(&path, &json) {
+                            eprintln!("failed to write log file {path:?}: {e}");
+                        }
+                    }
                 }
             } else {
                 eprintln!(
