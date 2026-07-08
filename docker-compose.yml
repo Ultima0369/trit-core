@@ -1,0 +1,37 @@
+# trit-core monitoring system — docker-compose deployment
+#
+# Usage:
+#   docker-compose up -d              # daemon mode (continuous polling)
+#   docker-compose run collector       # one-shot full report
+#   docker-compose run collector --report  # markdown report
+#
+# Environment:
+#   RUST_LOG=info                       log level
+#   COLLECT_INTERVAL_SECS=300           poll interval (seconds)
+
+version: "3.8"
+
+services:
+  collector:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: trit-core-collector:latest
+    container_name: trit-collector
+    restart: unless-stopped
+    command: ["--daemon", "--changes"]
+    environment:
+      - RUST_LOG=${RUST_LOG:-datacore_collect=info,dataforge=warn}
+      - COLLECT_INTERVAL_SECS=${COLLECT_INTERVAL_SECS:-300}
+    volumes:
+      - collector-cache:/data/cache
+      - ./logs:/logs
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  collector-cache:
+    driver: local

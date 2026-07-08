@@ -1,0 +1,24 @@
+# Build artifacts
+target/
+**/target/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Local config
+.env.local
