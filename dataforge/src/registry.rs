@@ -38,7 +38,17 @@ pub struct SourceRegistry {
     failures: Vec<AtomicU64>,
     /// Ring buffer of last 10 latencies per source (micros), flattened.
     latencies: Vec<std::sync::Mutex<Vec<u64>>>,
+    /// Consecutive failure count per source (reset on success).
+    consecutive_failures: Vec<AtomicU64>,
+    /// If consecutive failures ≥ CIRCUIT_BREAKER_THRESHOLD, skip this source
+    /// until this timestamp (seconds since epoch). 0 = circuit closed.
+    circuit_open_until: Vec<AtomicU64>,
 }
+
+/// Number of consecutive failures before the circuit opens.
+const CIRCUIT_BREAKER_THRESHOLD: u64 = 3;
+/// Cooldown period after circuit opens (seconds).
+const CIRCUIT_COOLDOWN_SECS: u64 = 300; // 5 minutes
 
 impl SourceRegistry {
     /// Create an empty registry backed by the given cache.
@@ -50,6 +60,8 @@ impl SourceRegistry {
             successes: Vec::new(),
             failures: Vec::new(),
             latencies: Vec::new(),
+            consecutive_failures: Vec::new(),
+            circuit_open_until: Vec::new(),
         }
     }
 
@@ -59,6 +71,8 @@ impl SourceRegistry {
         self.failures.push(AtomicU64::new(0));
         self.latencies
             .push(std::sync::Mutex::new(Vec::with_capacity(10)));
+        self.consecutive_failures.push(AtomicU64::new(0));
+        self.circuit_open_until.push(AtomicU64::new(0));
         self.sources.push(source);
         self
     }
@@ -147,6 +161,14 @@ impl SourceRegistry {
                 }
                 tracing::debug!(source = source.name(), count, "cache stale, using old data");
             }
+            // Skip if circuit breaker is open
+            if self.is_circuit_open(i) {
+                tracing::debug!(
+                    source = source.name(),
+                    "circuit breaker open — skipping live fetch"
+                );
+                continue;
+            }
             live_fetches.push((i, source, cache_key));
         }
 
@@ -187,6 +209,8 @@ impl SourceRegistry {
 
     fn record_success(&self, index: usize, latency_us: u64) {
         self.successes[index].fetch_add(1, Ordering::Relaxed);
+        self.consecutive_failures[index].store(0, Ordering::Relaxed);
+        self.circuit_open_until[index].store(0, Ordering::Relaxed);
         if let Ok(mut ring) = self.latencies[index].lock() {
             if ring.len() >= 10 {
                 ring.remove(0);
@@ -197,6 +221,31 @@ impl SourceRegistry {
 
     fn record_failure(&self, index: usize) {
         self.failures[index].fetch_add(1, Ordering::Relaxed);
+        let consecutive = self.consecutive_failures[index].fetch_add(1, Ordering::Relaxed) + 1;
+        if consecutive >= CIRCUIT_BREAKER_THRESHOLD {
+            let cooldown_until = now_secs() + CIRCUIT_COOLDOWN_SECS;
+            self.circuit_open_until[index].store(cooldown_until, Ordering::Relaxed);
+            tracing::warn!(
+                source = self.sources[index].name(),
+                consecutive,
+                cooldown_secs = CIRCUIT_COOLDOWN_SECS,
+                "circuit breaker opened",
+            );
+        }
+    }
+
+    fn is_circuit_open(&self, index: usize) -> bool {
+        let until = self.circuit_open_until[index].load(Ordering::Relaxed);
+        if until == 0 {
+            return false;
+        }
+        let now = now_secs();
+        if now >= until {
+            self.circuit_open_until[index].store(0, Ordering::Relaxed);
+            self.consecutive_failures[index].store(0, Ordering::Relaxed);
+            return false;
+        }
+        true
     }
 
     /// Fetch all sources, read from cache when fresh, return only changed signals.
@@ -209,11 +258,12 @@ impl SourceRegistry {
     pub async fn fetch_changes(&self) -> Vec<RawSignal> {
         let mut changed = Vec::new();
 
-        // Phase 1: read old cache content for all sources
+        // Phase 1: read old cache content for all sources (skip circuit-broken)
         let preparations: Vec<(usize, std::collections::HashSet<String>, String)> = self
             .sources
             .iter()
             .enumerate()
+            .filter(|(i, _)| !self.is_circuit_open(*i))
             .map(|(i, source)| {
                 let cache_key = cache_key_for(source.name());
                 let old_ids: std::collections::HashSet<String> =
@@ -270,15 +320,20 @@ impl SourceRegistry {
     }
 
     /// Force-refresh all sources (ignore cache). All fetches run concurrently.
+    /// Sources with open circuit breakers are skipped.
     pub async fn refresh_all(&self) -> Vec<RawSignal> {
-        let results = futures::future::join_all(self.sources.iter().enumerate().map(
-            |(i, source)| async move {
-                let t0 = std::time::Instant::now();
-                let outcome = source.fetch().await;
-                let latency_us = t0.elapsed().as_micros() as u64;
-                (i, outcome, cache_key_for(source.name()), latency_us)
-            },
-        ))
+        let results = futures::future::join_all(
+            self.sources
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| !self.is_circuit_open(*i))
+                .map(|(i, source)| async move {
+                    let t0 = std::time::Instant::now();
+                    let outcome = source.fetch().await;
+                    let latency_us = t0.elapsed().as_micros() as u64;
+                    (i, outcome, cache_key_for(source.name()), latency_us)
+                }),
+        )
         .await;
 
         let mut all = Vec::new();
@@ -337,6 +392,8 @@ impl SourceRegistry {
                     latencies: (0..n)
                         .map(|_| std::sync::Mutex::new(Vec::with_capacity(10)))
                         .collect(),
+                    consecutive_failures: (0..n).map(|_| AtomicU64::new(0)).collect(),
+                    circuit_open_until: (0..n).map(|_| AtomicU64::new(0)).collect(),
                 };
 
                 while !shutdown.load(Ordering::SeqCst) {
@@ -364,6 +421,13 @@ fn cache_key_for(source_name: &str) -> String {
         "dataforge/sources/{}.json",
         source_name.replace(' ', "_").to_lowercase()
     )
+}
+
+fn now_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }
 
 #[cfg(test)]
