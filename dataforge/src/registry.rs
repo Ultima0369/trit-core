@@ -157,6 +157,8 @@ impl SourceRegistry {
                 all.extend(cached.data);
                 if !cached.stale {
                     tracing::debug!(source = source.name(), count, "cache hit");
+                    // ponytail: cache hit counts as success (no latency data)
+                    self.successes[i].fetch_add(1, Ordering::Relaxed);
                     continue;
                 }
                 tracing::debug!(source = source.name(), count, "cache stale, using old data");
