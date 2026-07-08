@@ -5,6 +5,11 @@
 
 pub mod arxiv;
 pub mod gbif;
+pub mod gibs;
+pub mod nasa_power;
 pub mod noaa_co2;
+pub mod noaa_tides;
+pub mod nsidc;
 pub mod open_meteo;
 pub mod ucdp;
+pub mod usgs;

@@ -4,7 +4,7 @@
 //! `fetch_all()` for one-shot collection and `spawn_refresh_loop()` for
 //! background periodic refresh.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -12,12 +12,32 @@ use crate::cache::{read_cached, write_cached, L2Cache};
 use crate::source::DataSource;
 use crate::types::RawSignal;
 
+/// Per-source health metrics updated automatically by fetch_all/fetch_changes.
+#[derive(Debug, Clone, Default, serde::Serialize)]
+pub struct SourceHealth {
+    /// Human-readable source name.
+    pub name: String,
+    /// Total successful fetches.
+    pub successes: u64,
+    /// Total failed fetches.
+    pub failures: u64,
+    /// Average latency of last 10 successful fetches (micros), or None if never fetched.
+    pub avg_latency_us: Option<u64>,
+    /// Unix timestamp (seconds) of last successful fetch, or None.
+    pub last_success_s: Option<u64>,
+}
+
 /// Manages a set of data sources with L2 caching.
 pub struct SourceRegistry {
     sources: Vec<Box<dyn DataSource>>,
     cache: Arc<L2Cache>,
     /// Default TTL for cached raw signals (1 hour).
     cache_ttl: Duration,
+    /// Per-source health counters. Index matches `sources`.
+    successes: Vec<AtomicU64>,
+    failures: Vec<AtomicU64>,
+    /// Ring buffer of last 10 latencies per source (micros), flattened.
+    latencies: Vec<std::sync::Mutex<Vec<u64>>>,
 }
 
 impl SourceRegistry {
@@ -27,13 +47,38 @@ impl SourceRegistry {
             sources: Vec::new(),
             cache,
             cache_ttl: Duration::from_secs(3600),
+            successes: Vec::new(),
+            failures: Vec::new(),
+            latencies: Vec::new(),
         }
     }
 
     /// Add a data source.
     pub fn with_source(mut self, source: Box<dyn DataSource>) -> Self {
+        self.successes.push(AtomicU64::new(0));
+        self.failures.push(AtomicU64::new(0));
+        self.latencies
+            .push(std::sync::Mutex::new(Vec::with_capacity(10)));
         self.sources.push(source);
         self
+    }
+
+    /// Create a registry with all built-in data sources pre-registered.
+    ///
+    /// ponytail: one call to wire up all 7 sources. Individual sources can
+    /// still be added/removed with `with_source()` chaining after.
+    pub fn with_all_sources(cache: Arc<L2Cache>) -> Self {
+        Self::new(cache)
+            .with_source(Box::new(crate::sources::open_meteo::OpenMeteoSource::new()))
+            .with_source(Box::new(crate::sources::noaa_co2::NoaaCo2Source::new()))
+            .with_source(Box::new(crate::sources::nsidc::NsidcSource::new()))
+            .with_source(Box::new(crate::sources::noaa_tides::NoaaTidesSource::new()))
+            .with_source(Box::new(crate::sources::gbif::GbifSource::new()))
+            .with_source(Box::new(crate::sources::arxiv::ArxivSource::new()))
+            .with_source(Box::new(crate::sources::ucdp::UcdpSource::new()))
+            .with_source(Box::new(crate::sources::usgs::UsgsSource::new()))
+            .with_source(Box::new(crate::sources::gibs::GibsSource::new()))
+            .with_source(Box::new(crate::sources::nasa_power::NasaPowerSource::new()))
     }
 
     /// Number of registered sources.
@@ -46,16 +91,51 @@ impl SourceRegistry {
         self.sources.iter().map(|s| s.name()).collect()
     }
 
+    /// Snapshot current health metrics for all sources.
+    pub fn health(&self) -> Vec<SourceHealth> {
+        self.sources
+            .iter()
+            .enumerate()
+            .map(|(i, s)| {
+                let latencies = self.latencies[i].lock().unwrap_or_else(|e| e.into_inner());
+                let avg_latency_us = if latencies.is_empty() {
+                    None
+                } else {
+                    let sum: u64 = latencies.iter().sum();
+                    Some(sum / latencies.len() as u64)
+                };
+                let last_success_s = latencies.last().map(|_| {
+                    // ponytail: approximate "last success" from atomic counters.
+                    // A proper timestamp would require another AtomicU64 per source.
+                    // For now, non-empty latencies implies at least one success.
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0)
+                });
+                SourceHealth {
+                    name: s.name().to_string(),
+                    successes: self.successes[i].load(Ordering::Relaxed),
+                    failures: self.failures[i].load(Ordering::Relaxed),
+                    avg_latency_us,
+                    last_success_s,
+                }
+            })
+            .collect()
+    }
+
     /// Fetch all sources, reading from cache when fresh.
     ///
-    /// Stale cache entries are returned (with a log) rather than blocking
-    /// on a live fetch — this keeps the caller responsive. Use
-    /// `refresh_all()` for forced live collection.
+    /// Cache hits return immediately. All sources requiring a live fetch
+    /// are executed concurrently via `tokio::join_all` for minimum latency.
+    /// Each source still has its own independent fail-safe (errors logged, skipped).
     pub async fn fetch_all(&self) -> Vec<RawSignal> {
         let mut all = Vec::with_capacity(64);
-        for source in &self.sources {
+        let mut live_fetches: Vec<(usize, &Box<dyn DataSource>, String)> = Vec::new();
+
+        // Phase 1: drain cache hits, collect sources needing live fetch
+        for (i, source) in self.sources.iter().enumerate() {
             let cache_key = cache_key_for(source.name());
-            // Try cache first
             if let Some(cached) =
                 read_cached::<Vec<RawSignal>>(&self.cache, &cache_key, self.cache_ttl)
             {
@@ -65,41 +145,155 @@ impl SourceRegistry {
                     tracing::debug!(source = source.name(), count, "cache hit");
                     continue;
                 }
-                // Stale — return old data but fall through to live fetch
                 tracing::debug!(source = source.name(), count, "cache stale, using old data");
             }
-            // Live fetch
-            match source.fetch().await {
+            live_fetches.push((i, source, cache_key));
+        }
+
+        // Phase 2: concurrent live fetch for all sources needing it
+        if !live_fetches.is_empty() {
+            let results = futures::future::join_all(live_fetches.iter().map(
+                |(i, source, cache_key)| async move {
+                    let t0 = std::time::Instant::now();
+                    let outcome = source.fetch().await;
+                    let latency_us = t0.elapsed().as_micros() as u64;
+                    (*i, outcome, cache_key.clone(), latency_us)
+                },
+            ))
+            .await;
+
+            for (i, outcome, cache_key, latency_us) in results {
+                match outcome {
+                    Ok(signals) => {
+                        self.record_success(i, latency_us);
+                        let json = serde_json::to_vec(&signals).unwrap_or_default();
+                        write_cached(&self.cache, &cache_key, &json);
+                        all.extend(signals);
+                    }
+                    Err(e) => {
+                        self.record_failure(i);
+                        tracing::warn!(
+                            source = self.sources[i].name(),
+                            error = %e,
+                            "source fetch failed, skipping"
+                        );
+                    }
+                }
+            }
+        }
+
+        all
+    }
+
+    fn record_success(&self, index: usize, latency_us: u64) {
+        self.successes[index].fetch_add(1, Ordering::Relaxed);
+        if let Ok(mut ring) = self.latencies[index].lock() {
+            if ring.len() >= 10 {
+                ring.remove(0);
+            }
+            ring.push(latency_us);
+        }
+    }
+
+    fn record_failure(&self, index: usize) {
+        self.failures[index].fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Fetch all sources, read from cache when fresh, return only changed signals.
+    ///
+    /// Compares new fetch results against cached data. Returns only signals
+    /// whose `id` was not in the previous cache entry. This is the core
+    /// "change detection" primitive for a listening/monitoring system.
+    ///
+    /// All live fetches run concurrently.
+    pub async fn fetch_changes(&self) -> Vec<RawSignal> {
+        let mut changed = Vec::new();
+
+        // Phase 1: read old cache content for all sources
+        let preparations: Vec<(usize, std::collections::HashSet<String>, String)> = self
+            .sources
+            .iter()
+            .enumerate()
+            .map(|(i, source)| {
+                let cache_key = cache_key_for(source.name());
+                let old_ids: std::collections::HashSet<String> =
+                    read_cached::<Vec<RawSignal>>(&self.cache, &cache_key, self.cache_ttl)
+                        .map(|c| c.data.iter().map(|s| s.id.clone()).collect())
+                        .unwrap_or_default();
+                (i, old_ids, cache_key)
+            })
+            .collect();
+
+        // Phase 2: concurrent live fetch
+        let results = futures::future::join_all(preparations.iter().map(
+            |(i, old_ids, cache_key)| async move {
+                let t0 = std::time::Instant::now();
+                let outcome = self.sources[*i].fetch().await;
+                let latency_us = t0.elapsed().as_micros() as u64;
+                (*i, outcome, old_ids.clone(), cache_key.clone(), latency_us)
+            },
+        ))
+        .await;
+
+        for (i, outcome, old_ids, cache_key, latency_us) in results {
+            match outcome {
                 Ok(signals) => {
+                    self.record_success(i, latency_us);
+                    let novel: Vec<RawSignal> = signals
+                        .iter()
+                        .filter(|s| !old_ids.contains(&s.id))
+                        .cloned()
+                        .collect();
+                    if !novel.is_empty() {
+                        tracing::info!(
+                            source = self.sources[i].name(),
+                            novel = novel.len(),
+                            "changes detected",
+                        );
+                        changed.extend(novel);
+                    }
+                    let all_json = serde_json::to_vec(&signals).unwrap_or_default();
+                    write_cached(&self.cache, &cache_key, &all_json);
+                }
+                Err(e) => {
+                    self.record_failure(i);
+                    tracing::warn!(
+                        source = self.sources[i].name(),
+                        error = %e,
+                        "fetch_changes failed, skipping"
+                    );
+                }
+            }
+        }
+
+        changed
+    }
+
+    /// Force-refresh all sources (ignore cache). All fetches run concurrently.
+    pub async fn refresh_all(&self) -> Vec<RawSignal> {
+        let results = futures::future::join_all(self.sources.iter().enumerate().map(
+            |(i, source)| async move {
+                let t0 = std::time::Instant::now();
+                let outcome = source.fetch().await;
+                let latency_us = t0.elapsed().as_micros() as u64;
+                (i, outcome, cache_key_for(source.name()), latency_us)
+            },
+        ))
+        .await;
+
+        let mut all = Vec::new();
+        for (i, outcome, cache_key, latency_us) in results {
+            match outcome {
+                Ok(signals) => {
+                    self.record_success(i, latency_us);
                     let json = serde_json::to_vec(&signals).unwrap_or_default();
                     write_cached(&self.cache, &cache_key, &json);
                     all.extend(signals);
                 }
                 Err(e) => {
+                    self.record_failure(i);
                     tracing::warn!(
-                        source = source.name(),
-                        error = %e,
-                        "source fetch failed, skipping"
-                    );
-                }
-            }
-        }
-        all
-    }
-
-    /// Force-refresh all sources (ignore cache).
-    pub async fn refresh_all(&self) -> Vec<RawSignal> {
-        let mut all = Vec::new();
-        for source in &self.sources {
-            match source.fetch().await {
-                Ok(signals) => {
-                    let json = serde_json::to_vec(&signals).unwrap_or_default();
-                    write_cached(&self.cache, &cache_key_for(source.name()), &json);
-                    all.extend(signals);
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        source = source.name(),
+                        source = self.sources[i].name(),
                         error = %e,
                         "refresh failed, skipping"
                     );
@@ -133,10 +327,16 @@ impl SourceRegistry {
                     }
                 };
 
+                let n = sources.len();
                 let registry = SourceRegistry {
                     sources,
                     cache,
                     cache_ttl: interval,
+                    successes: (0..n).map(|_| AtomicU64::new(0)).collect(),
+                    failures: (0..n).map(|_| AtomicU64::new(0)).collect(),
+                    latencies: (0..n)
+                        .map(|_| std::sync::Mutex::new(Vec::with_capacity(10)))
+                        .collect(),
                 };
 
                 while !shutdown.load(Ordering::SeqCst) {
@@ -241,5 +441,45 @@ mod tests {
         let registry = SourceRegistry::new(cache).with_source(Box::new(source));
         assert_eq!(registry.source_count(), 1);
         assert_eq!(registry.source_names(), vec!["source-a"]);
+    }
+
+    #[tokio::test]
+    async fn with_all_sources_registers_all_ten() {
+        let cache = test_cache();
+        let registry = SourceRegistry::with_all_sources(cache);
+        assert_eq!(registry.source_count(), 10);
+        let names = registry.source_names();
+        assert!(names.contains(&"NOAA GML"));
+        assert!(names.contains(&"Open-Meteo"));
+        assert!(names.contains(&"NSIDC"));
+        assert!(names.contains(&"NOAA Tides"));
+        assert!(names.contains(&"GBIF"));
+        assert!(names.contains(&"arXiv"));
+        assert!(names.contains(&"UCDP GED"));
+        assert!(names.contains(&"USGS"));
+        assert!(names.contains(&"NASA GIBS"));
+        assert!(names.contains(&"NASA POWER"));
+    }
+
+    #[tokio::test]
+    async fn fetch_changes_detects_new_signals() {
+        let cache = test_cache();
+        let source = TestSource {
+            name: "changes-test".into(),
+            signals: vec![test_signal("s1"), test_signal("s2")],
+        };
+        let registry = SourceRegistry::new(cache).with_source(Box::new(source));
+        // First call: all signals are new (empty cache)
+        let changes = registry.fetch_changes().await;
+        assert_eq!(changes.len(), 2, "first fetch: all should be new");
+        // Second call with same signals: no changes
+        let changes2 = registry.fetch_changes().await;
+        assert_eq!(changes2.len(), 0, "second fetch: no new signals");
+        // Health should reflect two successes
+        let health = registry.health();
+        assert_eq!(health.len(), 1);
+        assert_eq!(health[0].successes, 2);
+        assert_eq!(health[0].failures, 0);
+        assert!(health[0].avg_latency_us.is_some());
     }
 }

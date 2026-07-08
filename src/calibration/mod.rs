@@ -15,8 +15,8 @@ use std::collections::VecDeque;
 
 use crate::adapters::AttentionCmd;
 use crate::budget::DepthLevel;
+use crate::core::domain::Domain;
 use crate::core::value::TritValue;
-use crate::meta::Domain;
 
 // ── CalibrationEntry ──────────────────────────────────────────────
 

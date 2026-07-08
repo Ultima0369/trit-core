@@ -210,7 +210,7 @@ fn run_with_error_context(args: &Args) -> Result<SandboxOutput, SandboxError> {
     }
     if let Some(ref cost_path) = args.cost_data {
         let loader =
-            trit_core::anchor::cost_factor::JsonFactorLoader::load(std::path::Path::new(cost_path))
+            trit_core::sandbox::io_loader::load_factors_from_file(std::path::Path::new(cost_path))
                 .map_err(|e| {
                     SandboxError::Io(format!("Failed to load cost data '{}': {}", cost_path, e))
                 })?;

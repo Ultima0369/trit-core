@@ -3,7 +3,8 @@
 //! Run with: `cargo bench -p aurora`
 
 use aurora::bc::signal_analysis::FftWaveletEngine;
-use aurora::pipeline::analysis::{run_analysis, SignalSpec};
+use aurora::percept::types::SignalSpec;
+use aurora::pipeline::analysis::run_analysis;
 use aurora::wavelet::synthetic::sine_wave;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 

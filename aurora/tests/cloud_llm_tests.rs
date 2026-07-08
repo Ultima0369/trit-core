@@ -1,6 +1,6 @@
 use aurora::percept::cloud::CloudLLMProvider;
 use serde_json::json;
-use truncore::TritValue;
+use trit_core::TritValue;
 
 #[test]
 fn parse_valid_anthropic_response() {

@@ -1,5 +1,5 @@
+use aurora::percept::types::SignalSpec;
 use aurora::percept::{ExternalPercept, FFTProvider};
-use aurora::pipeline::analysis::SignalSpec;
 
 #[test]
 fn fft_provider_never_fails() {

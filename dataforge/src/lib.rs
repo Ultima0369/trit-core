@@ -35,6 +35,6 @@ pub mod types;
 
 pub use cache::L2Cache;
 pub use error::DataforgeError;
-pub use registry::SourceRegistry;
+pub use registry::{SourceHealth, SourceRegistry};
 pub use source::DataSource;
 pub use types::{DataCategory, GeoPoint, RawSignal};

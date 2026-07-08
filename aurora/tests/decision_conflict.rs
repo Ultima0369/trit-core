@@ -2,10 +2,9 @@
 //!
 //! Migrated from old decision module to new pipeline::analysis link.
 
-use aurora::pipeline::analysis::{
-    frequency_to_embodied, run_analysis, user_state_to_individual, SignalSpec,
-};
-use truncore::core::{Frame, TritValue, TritWord};
+use aurora::percept::types::SignalSpec;
+use aurora::pipeline::analysis::{frequency_to_embodied, run_analysis, user_state_to_individual};
+use trit_core::core::{Frame, TritValue, TritWord};
 
 #[test]
 fn embodied_high_vs_individual_normal_is_hold_with_interrupt() {

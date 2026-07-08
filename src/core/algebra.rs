@@ -7,10 +7,10 @@
 // ================================================
 
 use crate::core::frame::Frame;
+use crate::core::interrupt::{MetaInterrupt, PolicyViolation};
 use crate::core::phase::{Phase, PhaseError};
 use crate::core::value::TritValue;
 use crate::core::word::TritWord;
-use crate::meta::{MetaInterrupt, PolicyViolation};
 use tracing::{debug, trace, warn};
 
 /// Harmonic Ternary Algebra (HTA): the core logic engine.

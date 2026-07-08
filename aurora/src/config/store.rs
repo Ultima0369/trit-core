@@ -5,7 +5,12 @@ use std::fs;
 use std::path::PathBuf;
 
 /// Decrypted in-memory configuration — never written to disk as plaintext.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+///
+/// # Security
+///
+/// `Debug` is manually implemented to mask `api_keys` — a derived `Debug`
+/// would print API keys in plaintext to logs and error messages.
+#[derive(Clone, Default, Serialize, Deserialize)]
 struct DecryptedConfig {
     #[serde(default)]
     api_keys: HashMap<String, String>,
@@ -13,6 +18,16 @@ struct DecryptedConfig {
     local_model_path: Option<String>,
     #[serde(default)]
     cloud_model: Option<String>,
+}
+
+impl std::fmt::Debug for DecryptedConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DecryptedConfig")
+            .field("api_keys", &format!("[{} keys]", self.api_keys.len()))
+            .field("local_model_path", &self.local_model_path)
+            .field("cloud_model", &self.cloud_model)
+            .finish()
+    }
 }
 
 /// Encrypted configuration store backed by Windows DPAPI.

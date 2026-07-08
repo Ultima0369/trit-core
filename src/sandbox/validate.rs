@@ -1,4 +1,4 @@
-use crate::meta::Domain;
+use crate::core::domain::Domain;
 use crate::sandbox::error::SandboxError;
 use crate::sandbox::input::{ScenarioInput, SignalInput};
 use crate::sandbox::output::SandboxOutput;

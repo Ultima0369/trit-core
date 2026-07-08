@@ -3,7 +3,7 @@
 //! Migrated from old attention module to new bc::attention_guidance.
 
 use aurora::bc::attention_guidance::{AttentionSession, UserResponse};
-use truncore::core::{Frame, TritWord};
+use trit_core::core::{Frame, TritWord};
 
 #[test]
 fn new_session_starts_with_zero_asi() {

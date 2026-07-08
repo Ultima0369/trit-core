@@ -7,7 +7,7 @@
 
 use serde::de::DeserializeOwned;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Unified error type for data ingestion.
 #[derive(Debug, thiserror::Error)]
@@ -23,8 +23,6 @@ pub enum IngestError {
 /// Reads a JSON array of contact objects from a local file.
 /// The file is read once at construction time and held in memory.
 pub struct JsonFallbackSource {
-    #[allow(dead_code)]
-    path: PathBuf,
     raw_json: String,
     contact_count: usize,
 }
@@ -40,7 +38,6 @@ impl JsonFallbackSource {
         let parsed: serde_json::Value = serde_json::from_str(&raw_json)?;
         let contact_count = parsed.as_array().map(|a| a.len()).unwrap_or(0);
         Ok(Self {
-            path: path.to_path_buf(),
             raw_json,
             contact_count,
         })

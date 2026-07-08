@@ -15,6 +15,9 @@ tauri = { version = "2", features = ["devtools"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 aurora = { path = "../aurora" }
+datacore = { path = "../datacore" }
+dataforge = { path = "../dataforge" }
+chrono = { version = "0.4", features = ["serde"] }
 anyhow = "1"
 ureq = { version = "3", features = ["rustls"] }
 flate2 = "1"
@@ -26,3 +29,8 @@ reqwest = { version = "0.12", features = ["rustls-tls"] }
 tokio = { version = "1", features = ["full"] }
 actix-cors = "0.7.1"
 percent-encoding = "2"
+
+# Security: force quick-xml ≥0.41.0 to resolve RUSTSEC-2026-0194/0195 (DoS via
+# quadratic attribute parsing + unbounded namespace allocation). This is an
+# indirect dep via tauri-utils → plist. Remove when Tauri upgrades upstream.
+quick-xml = ">=0.41.0"

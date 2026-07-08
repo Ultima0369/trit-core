@@ -6,10 +6,10 @@
 //! out-of-distribution values.
 
 use crate::adapters::{adapter_lifecycle_no_unmount, CognitiveModule, ModuleInput, ModuleOutput};
+use crate::core::interrupt::{ConflictType, MetaInterrupt};
 use crate::core::{Frame, TritValue};
 use crate::hook::module_registry::{ModuleId, ModuleState};
 use crate::hook::HookContext;
-use crate::meta::{ConflictType, MetaInterrupt};
 
 /// Cognitive module for coupling with external systems.
 pub struct CouplingAdapter {

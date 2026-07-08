@@ -1,7 +1,8 @@
+use crate::core::domain::Domain;
+use crate::core::interrupt::{ConflictType, MetaInterrupt};
 use crate::core::phase::Phase;
 use crate::core::value::TritValue;
 use crate::core::word::TritWord;
-use crate::meta::{ConflictType, Domain, MetaInterrupt};
 use tracing::warn;
 
 /// SafeFallback provides a safety-preserving override when the system

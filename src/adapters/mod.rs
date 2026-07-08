@@ -26,11 +26,11 @@ pub mod engineering;
 pub mod reflexive_audit;
 pub mod self_knowledge;
 
+use crate::core::interrupt::MetaInterrupt;
 use crate::core::TritValue;
 use crate::core::TritWord;
 use crate::hook::module_registry::{ModuleId, ModuleState};
 use crate::hook::HookContext;
-use crate::meta::MetaInterrupt;
 
 // ── Module I/O ──────────────────────────────────────────────────────
 
@@ -263,7 +263,7 @@ mod tests {
     #[test]
     fn module_output_with_interrupts() {
         let interrupt = MetaInterrupt::new(
-            crate::meta::ConflictType::FrameMismatch,
+            crate::core::interrupt::ConflictType::FrameMismatch,
             "test conflict".to_string(),
         );
         let out = ModuleOutput::new(TritValue::Hold, 0.5, "conflict detected")

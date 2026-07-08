@@ -17,10 +17,10 @@
 //! Rename to `LogicalConsistencyCheck` to reflect the actual behavior.
 
 use crate::adapters::{adapter_lifecycle, CognitiveModule, ModuleInput, ModuleOutput};
+use crate::core::interrupt::{ConflictType, MetaInterrupt, PolicyViolation};
 use crate::core::TritValue;
 use crate::hook::module_registry::{ModuleId, ModuleState};
 use crate::hook::HookContext;
-use crate::meta::{ConflictType, MetaInterrupt, PolicyViolation};
 
 /// Cognitive module for critical thinking and boundary verification.
 pub struct LogicalConsistencyCheck {

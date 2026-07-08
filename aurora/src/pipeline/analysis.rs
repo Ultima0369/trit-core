@@ -7,19 +7,11 @@ use crate::bc::relationship_annotation::ContactProfile;
 use crate::bc::signal_analysis::{FftWaveletEngine, FrequencySpectrum, TimeSeries};
 use crate::bc::ternary_decision::{DecisionRecord, DecisionSession, TritDecisionEngine};
 use crate::bc::BcError;
+use crate::percept::types::SignalSpec;
 use crate::wavelet::sine_wave;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::str::FromStr;
-use truncore::core::{Frame, Phase, PhaseTracker, Trend, TritValue, TritWord};
-
-/// Specification for a synthetic signal, deserializable from JSON input.
-#[derive(Debug, Clone, Deserialize)]
-pub struct SignalSpec {
-    pub freq: f64,
-    pub sample_rate: f64,
-    pub duration_secs: f64,
-    pub noise_std: f64,
-}
+use trit_core::core::{Frame, Phase, PhaseTracker, Trend, TritValue, TritWord};
 
 /// Structured report from the analysis pipeline link.
 #[derive(Debug, Clone)]

@@ -1,5 +1,6 @@
-use aurora::pipeline::analysis::{self, SignalSpec};
-use truncore::{Frame, Phase, TritValue, TritWord};
+use aurora::percept::types::SignalSpec;
+use aurora::pipeline::analysis::{self};
+use trit_core::{Frame, Phase, TritValue, TritWord};
 
 #[test]
 fn run_analysis_from_percept_merges_signals() {

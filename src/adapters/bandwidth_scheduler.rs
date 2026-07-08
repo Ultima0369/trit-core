@@ -11,11 +11,11 @@ use crate::adapters::{
 };
 use crate::budget::{ComputeBudget, DepthLevel};
 use crate::core::frame::Frame;
+use crate::core::interrupt::MetaInterrupt;
 use crate::core::word::TritWord;
 use crate::core::TritValue;
 use crate::hook::module_registry::{ModuleId, ModuleState};
 use crate::hook::HookContext;
-use crate::meta::MetaInterrupt;
 
 // ── Load profile ────────────────────────────────────────────────────
 
@@ -263,7 +263,9 @@ impl CognitiveModule for AttentionScheduler {
             }
             AttentionCmd::Recalibrate => {
                 let interrupt = MetaInterrupt::policy_violation(
-                    crate::meta::PolicyViolation::Other("attention recalibrate".to_string()),
+                    crate::core::interrupt::PolicyViolation::Other(
+                        "attention recalibrate".to_string(),
+                    ),
                     "attention scheduler escalated to recalibrate after consecutive holds"
                         .to_string(),
                 );

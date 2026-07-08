@@ -31,6 +31,7 @@ pub mod cloud;
 pub mod error;
 pub mod fft;
 pub mod local;
+pub(crate) mod openai_format;
 pub mod prism;
 pub mod retrospective;
 pub mod types;
@@ -43,6 +44,7 @@ pub use local::LocalLLMProvider;
 pub use prism::{PrismEngine, SourceProfile, SourceWeights};
 pub use retrospective::{RetrospectiveDoc, RetrospectiveProvider, SspScenario};
 pub use types::PerceptBatch;
+pub use types::SignalSpec;
 
 /// Unified abstraction for all external perception sources.
 ///

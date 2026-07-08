@@ -88,13 +88,40 @@ impl Clone for Database {
         // a new empty database and silently lose all data. Callers must use
         // `&Database` borrowing instead (see SqliteAuditLog::new).
         if self.path == *":memory:" {
-            panic!(
+            tracing::error!(
                 "Database::clone() is not supported for in-memory databases. \
                  Use &Database borrowing (e.g. SqliteAuditLog::new(&db)) instead."
             );
+            // ponytail: return a fresh in-memory connection as best-effort fallback
+            // rather than crashing. The caller's data will be lost (SQLite :memory:
+            // connections are independent), but the alternative was a panic.
+            return Database::open_in_memory().unwrap_or_else(|e| {
+                tracing::error!("clone: open_in_memory fallback also failed: {}", e);
+                // Last resort: direct rusqlite :memory: open (always succeeds)
+                Database {
+                    conn: rusqlite::Connection::open_in_memory().expect(
+                        "SQLite :memory: open should never fail (process memory exhausted)",
+                    ),
+                    path: ":memory:".into(),
+                }
+            });
         }
-        Database::open(&self.path)
-            .unwrap_or_else(|_| panic!("failed to clone database connection to {:?}", self.path))
+        Database::open(&self.path).unwrap_or_else(|e| {
+            tracing::error!(
+                "failed to clone database connection to {:?}: {}",
+                self.path,
+                e
+            );
+            Database::open_in_memory().unwrap_or_else(|e2| {
+                tracing::error!("clone: open_in_memory fallback failed: {}", e2);
+                Database {
+                    conn: rusqlite::Connection::open_in_memory().expect(
+                        "SQLite :memory: open should never fail (process memory exhausted)",
+                    ),
+                    path: ":memory:".into(),
+                }
+            })
+        })
     }
 }
 

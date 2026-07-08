@@ -22,7 +22,7 @@ use crate::anchor::AnchorReport;
 use crate::core::hold::HoldFinality;
 use crate::meta::ArbitrationResult;
 
-// ── Scenario types ─────────────────────────────────────────────────
+pub use scenario_recognizer::{recognize, recognize_with_score, SignalRef};
 
 /// Known scenario types the recognizer can identify.
 ///

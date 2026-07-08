@@ -11,10 +11,10 @@
 //! bypass the reflexive audit module.
 
 use crate::adapters::{adapter_lifecycle_no_unmount, CognitiveModule, ModuleInput, ModuleOutput};
+use crate::core::interrupt::{MetaInterrupt, PolicyViolation};
 use crate::core::TritValue;
 use crate::hook::module_registry::{ModuleId, ModuleState};
 use crate::hook::HookContext;
-use crate::meta::{MetaInterrupt, PolicyViolation};
 
 /// Maximum number of consecutive same-result decisions before flagging entrainment.
 const ENTRAINMENT_THRESHOLD: usize = 3;

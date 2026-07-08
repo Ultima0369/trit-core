@@ -1,5 +1,4 @@
 use crate::config::ConfigStore;
-use crate::percept::cloud::CloudLLMProvider;
 use crate::percept::{ExternalPercept, PerceptBatch, PerceptError};
 use serde_json::Value;
 use std::sync::Arc;
@@ -14,7 +13,6 @@ use std::time::Duration;
 ///
 /// No API key is needed (localhost trust boundary).
 pub struct LocalLLMProvider {
-    #[allow(dead_code)]
     config: Arc<ConfigStore>,
     client: reqwest::Client,
     runtime: tokio::runtime::Runtime,
@@ -86,7 +84,7 @@ impl LocalLLMProvider {
             .runtime
             .block_on(async { response.json().await })
             .map_err(PerceptError::HttpError)?;
-        CloudLLMProvider::parse_openai_response(&json)
+        crate::percept::openai_format::parse_openai_response(&json)
     }
 }
 

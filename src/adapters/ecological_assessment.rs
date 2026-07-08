@@ -5,10 +5,10 @@
 //! physical interventions that may have permanent effects.
 
 use crate::adapters::{adapter_lifecycle_no_unmount, CognitiveModule, ModuleInput, ModuleOutput};
+use crate::core::interrupt::{MetaInterrupt, PolicyViolation};
 use crate::core::{Frame, TritValue};
 use crate::hook::module_registry::{ModuleId, ModuleState};
 use crate::hook::HookContext;
-use crate::meta::{MetaInterrupt, PolicyViolation};
 
 /// Cognitive module for ecological consequence assessment.
 pub struct EcologicalAssessment {

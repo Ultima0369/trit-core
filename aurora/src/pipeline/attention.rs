@@ -12,8 +12,8 @@ use crate::bc::ternary_decision::DecisionRecord;
 use crate::bc::BcError;
 use crate::db::audit_log::SqliteAuditLog;
 use crate::db::Database;
-use truncore::adapters::AttentionCmd;
-use truncore::core::TritWord;
+use trit_core::adapters::AttentionCmd;
+use trit_core::core::TritWord;
 
 /// Outcome of the attention pipeline link.
 #[derive(Debug, Clone)]
@@ -114,13 +114,13 @@ pub fn run_attention(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use truncore::core::Frame;
+    use trit_core::core::Frame;
 
     /// Minimal DecisionRecord for tests — Hold result in Meta frame (typical cross-frame outcome).
     fn test_decision(signals: &[TritWord]) -> DecisionRecord {
         DecisionRecord {
             input_signals: signals.to_vec(),
-            result: TritWord::hold(truncore::core::Frame::Meta),
+            result: TritWord::hold(trit_core::core::Frame::Meta),
             interrupts: Vec::new(),
             domain: "test".into(),
         }

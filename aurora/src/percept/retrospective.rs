@@ -219,7 +219,7 @@ mod tests {
     #[test]
     fn build_prompt_includes_ssp_context() {
         let scenario = test_scenario();
-        let inner = crate::percept::fft::FFTProvider::new(crate::pipeline::analysis::SignalSpec {
+        let inner = crate::percept::fft::FFTProvider::new(crate::percept::types::SignalSpec {
             freq: 2.0,
             sample_rate: 100.0,
             duration_secs: 1.0,
@@ -274,7 +274,7 @@ mod tests {
     #[test]
     fn to_doc_captures_scenario_metadata() {
         let scenario = test_scenario();
-        let inner = crate::percept::fft::FFTProvider::new(crate::pipeline::analysis::SignalSpec {
+        let inner = crate::percept::fft::FFTProvider::new(crate::percept::types::SignalSpec {
             freq: 2.0,
             sample_rate: 100.0,
             duration_secs: 1.0,
@@ -293,7 +293,7 @@ mod tests {
     #[test]
     fn provider_name_is_retrospective() {
         let scenario = test_scenario();
-        let inner = crate::percept::fft::FFTProvider::new(crate::pipeline::analysis::SignalSpec {
+        let inner = crate::percept::fft::FFTProvider::new(crate::percept::types::SignalSpec {
             freq: 2.0,
             sample_rate: 100.0,
             duration_secs: 1.0,
@@ -306,7 +306,7 @@ mod tests {
     #[test]
     fn priority_delegates_to_inner() {
         let scenario = test_scenario();
-        let inner = crate::percept::fft::FFTProvider::new(crate::pipeline::analysis::SignalSpec {
+        let inner = crate::percept::fft::FFTProvider::new(crate::percept::types::SignalSpec {
             freq: 2.0,
             sample_rate: 100.0,
             duration_secs: 1.0,
@@ -320,7 +320,7 @@ mod tests {
     #[test]
     fn available_delegates_to_inner() {
         let scenario = test_scenario();
-        let inner = crate::percept::fft::FFTProvider::new(crate::pipeline::analysis::SignalSpec {
+        let inner = crate::percept::fft::FFTProvider::new(crate::percept::types::SignalSpec {
             freq: 2.0,
             sample_rate: 100.0,
             duration_secs: 1.0,

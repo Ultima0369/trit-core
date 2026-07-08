@@ -1,7 +1,8 @@
 //! Tauri command handlers — bridge between frontend invoke() and Aurora pipeline.
 
 use aurora::app::{AnalysisInput, AuroraApp};
-use aurora::pipeline::analysis::{SignalSpec, TrajectorySummary};
+use aurora::percept::types::SignalSpec;
+use aurora::pipeline::analysis::TrajectorySummary;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use tauri::State;
@@ -738,7 +739,7 @@ pub fn run_retrospective(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    // ponytail: tests use aurora::SspScenario directly — no super::* needed.
 
     #[test]
     fn all_ssp_scenarios_parse() {
@@ -759,4 +760,104 @@ mod tests {
             assert!(prompt.contains("test decision"));
         }
     }
+}
+
+/// Run the full datacore pipeline on a set of raw signal descriptions.
+///
+/// Each input is a JSON object with: source_name, category (Climate|Ecology|...),
+/// raw_content, lat, lng. Returns a JSON array of { signal_id, values, anomalies }.
+///
+/// ponytail: this is the single Tauri command that bridges dataforge→datacore→aurora
+/// for the frontend. One HTTP call from the UI triggers the whole pipeline.
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+pub struct SignalInput {
+    source_name: String,
+    category: String,
+    raw_content: String,
+    lat: Option<f64>,
+    lng: Option<f64>,
+}
+
+#[derive(Debug, Serialize)]
+#[allow(dead_code)]
+pub struct PipeOutput {
+    signal_id: String,
+    source: String,
+    values: Vec<datacore::SignalValue>,
+    is_anomalous: bool,
+    z_score: Option<f64>,
+    trit_value: String,
+    trit_phase: f64,
+}
+
+#[tauri::command]
+#[allow(dead_code)]
+pub fn pipe_signals(inputs: Vec<SignalInput>) -> Result<Vec<PipeOutput>, String> {
+    use aurora::percept::chain::PerceptChain;
+    use aurora::percept::prism::{PrismEngine, SourceWeights};
+    use dataforge::{DataCategory, GeoPoint, RawSignal};
+
+    let now = chrono::Utc::now();
+    let signals: Vec<RawSignal> = inputs
+        .iter()
+        .map(|inp| RawSignal {
+            id: dataforge::RawSignal::compute_id(&inp.source_name, &now),
+            source_url: String::new(),
+            source_name: inp.source_name.clone(),
+            category: match inp.category.as_str() {
+                "Climate" => DataCategory::Climate,
+                "Ecology" => DataCategory::Ecology,
+                "ScientificResearch" => DataCategory::ScientificResearch,
+                "Geopolitical" => DataCategory::Geopolitical,
+                "Satellite" => DataCategory::Satellite,
+                _ => DataCategory::Other,
+            },
+            raw_content: inp.raw_content.clone(),
+            captured_at: now,
+            data_period: None,
+            location: match (inp.lat, inp.lng) {
+                (Some(lat), Some(lng)) => Some(GeoPoint { lat, lng }),
+                _ => None,
+            },
+        })
+        .collect();
+
+    let engine = PrismEngine::new(PerceptChain::new(), SourceWeights::with_defaults());
+    let (batches, anomalies) = engine.pipe_and_perceive(&signals);
+
+    // Merge batches with anomaly info
+    let mut outputs = Vec::new();
+    for (i, batch) in batches.iter().enumerate() {
+        let input = &inputs[i];
+        let is_anomalous = anomalies.iter().any(|a| a.is_anomalous);
+        let z = anomalies.iter().find_map(|a| a.z_score);
+        let trit_val = batch
+            .signals
+            .first()
+            .map(|w| format!("{:?}", w.value()))
+            .unwrap_or_else(|| "Hold".into());
+        let trit_phase = batch
+            .signals
+            .first()
+            .map(|w| w.phase().inner())
+            .unwrap_or(0.5);
+
+        // Extract values via datacore normalizer
+        let normalizer = datacore::SignalNormalizer::new();
+        let nsig = normalizer.normalize(&signals[i]);
+        let values = nsig.map(|n| n.values).unwrap_or_default();
+
+        outputs.push(PipeOutput {
+            signal_id: signals[i].id.clone(),
+            source: input.source_name.clone(),
+            values,
+            is_anomalous,
+            z_score: z,
+            trit_value: trit_val,
+            trit_phase,
+        });
+    }
+
+    Ok(outputs)
 }

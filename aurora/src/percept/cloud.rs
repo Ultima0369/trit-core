@@ -1,10 +1,8 @@
 use crate::config::ConfigStore;
 use crate::percept::{ExternalPercept, PerceptBatch, PerceptError};
-use chrono::Utc;
 use serde_json::Value;
 use std::sync::Arc;
 use std::time::Duration;
-use truncore::{Frame, Phase, TritValue, TritWord};
 
 /// Max tokens requested from the LLM. Decomposition-only output is short.
 const MAX_TOKENS: u32 = 1024;
@@ -36,7 +34,6 @@ fn truncate_error_body(body: String) -> String {
 /// - **棱镜**: splits into spectral bands — Frame/Value/Phase, each one angle
 /// - **微风**: passes through — no summary, no suggestion, no trace left behind
 pub struct CloudLLMProvider {
-    #[allow(dead_code)]
     config: Arc<ConfigStore>,
     client: reqwest::Client,
     runtime: tokio::runtime::Runtime,
@@ -204,79 +201,15 @@ impl CloudLLMProvider {
         let text = response["content"][0]["text"]
             .as_str()
             .ok_or_else(|| PerceptError::ParseError("missing content[0].text".into()))?;
-        Self::parse_inner_json(text)
+        // ponytail: delegate to the shared inner JSON parser.
+        // parse_openai_response expects OpenAI wrapper format; Anthropic needs
+        // the text extracted first, then the same inner JSON structure.
+        crate::percept::openai_format::parse_openai_inner(text)
     }
 
     /// Parse an OpenAI Chat Completions response into a PerceptBatch.
     pub fn parse_openai_response(response: &Value) -> Result<PerceptBatch, PerceptError> {
-        let text = response["choices"][0]["message"]["content"]
-            .as_str()
-            .ok_or_else(|| PerceptError::ParseError("missing choices[0].message.content".into()))?;
-        Self::parse_inner_json(text)
-    }
-
-    fn parse_inner_json(text: &str) -> Result<PerceptBatch, PerceptError> {
-        let inner: Value =
-            serde_json::from_str(text).map_err(|e| PerceptError::ParseError(e.to_string()))?;
-
-        let signals_array = inner["signals"]
-            .as_array()
-            .ok_or_else(|| PerceptError::ParseError("missing 'signals' array".into()))?;
-
-        let mut signals = Vec::with_capacity(signals_array.len());
-        for sig in signals_array {
-            if let Some(word) = Self::parse_signal(sig) {
-                signals.push(word);
-            }
-        }
-
-        let confidence = inner["confidence"].as_f64().unwrap_or(0.5).clamp(0.0, 1.0);
-
-        // 流沙: raw_data_layer describes the territory (physical measurements),
-        // never the map (interpretations). No summary, no suggested_scenario.
-        let raw_data_layer = inner["raw_data_layer"].as_str().map(|s| s.to_string());
-
-        Ok(PerceptBatch {
-            signals,
-            source: "cloud-llm".into(),
-            timestamp: Utc::now(),
-            confidence,
-            raw_data_layer,
-        })
-    }
-
-    fn parse_signal(sig: &Value) -> Option<TritWord> {
-        let frame_str = sig["frame"].as_str()?;
-        let frame = match frame_str {
-            "Science" => Frame::Science,
-            "Individual" => Frame::Individual,
-            "Consensus" => Frame::Consensus,
-            "Absolute" => Frame::Absolute,
-            "FirstPerson" => Frame::FirstPerson,
-            "Embodied" => Frame::Embodied,
-            "Relational" => Frame::Relational,
-            "GeoEco" => Frame::GeoEco,
-            "Developmental" => Frame::Developmental,
-            "Role" => Frame::Role,
-            "Environmental" => Frame::Environmental,
-            // Meta is system-internal — LLM should not produce it
-            _ => {
-                tracing::warn!(frame = frame_str, "unknown frame from LLM, skipping signal");
-                return None;
-            }
-        };
-
-        let raw_value = sig["value"].as_i64().unwrap_or(0);
-        let value = match raw_value {
-            1 => TritValue::True,
-            -1 => TritValue::False,
-            _ => TritValue::Hold,
-        };
-
-        let phase_val = sig["phase"].as_f64().unwrap_or(0.5).clamp(0.0, 1.0);
-        let phase = Phase::new_clamped(phase_val);
-
-        Some(TritWord::new(value, phase, frame))
+        crate::percept::openai_format::parse_openai_response(response)
     }
 }
 

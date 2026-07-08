@@ -8,9 +8,9 @@
 //! to this BC module (M1). The old module re-exports for backward compat.
 
 use chrono::Utc;
-use truncore::adapters::bandwidth_scheduler::AttentionScheduler;
-use truncore::adapters::AttentionCmd;
-use truncore::core::TritWord;
+use trit_core::adapters::bandwidth_scheduler::AttentionScheduler;
+use trit_core::adapters::AttentionCmd;
+use trit_core::core::TritWord;
 
 // ── Entities ──────────────────────────────────────────────────────────────
 
@@ -226,7 +226,7 @@ impl AttentionManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use truncore::core::Frame;
+    use trit_core::core::Frame;
 
     #[test]
     fn new_session_starts_with_zero_asi() {

@@ -1,9 +1,9 @@
 use crate::adapters::self_knowledge::ReceiverEstimate;
 use crate::anchor::cost_factor::CostMetadata;
 use crate::core::hold::HoldState;
+use crate::core::interrupt::CognitiveOffload;
 use crate::core::phase::Phase;
 use crate::core::value::TritValue;
-use crate::meta::CognitiveOffload;
 use serde::{Deserialize, Deserializer, Serialize};
 
 /// Sandbox output record.

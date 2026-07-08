@@ -1,13 +1,12 @@
 //! Windows DPAPI encryption/decryption bindings.
 //!
-//! This module isolates all `unsafe` FFI calls to the Windows
-//! Cryptography API. The outer `store.rs` calls these safe wrappers.
-
-#![allow(unsafe_code)]
+//! Each FFI function carries its own `#[allow(unsafe_code)]` — the narrowest
+//! possible scope. No other module in the crate uses `unsafe`.
 
 use crate::percept::ConfigError;
 
 /// Encrypt data using Windows DPAPI (user-level, CRYPTPROTECT_UI_FORBIDDEN).
+#[allow(unsafe_code)]
 pub fn encrypt(plain: &[u8]) -> Result<Vec<u8>, ConfigError> {
     use std::mem;
     use windows_sys::Win32::Foundation;
@@ -58,6 +57,7 @@ pub fn encrypt(plain: &[u8]) -> Result<Vec<u8>, ConfigError> {
 }
 
 /// Decrypt data using Windows DPAPI (user-level, CRYPTPROTECT_UI_FORBIDDEN).
+#[allow(unsafe_code)]
 pub fn decrypt(cipher: &[u8]) -> Result<Vec<u8>, ConfigError> {
     use std::mem;
     use windows_sys::Win32::Foundation;

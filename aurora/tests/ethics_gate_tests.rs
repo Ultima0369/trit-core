@@ -1,7 +1,7 @@
 use aurora::percept::cloud::CloudLLMProvider;
 use serde_json::Value;
 use std::fs;
-use truncore::TritValue;
+use trit_core::TritValue;
 
 fn load_fixture(name: &str) -> Value {
     let path = format!("tests/fixtures/{name}");
@@ -34,7 +34,7 @@ fn ethics_gate_no_absolute_frame_with_strong_phase() {
     let batch = CloudLLMProvider::parse_anthropic_response(&response).unwrap();
 
     for signal in &batch.signals {
-        if signal.frame() == truncore::Frame::Absolute {
+        if signal.frame() == trit_core::Frame::Absolute {
             assert_eq!(
                 signal.value(),
                 TritValue::Hold,

@@ -119,7 +119,7 @@ async fn fetch_all_respects_stale_cache() {
         .saturating_sub(7200); // 2 hours ago
     header.extend_from_slice(&old_ts.to_le_bytes());
     header.extend_from_slice(&serde_json::to_vec(&vec![old_signal]).unwrap());
-    cache.put(&cache_key, &header).unwrap();
+    cache.put(cache_key, &header).unwrap();
 
     // Registry with TTL = never (stale check uses fetch_all's internal TTL)
     let mock = MockSource::new("test-source");

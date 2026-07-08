@@ -32,9 +32,3 @@ pub enum DataforgeError {
     #[error("{0}")]
     Other(String),
 }
-
-impl From<quick_xml::Error> for DataforgeError {
-    fn from(e: quick_xml::Error) -> Self {
-        DataforgeError::Xml(e.to_string())
-    }
-}

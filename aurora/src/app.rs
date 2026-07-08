@@ -6,7 +6,7 @@
 //!
 //! M2: Added LLM perception support via `PerceptChain`.
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -18,9 +18,10 @@ use crate::ingest::json_fallback::JsonFallbackSource;
 use crate::percept::cloud::CloudLLMProvider;
 use crate::percept::fft::FFTProvider;
 use crate::percept::local::LocalLLMProvider;
+use crate::percept::types::SignalSpec;
 use crate::percept::PerceptChain;
 use crate::percept::RetrospectiveDoc;
-use crate::pipeline::analysis::{self, AnalysisReport, PhaseTrajectory, SignalSpec};
+use crate::pipeline::analysis::{self, AnalysisReport, PhaseTrajectory};
 use crate::pipeline::attention::{self, AttentionOutcome};
 
 /// Input parameters for a single pipeline run.
@@ -145,7 +146,7 @@ impl AuroraApp {
             input.user_feels_normal,
             &contact_signals,
         )
-        .map_err(|e| anyhow::anyhow!("analysis link failed [{}/{}]: {e}", e.kind(), e))?;
+        .map_err(|e| bc_err("analysis link failed", e.kind(), e))?;
 
         let db = self.db.lock().expect("db mutex poisoned");
         let attention_outcome = attention::run_attention(
@@ -154,7 +155,7 @@ impl AuroraApp {
             &db,
             &self.contacts,
         )
-        .map_err(|e| anyhow::anyhow!("attention link failed [{}/{}]: {e}", e.kind(), e))?;
+        .map_err(|e| bc_err("attention link failed", e.kind(), e))?;
 
         // Update phase trajectory for stagnation detection (Lever 3).
         if let Ok(mut traj) = self.trajectory.lock() {
@@ -179,7 +180,7 @@ impl AuroraApp {
         let percept = self
             .percept_chain
             .perceive_or_degrade(user_text)
-            .map_err(|e| anyhow::anyhow!("perception failed [{}/{}]: {e}", e.kind(), e))?;
+            .map_err(|e| bc_err("perception failed", e.kind(), e))?;
 
         // Step 1: Analysis with percept signals
         let analysis_report = analysis::run_analysis_from_percept(
@@ -189,7 +190,7 @@ impl AuroraApp {
             &contact_signals,
             &percept.signals,
         )
-        .map_err(|e| anyhow::anyhow!("analysis link failed [{}/{}]: {e}", e.kind(), e))?;
+        .map_err(|e| bc_err("analysis link failed", e.kind(), e))?;
 
         // Step 2: Attention
         let db = self.db.lock().expect("db mutex poisoned");
@@ -199,7 +200,7 @@ impl AuroraApp {
             &db,
             &self.contacts,
         )
-        .map_err(|e| anyhow::anyhow!("attention link failed [{}/{}]: {e}", e.kind(), e))?;
+        .map_err(|e| bc_err("attention link failed", e.kind(), e))?;
 
         // Update phase trajectory for stagnation detection (Lever 3).
         if let Ok(mut traj) = self.trajectory.lock() {
@@ -272,9 +273,8 @@ impl AuroraApp {
         user_decision: &str,
     ) -> Result<RetrospectiveDoc> {
         use crate::percept::retrospective::SspScenario;
-        let scenario = SspScenario::load(ssp_scenario_path).map_err(|e| {
-            anyhow::anyhow!("failed to load SSP scenario [{}/{}]: {e}", e.kind(), e)
-        })?;
+        let scenario = SspScenario::load(ssp_scenario_path)
+            .map_err(|e| bc_err("failed to load SSP scenario", e.kind(), e))?;
         self.run_retrospective_from_scenario(&scenario, user_decision)
     }
 
@@ -288,9 +288,7 @@ impl AuroraApp {
         let batch = self
             .percept_chain
             .perceive_or_degrade(&prompt)
-            .map_err(|e| {
-                anyhow::anyhow!("retrospective perception failed [{}/{}]: {e}", e.kind(), e)
-            })?;
+            .map_err(|e| bc_err("retrospective perception failed", e.kind(), e))?;
         Ok(RetrospectiveDoc {
             pathway: scenario.ssp_pathway.clone(),
             lookback_year: scenario.lookback_year,
@@ -405,6 +403,12 @@ fn sql_value_to_json(v: rusqlite::types::Value) -> serde_json::Value {
             serde_json::Value::String(b.iter().map(|byte| format!("{byte:02x}")).collect())
         }
     }
+}
+
+/// `{prefix} [{kind}/{e}]` — ponytail: 5 callers, one format.
+#[inline]
+fn bc_err(prefix: &str, kind: &str, e: impl std::fmt::Display) -> anyhow::Error {
+    anyhow!("{prefix} [{kind}/{e}]")
 }
 
 #[cfg(test)]

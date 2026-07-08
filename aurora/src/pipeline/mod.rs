@@ -18,6 +18,6 @@ pub mod attention;
 
 pub use analysis::{
     contacts_to_tritwords, frequency_to_embodied, run_analysis, run_analysis_from_percept,
-    user_state_to_individual, AnalysisReport, PhaseTrajectory, SignalSpec, TrajectorySummary,
+    user_state_to_individual, AnalysisReport, PhaseTrajectory, TrajectorySummary,
 };
 pub use attention::{run_attention, AttentionOutcome};

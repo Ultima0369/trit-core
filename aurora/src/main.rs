@@ -2,8 +2,8 @@ use anyhow::{Context, Result};
 use aurora::app::{AnalysisInput, AuroraApp};
 use aurora::cli::{Args, Command, PerceiveArgs, PipelineArgs, SourcesAction, SourcesArgs};
 use aurora::config::ConfigStore;
+use aurora::percept::types::SignalSpec;
 use aurora::percept::{CloudLLMProvider, FFTProvider, LocalLLMProvider, PerceptChain};
-use aurora::pipeline::analysis::SignalSpec;
 use clap::Parser;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -39,7 +39,7 @@ fn run_pipeline(args: &PipelineArgs) -> Result<()> {
     }
     let input_text = fs::read_to_string(&args.input)
         .with_context(|| format!("failed to read input file {:?}", args.input))?;
-    let spec: aurora::pipeline::analysis::SignalSpec = serde_json::from_str(&input_text)
+    let spec: SignalSpec = serde_json::from_str(&input_text)
         .with_context(|| "failed to parse input JSON as SignalSpec")?;
 
     // Build the app, load contacts if requested
@@ -238,7 +238,7 @@ fn run_perceive(args: &PerceiveArgs) -> Result<()> {
         "aurora-perceive-{}",
         chrono::Utc::now().format("%Y%m%dT%H%M%SZ")
     );
-    let scenario = truncore::sandbox::ScenarioInput {
+    let scenario = trit_core::sandbox::ScenarioInput {
         id: scenario_id,
         description: args
             .topic
@@ -247,7 +247,7 @@ fn run_perceive(args: &PerceiveArgs) -> Result<()> {
         domain: "Climate".into(),
         signals: all_tritwords
             .iter()
-            .map(|tw| truncore::sandbox::SignalInput {
+            .map(|tw| trit_core::sandbox::SignalInput {
                 frame: tw.frame().to_string(),
                 value: tw.value().to_i8(),
                 phase: tw.phase().inner(),
@@ -259,7 +259,7 @@ fn run_perceive(args: &PerceiveArgs) -> Result<()> {
     };
 
     eprintln!("Running ternary decision pipeline...");
-    let mut pipeline = truncore::sandbox::SandboxPipeline::default();
+    let mut pipeline = trit_core::sandbox::SandboxPipeline::default();
     let (output, _diagnostics) = pipeline
         .run_with_diagnostics(&scenario)
         .map_err(|e| anyhow::anyhow!("ternary pipeline failed: {e}"))?;

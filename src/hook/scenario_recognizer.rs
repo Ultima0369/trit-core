@@ -4,9 +4,22 @@
 //! vector from the input signals and comparing it against known prototypes
 //! via cosine similarity. Falls back to `General` when no prototype
 //! exceeds the similarity threshold.
+//!
+//! The recognizer accepts [`SignalRef`] slices — a lightweight borrowed view
+//! of signal data — so it does not depend on [`crate::sandbox::ScenarioInput`].
 
 use super::ScenarioType;
-use crate::sandbox::ScenarioInput;
+
+/// Lightweight borrowed view of a signal — avoids depending on `sandbox::ScenarioInput`.
+///
+/// This is what the recognizer actually needs: frame name, ternary value, and phase.
+/// Any upstream type (ScenarioInput, SignalInput) can be borrowed into a `SignalRef` slice.
+#[derive(Debug, Clone, Copy)]
+pub struct SignalRef<'a> {
+    pub frame: &'a str,
+    pub value: i8,
+    pub phase: f64,
+}
 
 /// Cosine similarity threshold below which the recognizer falls back
 /// to `General`. Range: [0.0, 1.0]. Higher = stricter matching.
@@ -40,9 +53,9 @@ struct FeatureVector {
 }
 
 impl FeatureVector {
-    /// Extract a feature vector from a scenario input.
-    fn from_scenario(scenario: &ScenarioInput) -> Self {
-        let n = scenario.signals.len().max(1) as f64;
+    /// Extract a feature vector from signal references.
+    fn from_signals(signals: &[SignalRef<'_>]) -> Self {
+        let n = signals.len().max(1) as f64;
 
         let mut science = 0usize;
         let mut individual = 0usize;
@@ -54,15 +67,15 @@ impl FeatureVector {
         let mut phase_sum = 0.0f64;
         let mut frame_set = std::collections::HashSet::new();
 
-        for signal in &scenario.signals {
-            match signal.frame.as_str() {
+        for signal in signals {
+            match signal.frame {
                 "Science" => science += 1,
                 "Individual" => individual += 1,
                 "Consensus" => consensus += 1,
                 "FirstPerson" => first_person += 1,
                 _ => {}
             }
-            frame_set.insert(signal.frame.clone());
+            frame_set.insert(signal.frame);
 
             match signal.value {
                 1 => tru += 1,
@@ -83,7 +96,7 @@ impl FeatureVector {
             hold_ratio: hold as f64 / n,
             mean_phase: phase_sum / n,
             distinct_frames: frame_set.len() as f64,
-            signal_count_norm: (scenario.signals.len() as f64 / 10.0).min(1.0),
+            signal_count_norm: (n / 10.0).min(1.0),
         }
     }
 
@@ -151,13 +164,16 @@ fn prototypes() -> Vec<(ScenarioType, [f64; 10])> {
     ]
 }
 
-/// Recognize the scenario type from a scenario input.
+/// Recognize the scenario type from signal references.
 ///
-/// Computes a feature vector from the input signals, compares it against
+/// Computes a feature vector from the signals, compares it against
 /// known prototypes via cosine similarity, and returns the best match.
 /// Falls back to `General` if no prototype exceeds the threshold.
-pub fn recognize(scenario: &ScenarioInput) -> ScenarioType {
-    let fv = FeatureVector::from_scenario(scenario);
+pub fn recognize(signals: &[SignalRef<'_>]) -> ScenarioType {
+    if signals.is_empty() {
+        return ScenarioType::General;
+    }
+    let fv = FeatureVector::from_signals(signals);
 
     let mut best_type = ScenarioType::General;
     let mut best_sim = SIMILARITY_THRESHOLD;
@@ -177,8 +193,8 @@ pub fn recognize(scenario: &ScenarioInput) -> ScenarioType {
 ///
 /// Useful for diagnostics: the similarity score indicates how well the
 /// input matched the prototype.
-pub fn recognize_with_score(scenario: &ScenarioInput) -> (ScenarioType, f64) {
-    let fv = FeatureVector::from_scenario(scenario);
+pub fn recognize_with_score(signals: &[SignalRef<'_>]) -> (ScenarioType, f64) {
+    let fv = FeatureVector::from_signals(signals);
 
     let mut best_type = ScenarioType::General;
     let mut best_sim = SIMILARITY_THRESHOLD;
@@ -197,144 +213,57 @@ pub fn recognize_with_score(scenario: &ScenarioInput) -> (ScenarioType, f64) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sandbox::SignalInput;
 
-    fn make_scenario(frame: &str, value: i8, phase: f64) -> ScenarioInput {
-        ScenarioInput {
-            id: "test".into(),
-            description: "test".into(),
-            domain: "General".into(),
-            signals: vec![SignalInput {
-                frame: frame.into(),
-                value,
-                phase,
-                sensor: None,
-            }],
-            expected_behavior: String::new(),
-            environmental_context: None,
+    fn sr(frame: &str, value: i8, phase: f64) -> SignalRef<'_> {
+        SignalRef {
+            frame,
+            value,
+            phase,
         }
     }
 
     #[test]
     fn empty_scenario_is_general() {
-        let scenario = ScenarioInput {
-            id: "empty".into(),
-            description: "empty".into(),
-            domain: "General".into(),
-            signals: vec![],
-            expected_behavior: String::new(),
-            environmental_context: None,
-        };
-        let st = recognize(&scenario);
+        let st = recognize(&[]);
         assert_eq!(st, ScenarioType::General);
     }
 
     #[test]
     fn high_science_recognized_as_physical() {
-        let scenario = ScenarioInput {
-            id: "phys".into(),
-            description: "test".into(),
-            domain: "Physical".into(),
-            signals: vec![
-                SignalInput {
-                    frame: "Science".into(),
-                    value: 1,
-                    phase: 0.9,
-                    sensor: None,
-                },
-                SignalInput {
-                    frame: "Science".into(),
-                    value: -1,
-                    phase: 0.8,
-                    sensor: None,
-                },
-            ],
-            expected_behavior: String::new(),
-            environmental_context: None,
-        };
-        let st = recognize(&scenario);
+        let signals = vec![sr("Science", 1, 0.9), sr("Science", -1, 0.8)];
+        let st = recognize(&signals);
         assert_eq!(st, ScenarioType::PhysicalReasoning);
     }
 
     #[test]
     fn high_individual_recognized_as_medical_ethics() {
-        let scenario = ScenarioInput {
-            id: "med".into(),
-            description: "test".into(),
-            domain: "MedicalEthics".into(),
-            signals: vec![
-                SignalInput {
-                    frame: "Individual".into(),
-                    value: 1,
-                    phase: 0.5,
-                    sensor: None,
-                },
-                SignalInput {
-                    frame: "Individual".into(),
-                    value: 0,
-                    phase: 0.5,
-                    sensor: None,
-                },
-            ],
-            expected_behavior: String::new(),
-            environmental_context: None,
-        };
-        let st = recognize(&scenario);
+        let signals = vec![sr("Individual", 1, 0.5), sr("Individual", 0, 0.5)];
+        let st = recognize(&signals);
         assert_eq!(st, ScenarioType::MedicalEthics);
     }
 
     #[test]
     fn mixed_frames_recognized_as_value_conflict() {
-        let scenario = ScenarioInput {
-            id: "vc".into(),
-            description: "test".into(),
-            domain: "ValueJudgment".into(),
-            signals: vec![
-                SignalInput {
-                    frame: "Science".into(),
-                    value: 1,
-                    phase: 0.5,
-                    sensor: None,
-                },
-                SignalInput {
-                    frame: "Individual".into(),
-                    value: -1,
-                    phase: 0.5,
-                    sensor: None,
-                },
-                SignalInput {
-                    frame: "Consensus".into(),
-                    value: 0,
-                    phase: 0.5,
-                    sensor: None,
-                },
-            ],
-            expected_behavior: String::new(),
-            environmental_context: None,
-        };
-        let st = recognize(&scenario);
+        let signals = vec![
+            sr("Science", 1, 0.5),
+            sr("Individual", -1, 0.5),
+            sr("Consensus", 0, 0.5),
+        ];
+        let st = recognize(&signals);
         assert_eq!(st, ScenarioType::ValueConflict);
     }
 
     #[test]
     fn recognize_with_score_returns_both() {
-        let scenario = make_scenario("Science", 1, 0.9);
-        let (st, score) = recognize_with_score(&scenario);
+        let signals = vec![sr("Science", 1, 0.9)];
+        let (st, score) = recognize_with_score(&signals);
         assert_eq!(st, ScenarioType::PhysicalReasoning);
         assert!(score > 0.0);
     }
 
     #[test]
     fn feature_vector_from_empty_is_all_zeros() {
-        let scenario = ScenarioInput {
-            id: "empty".into(),
-            description: "empty".into(),
-            domain: "General".into(),
-            signals: vec![],
-            expected_behavior: String::new(),
-            environmental_context: None,
-        };
-        let fv = FeatureVector::from_scenario(&scenario);
+        let fv = FeatureVector::from_signals(&[]);
         assert_eq!(fv.science_ratio, 0.0);
         assert_eq!(fv.true_ratio, 0.0);
         assert_eq!(fv.mean_phase, 0.0);

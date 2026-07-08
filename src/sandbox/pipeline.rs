@@ -1,3 +1,22 @@
+//! SandboxPipeline — the main scenario execution orchestrator (Façade pattern).
+//!
+//! This module orchestrates the full 5-layer cognitive pipeline:
+//! validation → TAND cascade → policy arbitration → anchor checks →
+//! attention scheduling → feedback loop → calibration.
+//!
+//! With 22 dependencies it looks like a "god module," but every dependency is
+//! a layer below it (core types, meta policy, anchor constraints, adapters,
+//! feedback) — it owns no domain logic itself. This is the Façade pattern:
+//! one orchestrator that wires everything together.
+//!
+//! Individual sub-steps delegate to their respective layers:
+//! - Validation: [`crate::sandbox::validate`]
+//! - Decision: [`crate::sandbox::decision_engine`]
+//! - Diagnostics: [`crate::sandbox::diagnostic`]
+//! - Output formatting: [`crate::sandbox::output`]
+//!
+//! Split only if a sub-step outgrows its module (>500 lines of its own logic).
+
 use std::time::Instant;
 
 use tracing::{debug, error, info, instrument, trace, warn};
@@ -10,6 +29,7 @@ use crate::anchor::{check_all, AnchorConstraint};
 use crate::budget::ComputeBudget;
 use crate::calibration::{CalibrationEntry, CalibrationLog};
 use crate::clock::HarmonicClock;
+use crate::core::domain::Domain;
 use crate::core::frame::Frame;
 use crate::core::hold::{HoldState, HolderConfig};
 use crate::core::phase::Phase;
@@ -17,8 +37,8 @@ use crate::core::value::TritValue;
 use crate::core::word::TritWord;
 use crate::core::TernaryAlgebra;
 use crate::feedback::FeedbackLoop;
+use crate::meta::ArbitrationResult;
 use crate::meta::SafeFallback;
-use crate::meta::{ArbitrationResult, Domain};
 use crate::sandbox::diagnostic::SandboxDiagnostics;
 use crate::sandbox::error::SandboxError;
 use crate::sandbox::input::{ScenarioInput, SignalInput};
@@ -32,7 +52,7 @@ use crate::sandbox::validate::{sanitize_log_field, validate_scenario};
 /// default behavior unless explicitly enabled.
 pub struct SandboxPipeline {
     pub(crate) dry_run: bool,
-    pub(crate) decision_engine: crate::core::decision_engine::DecisionEngine,
+    pub(crate) decision_engine: crate::sandbox::decision_engine::DecisionEngine,
     pub(crate) attention: Option<AttentionScheduler>,
     pub(crate) self_knowledge: Option<ResponsePatternCache>,
     pub(crate) holder_config: Option<HolderConfig>,
@@ -105,7 +125,7 @@ impl SandboxPipeline {
         ];
         Self {
             dry_run: false,
-            decision_engine: crate::core::decision_engine::DecisionEngine::new(),
+            decision_engine: crate::sandbox::decision_engine::DecisionEngine::new(),
             attention: None,
             self_knowledge: None,
             holder_config: None,
@@ -128,7 +148,7 @@ impl SandboxPipeline {
     pub fn without_anchors() -> Self {
         Self {
             dry_run: false,
-            decision_engine: crate::core::decision_engine::DecisionEngine::new(),
+            decision_engine: crate::sandbox::decision_engine::DecisionEngine::new(),
             attention: None,
             self_knowledge: None,
             holder_config: None,
@@ -370,13 +390,13 @@ impl SandboxPipeline {
         &mut self,
         domain_str: &str,
         trits: &[TritWord],
-    ) -> Result<crate::core::decision_engine::DecisionResult, SandboxError> {
+    ) -> Result<crate::sandbox::decision_engine::DecisionResult, SandboxError> {
         if self.dry_run {
             // In dry-run mode we still run the TAND cascade so that callers can
             // see the raw ternary conflict (e.g. cross-frame → Hold), but we skip
             // domain arbitration, reflexive guard, and SafeFallback.
             let (current, interrupts) = TernaryAlgebra::t_and_n(trits);
-            return Ok(crate::core::decision_engine::DecisionResult {
+            return Ok(crate::sandbox::decision_engine::DecisionResult {
                 final_word: current,
                 policy_action: ArbitrationResult::DryRun,
                 interrupts,
@@ -696,8 +716,8 @@ impl SandboxPipeline {
         scenario: &ScenarioInput,
         _final_word: &TritWord,
         diagnostics: &SandboxDiagnostics,
-    ) -> crate::meta::CognitiveOffload {
-        use crate::meta::{CognitiveOffload, HoldReason, SourceConflict};
+    ) -> crate::core::interrupt::CognitiveOffload {
+        use crate::core::interrupt::{CognitiveOffload, HoldReason, SourceConflict};
 
         // Determine the primary hold reason from interrupts and anchor state.
         let reason = if diagnostics
@@ -707,17 +727,19 @@ impl SandboxPipeline {
             .unwrap_or(false)
         {
             HoldReason::AnchorViolation
-        } else if diagnostics
-            .interrupts
-            .iter()
-            .any(|i| matches!(i.conflict, crate::meta::ConflictType::FrameMismatch))
-        {
+        } else if diagnostics.interrupts.iter().any(|i| {
+            matches!(
+                i.conflict,
+                crate::core::interrupt::ConflictType::FrameMismatch
+            )
+        }) {
             HoldReason::FrameMismatch
-        } else if diagnostics
-            .interrupts
-            .iter()
-            .any(|i| matches!(i.conflict, crate::meta::ConflictType::ExplainImpulse))
-        {
+        } else if diagnostics.interrupts.iter().any(|i| {
+            matches!(
+                i.conflict,
+                crate::core::interrupt::ConflictType::ExplainImpulse
+            )
+        }) {
             HoldReason::InsufficientData
         } else if diagnostics.interrupts.is_empty() {
             HoldReason::DomainBoundary

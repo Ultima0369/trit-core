@@ -9,17 +9,23 @@
 
 mod domain;
 pub(crate) mod frame_mask;
+// ponytail: interrupt types moved to core::interrupt. This module is now a re-export shim.
 mod interrupt;
 mod rules;
 mod safe_fallback;
 
 // Re-export public API
-pub use domain::{ArbitrationResult, Domain, DomainParseError, PolicyError, ResolutionPolicy};
-pub use interrupt::{
+// ponytail: Domain moved to core::domain (Layer Dependency Cleanup 2026-07-08).
+// Re-export for backward compatibility — new code should import from crate::core::domain.
+pub use crate::core::domain::{Domain, DomainParseError};
+pub use domain::{ArbitrationResult, PolicyError, ResolutionPolicy};
+// ponytail: interrupt types moved to core::interrupt (Layer Dependency Cleanup 2026-07-08).
+// Re-export for backward compatibility — new code should import from crate::core::interrupt.
+pub use crate::core::interrupt::{
     CognitiveOffload, ConflictType, HoldReason, MetaInterrupt, MetaMonitor, PolicyViolation,
     SourceConflict, MAX_INTERRUPT_LOG,
 };
-pub use rules::{apply_rule, load_rule, load_rule_json, CustomRule, FallbackBehavior, RuleError};
+pub use rules::{apply_rule, load_rule_json, CustomRule, FallbackBehavior, RuleError};
 pub use safe_fallback::SafeFallback;
 
 #[cfg(test)]

@@ -12,11 +12,11 @@ use chrono::Utc;
 
 use crate::adapters::{adapter_lifecycle_no_unmount, CognitiveModule, ModuleInput, ModuleOutput};
 use crate::core::frame::Frame;
+use crate::core::interrupt::{ConflictType, MetaInterrupt, PolicyViolation};
 use crate::core::word::TritWord;
 use crate::core::TritValue;
 use crate::hook::module_registry::{ModuleId, ModuleState};
 use crate::hook::HookContext;
-use crate::meta::{ConflictType, MetaInterrupt, PolicyViolation};
 
 // ── Attention event ─────────────────────────────────────────────────
 
@@ -165,7 +165,7 @@ impl ReflexiveAuditor {
         let has_forced_collapse = self
             .decision_chain
             .iter()
-            .any(|i| matches!(&i.conflict, ConflictType::PolicyViolation(pv) if matches!(pv, crate::meta::PolicyViolation::ForcedCollapse)));
+            .any(|i| matches!(&i.conflict, ConflictType::PolicyViolation(pv) if matches!(pv, crate::core::interrupt::PolicyViolation::ForcedCollapse)));
         let has_hold_path = unresolved_conflicts.len() >= 2;
 
         if has_forced_collapse && has_hold_path {

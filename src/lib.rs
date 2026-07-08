@@ -121,7 +121,6 @@ pub use anchor::{
 };
 pub use core::{
     algebra::TernaryAlgebra,
-    decision_engine::{DecisionEngine, DecisionResult},
     frame::{Frame, FrameError},
     hold::{HoldFinality, HoldState, HolderConfig},
     phase::{Commitment, Phase, PhaseError, PhaseTracker, Trend},
@@ -145,12 +144,11 @@ pub use hook::{
     HoldStrategy, HookContext, HookManager, IterationSummary, ScenarioType, UnmountReason,
 };
 pub use meta::{
-    apply_rule, load_rule, load_rule_json, ArbitrationResult, ConflictType, CustomRule, Domain,
-    DomainParseError, FallbackBehavior, MetaInterrupt, MetaMonitor, PolicyError, ResolutionPolicy,
-    RuleError, SafeFallback,
+    apply_rule, load_rule_json, ArbitrationResult, CustomRule, Domain, DomainParseError,
+    FallbackBehavior, PolicyError, ResolutionPolicy, RuleError, SafeFallback,
 };
 pub use sandbox::{
-    sanitize_log_field, validate_scenario, ErrorCategory, SandboxDiagnostics, SandboxError,
-    SandboxOutput, SandboxPipeline, ScenarioInput, ScenarioValidator, SignalInput, MAX_JSON_SIZE,
-    MAX_SIGNALS, MAX_STRING_LEN,
+    io_loader, sanitize_log_field, validate_scenario, DecisionEngine, DecisionResult,
+    ErrorCategory, SandboxDiagnostics, SandboxError, SandboxOutput, SandboxPipeline, ScenarioInput,
+    ScenarioValidator, SignalInput, MAX_JSON_SIZE, MAX_SIGNALS, MAX_STRING_LEN,
 };

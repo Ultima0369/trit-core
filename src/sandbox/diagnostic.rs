@@ -1,7 +1,8 @@
 use crate::anchor::cost_factor::CostMetadata;
 use crate::anchor::AnchorReport;
+use crate::core::interrupt::MetaInterrupt;
 use crate::core::word::TritWord;
-use crate::meta::{ArbitrationResult, MetaInterrupt};
+use crate::meta::ArbitrationResult;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::time::Instant;

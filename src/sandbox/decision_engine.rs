@@ -1,19 +1,21 @@
-//! DecisionEngine facade — ternary decision pipeline (Layer 4).
+//! DecisionEngine facade — ternary decision pipeline (Sandbox Layer).
 //!
-//! Extracted from `SandboxPipeline`, this module owns the core decision
-//! logic: TAND cascade → policy arbitration → reflexive guard → SafeFallback.
-//! It does NOT handle validation, OS sampling, attention scheduling,
-//! self-knowledge, anchor checks, or calibration — those remain in the
-//! sandbox pipeline (Layer 2–3–5 integrator).
+//! Moved from `core::decision_engine` to `sandbox::decision_engine`
+//! during the Layer Dependency Cleanup (2026-07-08).
+//!
+//! The DecisionEngine orchestrates the full ternary decision cycle:
+//! TAND cascade → policy arbitration → reflexive guard → SafeFallback.
+//! It depends on `adapters` and `sandbox` types (ReflexiveAuditor, SandboxError),
+//! so it belongs in the sandbox orchestration layer, not in core.
 
 use crate::adapters::reflexive_audit::{ReflexiveAlert, ReflexiveAuditor};
+use crate::core::domain::Domain;
 use crate::core::frame::Frame;
+use crate::core::interrupt::{ConflictType, MetaInterrupt};
 use crate::core::value::TritValue;
 use crate::core::word::TritWord;
 use crate::core::TernaryAlgebra;
-use crate::meta::{
-    ArbitrationResult, ConflictType, Domain, MetaInterrupt, ResolutionPolicy, SafeFallback,
-};
+use crate::meta::{ArbitrationResult, ResolutionPolicy, SafeFallback};
 use crate::sandbox::SandboxError;
 
 /// Result of a single ternary decision cycle.

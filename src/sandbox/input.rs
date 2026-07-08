@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::core::sensor::{EnvironmentalContext, SensorSignal};
+use crate::hook::SignalRef;
 
 /// Scenario input for sandbox testing.
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -14,6 +15,21 @@ pub struct ScenarioInput {
     /// Optional environmental context that persists across the scenario.
     #[serde(default)]
     pub environmental_context: Option<EnvironmentalContext>,
+}
+
+impl ScenarioInput {
+    /// Borrow this scenario's signals as a slice of [`SignalRef`] for the
+    /// scenario recognizer. Avoids a dependency from `hook` → `sandbox`.
+    pub fn as_signal_refs(&self) -> Vec<SignalRef<'_>> {
+        self.signals
+            .iter()
+            .map(|s| SignalRef {
+                frame: &s.frame,
+                value: s.value,
+                phase: s.phase,
+            })
+            .collect()
+    }
 }
 
 /// A single input signal within a scenario.

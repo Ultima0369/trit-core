@@ -31,7 +31,9 @@ const EVICT_CHECK_INTERVAL: u64 = 100;
 impl L2Cache {
     /// Create or open a disk cache under `base_dir`.
     pub fn new(base_dir: PathBuf, max_bytes: u64) -> Self {
-        let _ = fs::create_dir_all(&base_dir);
+        if let Err(e) = fs::create_dir_all(&base_dir) {
+            tracing::warn!("L2Cache: failed to create base dir {:?}: {}", base_dir, e);
+        }
         Self {
             base_dir,
             max_bytes: AtomicU64::new(max_bytes),
@@ -52,7 +54,9 @@ impl L2Cache {
                 self.hits.fetch_add(1, Ordering::Relaxed);
                 let path_clone = path.clone();
                 std::thread::spawn(move || {
-                    let _ = touch_file(&path_clone);
+                    if let Err(e) = touch_file(&path_clone) {
+                        tracing::debug!("L2Cache: touch_file failed for {:?}: {}", path_clone, e);
+                    }
                 });
                 Some(data)
             }
@@ -75,7 +79,9 @@ impl L2Cache {
         let tmp = path.with_extension(format!("tmp.{}.{}", std::process::id(), seq));
         fs::write(&tmp, data)?;
         if let Err(e) = fs::rename(&tmp, &path) {
-            let _ = fs::remove_file(&tmp);
+            if let Err(e2) = fs::remove_file(&tmp) {
+                tracing::warn!("L2Cache: failed to clean up tmp file {:?}: {}", tmp, e2);
+            }
             return Err(e);
         }
 
@@ -83,7 +89,9 @@ impl L2Cache {
         if count.is_multiple_of(EVICT_CHECK_INTERVAL) {
             let current = self.total_bytes();
             if current > self.max_bytes.load(Ordering::Relaxed) {
-                let _ = self.evict_lru();
+                if let Err(e) = self.evict_lru() {
+                    tracing::warn!("L2Cache: evict_lru failed: {}", e);
+                }
             }
         }
         Ok(())
@@ -137,7 +145,9 @@ impl L2Cache {
             }
             if let Ok(meta) = fs::metadata(path) {
                 current = current.saturating_sub(meta.len());
-                let _ = fs::remove_file(path);
+                if let Err(e) = fs::remove_file(path) {
+                    tracing::debug!("L2Cache: evict_lru failed to remove {:?}: {}", path, e);
+                }
             }
         }
         clean_empty_dirs(&self.base_dir);
@@ -193,7 +203,9 @@ fn clean_empty_dirs(dir: &Path) {
                     .map(|mut d| d.next().is_none())
                     .unwrap_or(false)
                 {
-                    let _ = fs::remove_dir(&path);
+                    if let Err(e) = fs::remove_dir(&path) {
+                        tracing::debug!("L2Cache: clean_empty_dirs failed: {}", e);
+                    }
                 }
             }
         }
@@ -250,7 +262,9 @@ pub fn write_cached(l2: &L2Cache, key: &str, data: &[u8]) {
     let mut out = Vec::with_capacity(HEADER_LEN + data.len());
     out.extend_from_slice(&now.to_le_bytes());
     out.extend_from_slice(data);
-    let _ = l2.put(key, &out);
+    if let Err(e) = l2.put(key, &out) {
+        tracing::warn!("L2Cache: write_cached failed for key {}: {}", key, e);
+    }
 }
 
 const HEADER_LEN: usize = 8;
@@ -340,6 +354,77 @@ mod tests {
             "10-second-old cache should be stale with 1s TTL"
         );
 
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn concurrent_put_get_is_sound() {
+        let dir = test_dir();
+        let cache = std::sync::Arc::new(L2Cache::new(dir.clone(), 1024 * 1024 * 100));
+        let n = 20;
+        let mut handles = Vec::with_capacity(n);
+
+        for i in 0..n {
+            let c = std::sync::Arc::clone(&cache);
+            handles.push(std::thread::spawn(move || {
+                let key = format!("concurrent/test-{}", i);
+                let val = i.to_string().repeat(100);
+                c.put(&key, val.as_bytes()).unwrap();
+                // Second put of same key exercises tmp_seq and atomic rename
+                c.put(&key, val.as_bytes()).unwrap();
+                let got = c.get(&key);
+                assert!(got.is_some(), "thread {i}: key not found after put");
+                assert_eq!(got.unwrap().len(), val.len());
+            }));
+        }
+
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        let hits = cache.hits.load(Ordering::Relaxed);
+        assert!(hits >= n as u64, "expected at least {n} hits, got {hits}");
+
+        // Verify all keys are recoverable
+        for i in 0..n {
+            let key = format!("concurrent/test-{}", i);
+            let got = cache.get(&key);
+            assert!(got.is_some(), "key {} missing after concurrent puts", i);
+        }
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn concurrent_clear_does_not_deadlock() {
+        let dir = test_dir();
+        let cache = std::sync::Arc::new(L2Cache::new(dir.clone(), 1024 * 1024 * 100));
+
+        // Pre-populate
+        for i in 0..10 {
+            cache.put(&format!("k{}", i), b"value").unwrap();
+        }
+
+        let c_get = std::sync::Arc::clone(&cache);
+        let c_clear = std::sync::Arc::clone(&cache);
+
+        let reader = std::thread::spawn(move || {
+            for _ in 0..100 {
+                let _ = c_get.get("k0");
+                std::thread::sleep(std::time::Duration::from_micros(500));
+            }
+        });
+
+        let clearer = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+            for _ in 0..5 {
+                let _ = c_clear.clear();
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+        });
+
+        reader.join().unwrap();
+        clearer.join().unwrap();
+        // No deadlock = pass
         let _ = fs::remove_dir_all(&dir);
     }
 }

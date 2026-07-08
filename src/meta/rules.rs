@@ -3,7 +3,6 @@ use crate::core::value::TritValue;
 use crate::core::word::TritWord;
 use crate::meta::ArbitrationResult;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 use std::str::FromStr;
 use thiserror::Error;
 
@@ -82,24 +81,11 @@ pub enum RuleError {
     Parse(String),
 }
 
-/// Rule loader using serde_json.
-///
-/// # ponytail: free functions, no struct — single caller in domain.rs.
-/// Re-add a loader struct when multiple implementations exist.
-///
-/// Load a single rule from a file path.
-pub fn load_rule<P: AsRef<Path>>(path: P) -> Result<CustomRule, RuleError> {
-    let raw = std::fs::read_to_string(path.as_ref()).map_err(|e| {
-        RuleError::Read(format!(
-            "Failed to read rule file '{}': {}",
-            path.as_ref().display(),
-            e
-        ))
-    })?;
-    load_rule_json(&raw)
-}
-
 /// Load a rule from a JSON string.
+///
+/// File I/O (`load_rule(path)`) was removed during the Layer Dependency Cleanup
+/// (2026-07-08). Callers that need file loading should do their own I/O and
+/// pass the string to this function.
 pub fn load_rule_json(json: &str) -> Result<CustomRule, RuleError> {
     serde_json::from_str::<CustomRule>(json).map_err(|e| RuleError::Parse(e.to_string()))
 }
@@ -287,23 +273,10 @@ mod tests {
     }
 
     #[test]
-    fn load_from_missing_file_fails() {
-        let result = load_rule("/nonexistent/rule.json");
-        assert!(result.is_err());
-        let msg = format!("{}", result.unwrap_err());
-        assert!(msg.contains("Failed to read"));
-    }
-
-    #[test]
-    fn load_from_valid_temp_file_succeeds() {
+    fn load_rule_json_from_string() {
         let json = r#"{"name":"temp","priority_frame":null,"allow_forced_collapse":false,"fallback":"hold"}"#;
-        let dir = std::env::temp_dir();
-        let path = dir.join("trit_core_test_rule.json");
-        std::fs::write(&path, json).unwrap();
-        let rule = load_rule(&path).unwrap();
+        let rule = load_rule_json(json).unwrap();
         assert_eq!(rule.name, "temp");
         assert_eq!(rule.fallback, FallbackBehavior::Hold);
-        // cleanup
-        let _ = std::fs::remove_file(&path);
     }
 }

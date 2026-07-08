@@ -61,7 +61,7 @@ pub mod config;
 // Re-export trit-core's anchor layer so the desktop shell (src-tauri) and
 // other aurora consumers can build anchor snapshots for display without a
 // direct trit-core dependency.
-pub use truncore::anchor;
+pub use trit_core::anchor;
 
 // Re-export key types for Tauri commands and external consumers.
 pub use percept::{RetrospectiveDoc, SspScenario};

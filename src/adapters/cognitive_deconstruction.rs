@@ -9,10 +9,10 @@
 //! an explanation impulse is detected and the module recommends Hold.
 
 use crate::adapters::{adapter_lifecycle_no_unmount, CognitiveModule, ModuleInput, ModuleOutput};
+use crate::core::interrupt::{ConflictType, MetaInterrupt};
 use crate::core::TritValue;
 use crate::hook::module_registry::{ModuleId, ModuleState};
 use crate::hook::HookContext;
-use crate::meta::{ConflictType, MetaInterrupt};
 
 /// Threshold for input entropy H(I) — above this, the input is "ambiguous."
 const AMBIGUITY_THRESHOLD: f64 = 0.5;

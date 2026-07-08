@@ -4,8 +4,8 @@
 //! [`DecisionSession`] — a single decision evaluation session.
 
 use crate::bc::BcError;
-use truncore::core::{TernaryAlgebra, TritWord};
-use truncore::meta::MetaInterrupt;
+use trit_core::core::{TernaryAlgebra, TritWord};
+use trit_core::meta::MetaInterrupt;
 
 // ── Entities ──────────────────────────────────────────────────────────────
 
@@ -25,7 +25,7 @@ pub struct DecisionRecord {
 impl DecisionRecord {
     /// Whether this decision resulted in a Hold (conflict detected).
     pub fn is_hold(&self) -> bool {
-        self.result.value() == truncore::core::TritValue::Hold
+        self.result.value() == trit_core::core::TritValue::Hold
     }
 
     /// Whether any interrupts were raised.
@@ -149,7 +149,7 @@ impl TritDecisionEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use truncore::core::Frame;
+    use trit_core::core::Frame;
 
     #[test]
     fn same_frame_signals_commit() {
@@ -159,7 +159,7 @@ mod tests {
         let signals = vec![TritWord::tru(Frame::Science), TritWord::tru(Frame::Science)];
 
         let record = engine.evaluate(&mut session, &signals, "Physical").unwrap();
-        assert_eq!(record.result.value(), truncore::core::TritValue::True);
+        assert_eq!(record.result.value(), trit_core::core::TritValue::True);
         assert!(!record.has_conflicts());
         assert_eq!(session.decision_count(), 1);
     }

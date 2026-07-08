@@ -26,7 +26,7 @@ pub mod wellbeing_priority;
 
 use serde::{Deserialize, Serialize};
 
-use crate::anchor::cost_factor::{CostFactor, CostMetadata};
+use crate::anchor::cost_factor::CostMetadata;
 use crate::core::frame::Frame;
 use crate::core::value::TritValue;
 
@@ -73,7 +73,7 @@ pub struct DecisionPreview {
     pub frame: Frame,
     /// The proposed trit value.
     pub trit_value: TritValue,
-    /// True cost metadata for this decision, if a CostFactor is available.
+    /// True cost metadata for this decision, if a factor loader is available.
     pub cost_metadata: Option<CostMetadata>,
 }
 

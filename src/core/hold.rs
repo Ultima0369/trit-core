@@ -7,7 +7,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::meta::Domain;
+use crate::core::domain::Domain;
 
 /// Finality classification of a `Hold` result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
@@ -158,11 +158,14 @@ mod tests {
 
     #[test]
     fn holder_config_final_by_domain() {
-        let cfg = HolderConfig::default().with_final_domain(crate::meta::Domain::ValueJudgment);
+        let cfg =
+            HolderConfig::default().with_final_domain(crate::core::domain::Domain::ValueJudgment);
         assert!(cfg
-            .hold_state_for(&crate::meta::Domain::ValueJudgment)
+            .hold_state_for(&crate::core::domain::Domain::ValueJudgment)
             .is_final());
-        assert!(cfg.hold_state_for(&crate::meta::Domain::General).is_final());
+        assert!(cfg
+            .hold_state_for(&crate::core::domain::Domain::General)
+            .is_final());
     }
 
     #[test]
@@ -171,8 +174,23 @@ mod tests {
             hold_is_final_by_domain: vec![],
             auto_question_after_ms: 1000,
         };
-        let h = cfg.hold_state_for(&crate::meta::Domain::General);
+        let h = cfg.hold_state_for(&crate::core::domain::Domain::General);
         assert!(!h.is_final());
         assert!(h.can_be_questioned());
+    }
+
+    #[test]
+    fn resolvable_hold_is_questionable_not_final() {
+        let h = HoldState::resolvable(300);
+        assert!(!h.is_final());
+        assert!(h.can_be_questioned());
+        assert_eq!(h.question_window_ms, 300);
+    }
+
+    #[test]
+    fn default_hold_state_is_final() {
+        let h = HoldState::default();
+        assert!(h.is_final());
+        assert!(!h.can_be_questioned());
     }
 }

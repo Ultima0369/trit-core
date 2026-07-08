@@ -88,7 +88,7 @@ impl HarmonicClock {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::meta::Domain;
+    use crate::core::domain::Domain;
 
     #[test]
     fn should_detect_rising_zero_crossing_on_tick() {

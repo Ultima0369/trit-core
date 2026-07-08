@@ -1,5 +1,19 @@
 use chrono::{DateTime, Utc};
-use truncore::TritWord;
+use serde::Deserialize;
+use trit_core::TritWord;
+
+/// Specification for a synthetic signal, deserializable from JSON input.
+///
+/// Moved from `pipeline::analysis::SignalSpec` during the BC Architecture
+/// Hardening (2026-07-08). This is a perception input parameter — it describes
+/// the signal to be perceived, not how the analysis pipeline operates.
+#[derive(Debug, Clone, Deserialize)]
+pub struct SignalSpec {
+    pub freq: f64,
+    pub sample_rate: f64,
+    pub duration_secs: f64,
+    pub noise_std: f64,
+}
 
 /// A batch of TritWord signals extracted from raw input by a perception provider.
 ///

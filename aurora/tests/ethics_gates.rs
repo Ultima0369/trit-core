@@ -6,9 +6,9 @@
 //! 3. Do not evolve (no user profiling / adaptive features)
 //! 4. Publicly auditable (Frame labels + explanations in output)
 
-use truncore::core::{Frame, Phase, TernaryAlgebra, TritValue, TritWord};
-use truncore::meta::{ConflictType, Domain, PolicyViolation, SafeFallback};
-use truncore::security::SecurityMode;
+use trit_core::core::{Frame, Phase, TernaryAlgebra, TritValue, TritWord};
+use trit_core::meta::{ConflictType, Domain, PolicyViolation, SafeFallback};
+use trit_core::security::SecurityMode;
 
 #[test]
 fn ethics_cross_frame_must_hold() {

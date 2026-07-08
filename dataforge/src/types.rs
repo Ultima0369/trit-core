@@ -39,6 +39,8 @@ pub enum DataCategory {
     ScientificResearch,
     /// Armed conflicts, political events, population displacement.
     Geopolitical,
+    /// Satellite imagery, remote sensing, Earth observation (MODIS, VIIRS, Sentinel).
+    Satellite,
     /// Catch-all for categories not yet modeled.
     Other,
 }
@@ -50,6 +52,7 @@ impl DataCategory {
             DataCategory::Ecology => "ecology",
             DataCategory::ScientificResearch => "scientific_research",
             DataCategory::Geopolitical => "geopolitical",
+            DataCategory::Satellite => "satellite",
             DataCategory::Other => "other",
         }
     }

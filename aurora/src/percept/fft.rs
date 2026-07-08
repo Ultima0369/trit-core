@@ -1,5 +1,5 @@
+use crate::percept::types::SignalSpec;
 use crate::percept::{ExternalPercept, PerceptBatch, PerceptError};
-use crate::pipeline::analysis::SignalSpec;
 
 /// Pure-local FFT perception provider — the ultimate safety floor.
 ///
@@ -10,14 +10,11 @@ use crate::pipeline::analysis::SignalSpec;
 ///
 /// Priority is set to 2 (lowest) so cloud and local LLMs are always
 /// tried first.
-pub struct FFTProvider {
-    #[allow(dead_code)]
-    spec: SignalSpec,
-}
+pub struct FFTProvider;
 
 impl FFTProvider {
-    pub fn new(spec: SignalSpec) -> Self {
-        Self { spec }
+    pub fn new(_spec: SignalSpec) -> Self {
+        Self
     }
 }
 

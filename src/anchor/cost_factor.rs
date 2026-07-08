@@ -6,7 +6,7 @@
 //!
 //! ## Design
 //!
-//! Each [`CostFactor`] implementation answers one question:
+//! Each lookup method answers one question:
 //! "What is the externalized cost of this impact, in USD?"
 //!
 //! Factors are tiered:
@@ -82,35 +82,15 @@ pub enum Sector {
     Technology,
 }
 
-/// Maps an environmental or social impact to its monetary cost.
+/// JSON-backed factor loader.
 ///
-/// Implementations can be:
-/// - A JSON file loader (reference implementation)
-/// - A database-backed lookup
-/// - An API call to a real-time pricing service
+/// Loads factor data from a JSON string via [`load_from_str`].
+/// File I/O is handled by [`crate::sandbox::load_factors_from_file`].
 ///
-/// The trait is object-safe so it can be stored in `Box<dyn CostFactor>`.
-pub trait CostFactor: Send + Sync {
-    /// Cost of CO₂ equivalent emissions, USD per tonne.
-    fn co2_cost(&self, region: Region, sector: Sector) -> Option<CostMetadata>;
-
-    /// Cost of water consumption, USD per cubic meter.
-    fn water_cost(&self, region: Region, sector: Sector) -> Option<CostMetadata>;
-
-    /// Cost of land use / biodiversity loss, USD per hectare.
-    fn land_cost(&self, region: Region, sector: Sector) -> Option<CostMetadata>;
-
-    /// Cost of air pollution (non-CO₂), USD per tonne PM2.5 equivalent.
-    fn air_pollution_cost(&self, region: Region, sector: Sector) -> Option<CostMetadata>;
-
-    /// Cost of water pollution, USD per cubic meter contaminated.
-    fn water_pollution_cost(&self, region: Region, sector: Sector) -> Option<CostMetadata>;
-
-    /// Number of factors this implementation provides.
-    fn factor_count(&self) -> usize;
-
-    /// Whether this implementation has any real data (vs all defaults).
-    fn is_operational(&self) -> bool;
+/// Lookup methods return [`CostMetadata`] for a given [`Region`]/[`Sector`]
+/// pair, or `None` if the impact is not in the loaded data.
+pub struct JsonFactorLoader {
+    factors: Vec<FactorEntry>,
 }
 
 /// Error type for factor loading failures.
@@ -122,16 +102,6 @@ pub enum FactorError {
     Parse(#[from] serde_json::Error),
     #[error("unknown impact: '{0}'")]
     UnknownImpact(String),
-}
-
-/// JSON-backed CostFactor implementation.
-///
-/// Loads factor data from a JSON file structured per the True Price
-/// Foundation monetisation methodology. Factors are keyed by impact
-/// type and contain global baselines + regional/sector adjustment
-/// multipliers.
-pub struct JsonFactorLoader {
-    factors: Vec<FactorEntry>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -153,21 +123,55 @@ struct FactorEntry {
 }
 
 impl JsonFactorLoader {
-    /// Load factor data from a JSON file path.
-    pub fn load(path: &std::path::Path) -> Result<Self, FactorError> {
-        let data = std::fs::read_to_string(path)?;
-        let file: FactorFile = serde_json::from_str(&data)?;
-        Ok(Self {
-            factors: file.factors,
-        })
-    }
-
-    /// Load from an embedded JSON string (for tests and wasm targets).
+    /// Load factor data from an embedded JSON string (for tests, wasm targets,
+    /// and any caller that has already read the file).
+    ///
+    /// File I/O (`load(path)`) was removed during the Layer Dependency Cleanup
+    /// (2026-07-08). Use [`crate::sandbox::load_factors_from_file`] for file
+    /// loading, or do your own I/O and pass the string here.
     pub fn load_from_str(json: &str) -> Result<Self, FactorError> {
         let file: FactorFile = serde_json::from_str(json)?;
         Ok(Self {
             factors: file.factors,
         })
+    }
+
+    /// Cost of CO₂ equivalent emissions, USD per tonne.
+    pub fn co2_cost(&self, region: Region, sector: Sector) -> Option<CostMetadata> {
+        self.find("co2")
+            .map(|e| Self::build_metadata(e, region, sector))
+    }
+
+    /// Cost of water consumption, USD per cubic meter.
+    pub fn water_cost(&self, region: Region, sector: Sector) -> Option<CostMetadata> {
+        self.find("water_consumption")
+            .map(|e| Self::build_metadata(e, region, sector))
+    }
+
+    /// Cost of land use / biodiversity loss, USD per hectare.
+    pub fn land_cost(&self, region: Region, sector: Sector) -> Option<CostMetadata> {
+        self.find("land_use")
+            .map(|e| Self::build_metadata(e, region, sector))
+    }
+
+    /// Cost of air pollution (non-CO₂), USD per tonne PM2.5 equivalent.
+    pub fn air_pollution_cost(&self, _region: Region, _sector: Sector) -> Option<CostMetadata> {
+        None
+    }
+
+    /// Cost of water pollution, USD per cubic meter contaminated.
+    pub fn water_pollution_cost(&self, _region: Region, _sector: Sector) -> Option<CostMetadata> {
+        None
+    }
+
+    /// Number of factors this implementation provides.
+    pub fn factor_count(&self) -> usize {
+        self.factors.len()
+    }
+
+    /// Whether this implementation has any real data (vs all defaults).
+    pub fn is_operational(&self) -> bool {
+        !self.factors.is_empty()
     }
 
     fn find(&self, impact: &str) -> Option<&FactorEntry> {
@@ -196,39 +200,6 @@ impl JsonFactorLoader {
             confidence: entry.confidence,
             source: entry.source.clone(),
         }
-    }
-}
-
-impl CostFactor for JsonFactorLoader {
-    fn co2_cost(&self, region: Region, sector: Sector) -> Option<CostMetadata> {
-        self.find("co2")
-            .map(|e| Self::build_metadata(e, region, sector))
-    }
-
-    fn water_cost(&self, region: Region, sector: Sector) -> Option<CostMetadata> {
-        self.find("water_consumption")
-            .map(|e| Self::build_metadata(e, region, sector))
-    }
-
-    fn land_cost(&self, region: Region, sector: Sector) -> Option<CostMetadata> {
-        self.find("land_use")
-            .map(|e| Self::build_metadata(e, region, sector))
-    }
-
-    fn air_pollution_cost(&self, _region: Region, _sector: Sector) -> Option<CostMetadata> {
-        None
-    }
-
-    fn water_pollution_cost(&self, _region: Region, _sector: Sector) -> Option<CostMetadata> {
-        None
-    }
-
-    fn factor_count(&self) -> usize {
-        self.factors.len()
-    }
-
-    fn is_operational(&self) -> bool {
-        !self.factors.is_empty()
     }
 }
 

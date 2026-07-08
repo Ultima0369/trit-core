@@ -22,16 +22,17 @@
 //! ## Design
 //!
 //! - prism depends on trit-core types (TritWord, Frame, Phase) — shared via
-//!   the aurora crate's truncore dependency.
+//!   the aurora crate's trit_core dependency.
 //! - prism depends on dataforge types (RawSignal, DataCategory) — shared via
 //!   the aurora crate's dataforge dependency.
+//! - prism depends on datacore for normalization and anomaly detection.
 //! - prism uses the existing PerceptChain for LLM degradation.
 
 use std::collections::HashMap;
 use std::time::Duration;
 
-use dataforge::types::{DataCategory, RawSignal};
-use truncore::{Frame, Phase, TritValue, TritWord};
+use dataforge::{DataCategory, RawSignal};
+use trit_core::{Frame, Phase, TritValue, TritWord};
 
 use crate::percept::{PerceptBatch, PerceptChain, PerceptError};
 
@@ -105,6 +106,20 @@ impl SourceWeights {
         w.insert(
             "UCDP GED",
             SourceProfile::new(0.80, DataCategory::Geopolitical),
+        );
+        w.insert("USGS", SourceProfile::new(0.95, DataCategory::Other));
+        w.insert("NSIDC", SourceProfile::new(0.90, DataCategory::Climate));
+        w.insert(
+            "NOAA Tides",
+            SourceProfile::new(0.85, DataCategory::Ecology),
+        );
+        w.insert(
+            "NASA GIBS",
+            SourceProfile::new(0.75, DataCategory::Satellite),
+        );
+        w.insert(
+            "NASA POWER",
+            SourceProfile::new(0.90, DataCategory::Climate),
         );
         w
     }
@@ -190,6 +205,7 @@ impl PrismEngine {
             DataCategory::Climate | DataCategory::Ecology => Frame::Instrumental,
             DataCategory::ScientificResearch => Frame::Science,
             DataCategory::Geopolitical => Frame::Consensus,
+            DataCategory::Satellite => Frame::Instrumental,
             DataCategory::Other => Frame::Individual,
         };
 
@@ -282,6 +298,120 @@ impl PrismEngine {
             .collect()
     }
 
+    /// Run the full datacore pipeline on a batch of RawSignals before perception.
+    ///
+    /// Normalizes → stores in timeseries → detects anomalies → perceives each.
+    /// Anomalous signals get their TritWord phase attenuated (multiplied by 0.5)
+    /// to reduce their influence on ternary decisions downstream.
+    ///
+    /// Returns (perceived batches, anomaly results) for downstream processing.
+    ///
+    /// ponytail: this is the bridge between dataforge acquisition and aurora
+    /// perception. Signals flow through datacore's normalize+timeseries+anomaly
+    /// before hitting the prism.
+    pub fn pipe_and_perceive(
+        &self,
+        signals: &[RawSignal],
+    ) -> (Vec<PerceptBatch>, Vec<datacore::AnomalyResult>) {
+        // 1. Normalize
+        let normalizer = datacore::SignalNormalizer::new();
+        let normalized = normalizer.normalize_batch(signals);
+
+        // 2. Store in time series
+        let mut store = datacore::TimeSeriesStore::new();
+        store.insert_batch(&normalized);
+
+        // 3. Detect anomalies: z-score + threshold
+        let z_detector = datacore::AnomalyDetector::default();
+        let anomalies = z_detector.score_all(&store);
+
+        let t_detector = datacore::ThresholdDetector::with_climate_defaults();
+        let threshold_alerts = t_detector.check_all(&store);
+
+        // Build a set of (parameter, timestamp) keys that are anomalous,
+        // for rapid lookup during phase attenuation. Combine both detectors.
+        let mut anomalous_keys: std::collections::HashSet<(String, i64)> = anomalies
+            .iter()
+            .filter(|a| a.is_anomalous)
+            .map(|a| {
+                (
+                    a.point.parameter.clone(),
+                    a.point.timestamp.timestamp_micros(),
+                )
+            })
+            .collect();
+        // Add threshold violations to the anomalous set
+        for alert in &threshold_alerts {
+            anomalous_keys.insert((
+                alert.point.parameter.clone(),
+                alert.point.timestamp.timestamp_micros(),
+            ));
+        }
+
+        // Build a set of (parameter, timestamp) keys for threshold violations,
+        // which get stronger attenuation (×0.25) vs z-score anomalies (×0.5).
+        let threshold_keys: std::collections::HashSet<(String, i64)> = threshold_alerts
+            .iter()
+            .map(|a| {
+                (
+                    a.point.parameter.clone(),
+                    a.point.timestamp.timestamp_micros(),
+                )
+            })
+            .collect();
+
+        // ponytail: attenuation factors.
+        // z-score anomaly → phase ×0.5 (uncertain, reduce influence)
+        // threshold violation → phase ×0.25 (known danger, strongly reduce)
+        const Z_ATTENUATION: f64 = 0.5;
+        const THRESHOLD_ATTENUATION: f64 = 0.25;
+
+        // 4. Perceive each raw signal (existing degrade path)
+        let batches: Vec<PerceptBatch> = signals
+            .iter()
+            .filter_map(|sig| match self.perceive_one(sig) {
+                Ok(mut batch) => {
+                    // Attenuate phase of TritWords from anomalous signals
+                    if !anomalous_keys.is_empty() || !threshold_keys.is_empty() {
+                        for word in &mut batch.signals {
+                            let sig_ts = sig.captured_at.timestamp_micros();
+                            let is_z_anomaly = anomalous_keys
+                                .iter()
+                                .any(|(_, ts)| (ts - sig_ts).abs() < 3_600_000_000);
+                            let is_threshold = threshold_keys
+                                .iter()
+                                .any(|(_, ts)| (ts - sig_ts).abs() < 3_600_000_000);
+
+                            if is_z_anomaly || is_threshold {
+                                let factor = if is_threshold {
+                                    THRESHOLD_ATTENUATION
+                                } else {
+                                    Z_ATTENUATION
+                                };
+                                let current_phase = word.phase().inner();
+                                let attenuated = Phase::new_clamped(current_phase * factor);
+                                if let Ok(attenuated_word) = word.with_phase(attenuated) {
+                                    *word = attenuated_word;
+                                }
+                            }
+                        }
+                    }
+                    Some(batch)
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        source = %sig.source_name,
+                        error = %e,
+                        "pipe_and_perceive: perception failed, skipping"
+                    );
+                    None
+                }
+            })
+            .collect();
+
+        (batches, anomalies)
+    }
+
     /// Flatten a batch perception into a single Vec<TritWord> for trit-core.
     ///
     /// Each PerceptBatch contributes its signals. The source name is NOT
@@ -351,14 +481,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn source_weights_defaults_have_five_sources() {
+    fn source_weights_defaults_have_ten_sources() {
         let weights = SourceWeights::with_defaults();
-        assert_eq!(weights.len(), 5);
+        assert_eq!(weights.len(), 10);
         assert!(weights.get("NOAA GML").is_some());
         assert!(weights.get("Open-Meteo").is_some());
+        assert!(weights.get("NSIDC").is_some());
+        assert!(weights.get("NOAA Tides").is_some());
         assert!(weights.get("GBIF").is_some());
         assert!(weights.get("arXiv").is_some());
         assert!(weights.get("UCDP GED").is_some());
+        assert!(weights.get("USGS").is_some());
+        assert!(weights.get("NASA GIBS").is_some());
+        assert!(weights.get("NASA POWER").is_some());
     }
 
     #[test]
@@ -607,5 +742,65 @@ mod tests {
         assert_eq!(words.len(), 1);
         assert_eq!(words[0].value(), TritValue::True);
         assert_eq!(words[0].frame(), Frame::Instrumental);
+    }
+
+    #[test]
+    fn pipe_and_perceive_with_co2_data() {
+        let engine = PrismEngine::new(PerceptChain::new(), SourceWeights::with_defaults());
+        let signals = vec![
+            RawSignal {
+                id: "co2_1".into(),
+                source_url: "https://example.com".into(),
+                source_name: "NOAA GML".into(),
+                category: DataCategory::Climate,
+                raw_content: "co2_ppm:418.00".into(),
+                captured_at: chrono::Utc::now(),
+                data_period: None,
+                location: None,
+            },
+            RawSignal {
+                id: "co2_2".into(),
+                source_url: "https://example.com".into(),
+                source_name: "NOAA GML".into(),
+                category: DataCategory::Climate,
+                raw_content: "co2_ppm:419.50".into(),
+                captured_at: chrono::Utc::now() + chrono::Duration::hours(1),
+                data_period: None,
+                location: None,
+            },
+            RawSignal {
+                id: "co2_spike".into(),
+                source_url: "https://example.com".into(),
+                source_name: "NOAA GML".into(),
+                category: DataCategory::Climate,
+                raw_content: "co2_ppm:550.00".into(),
+                captured_at: chrono::Utc::now() + chrono::Duration::hours(2),
+                data_period: None,
+                location: None,
+            },
+        ];
+
+        let (batches, anomalies) = engine.pipe_and_perceive(&signals);
+        // All three signals should be perceived (degrade path)
+        assert_eq!(batches.len(), 3);
+        // The spike should be detected as an anomaly
+        assert!(!anomalies.is_empty());
+        let spike_anomalies: Vec<_> = anomalies.iter().filter(|a| a.is_anomalous).collect();
+        assert!(
+            !spike_anomalies.is_empty(),
+            "550 ppm spike should be anomalous"
+        );
+
+        // Verify that the spike batch has attenuated phase compared to normal
+        // ponytail: all signals in the spike batch are attenuated because
+        // the batch-level matching at ±1 hour window catches the anomaly.
+        let spike_batch = &batches[2]; // third signal = spike
+        assert_eq!(spike_batch.signals.len(), 1);
+        let spike_phase = spike_batch.signals[0].phase().inner();
+        let normal_phase = batches[0].signals[0].phase().inner();
+        assert!(
+            spike_phase < normal_phase,
+            "anomalous signal phase ({spike_phase}) should be lower than normal ({normal_phase})"
+        );
     }
 }

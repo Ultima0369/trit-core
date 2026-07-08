@@ -115,10 +115,10 @@ fn get_resource_server_url() -> String {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // ── 1. 初始化日志 ──────────────────────────────────────────────
-    let _log_path = logger::init().unwrap_or_else(|e| {
-        eprintln!("[FATAL] 日志初始化失败: {e}");
-        panic!("日志初始化失败: {e}");
-    });
+    let _log_path: Option<std::path::PathBuf> = logger::init().ok();
+    if _log_path.is_none() {
+        eprintln!("[WARN] 日志初始化失败，继续运行但无日志");
+    }
 
     // ── 2. 确定数据根目录 ──────────────────────────────────
     let aurora_dir = data_dir::aurora_data_dir();
