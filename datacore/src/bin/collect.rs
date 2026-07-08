@@ -89,11 +89,14 @@ async fn main() {
         println!("{}", result.to_markdown());
     } else if compact {
         let summary = serde_json::json!({
+            "ts": chrono::Utc::now().to_rfc3339(),
             "sources": registry.source_count(),
+            "sources_ok": result.health.iter().filter(|h| h.successes > 0).count(),
             "raw_signals": result.raw_count,
             "normalized": result.normalized_count,
             "data_points": result.point_count,
             "anomalies": result.anomaly_count,
+            "threshold_violations": result.threshold_alerts.len(),
             "elapsed_ms": elapsed.as_millis(),
             "health": result.health.iter().map(|h| serde_json::json!({
                 "name": h.name,
@@ -184,10 +187,12 @@ async fn main() {
                 } else {
                     let summary = serde_json::json!({
                         "ts": chrono::Utc::now().to_rfc3339(),
+                        "sources_ok": result.health.iter().filter(|h| h.successes > 0).count(),
                         "raw_signals": result.raw_count,
                         "normalized": result.normalized_count,
                         "data_points": result.point_count,
                         "anomalies": result.anomaly_count,
+                        "threshold_violations": result.threshold_alerts.len(),
                         "health": result.health.iter().map(|h| serde_json::json!({
                             "name": h.name,
                             "successes": h.successes,
